@@ -144,3 +144,5 @@
 2026-05-23：Phase 3 双栏工作台已落地。左侧 PDF 阅读器与右侧 AI Tabs 同屏显示，拖拽分隔线将阅读器宽度从 666.8px 调整到 551px，右侧 AI 面板同步扩展到 589px；窄屏 820px 验证为上下堆叠且无横向溢出。桌面截图 `/tmp/vibereader-dual-pane-qa.png`，窄屏截图 `/tmp/vibereader-dual-pane-narrow-qa.png`。剩余需手工验证 PDF 选区注入。
 
 2026-05-23：Phase 4 Stop generating 已按 BDD/TDD 推进。新增 Vitest + Testing Library 测试底座，先观察到 `AbortSignal` 未传递、AbortError 会变成硬失败、loading 状态下没有 Stop 控件的红灯失败，再完成最小实现并转绿。真实 PDF 选区注入通过 CDP 验收：`wonderland_short.pdf` 加载 29 页，canvas 612x792 非空，文本层包含 Alice/Project Gutenberg，选中 `Project` 后右侧 Chat 出现 `基于以下论文内容： Project`，阅读器与 AI 面板仍同时可见。截图 `/tmp/vibereader-phase4-qa.png`。由于当前模型请求返回 `Failed to fetch`，真实模型长回复中断仍需用有效 API 配置手工验收。
+
+2026-05-23：已把可用的 MiniMax Token Plan 配置迁回当前 Tauri 主线 `VibeReader Standalone Dev` 的 WebKit localStorage。来源为本机 `~/.mmx/config.json`，写入目标为 `~/Library/WebKit/vibereader/.../LocalStorage/localstorage.sqlite3`，写入前已生成 `.bak-20260523160540` 备份。回读确认选中配置为 `vibereader-minimax-token-plan`，模型为 `MiniMax-M2.7`，协议为 Anthropic 兼容，API key 存在但未写入 git 或文档。旧 Codex 备份里的另一枚 MiniMax key 已验证为 `401 invalid api key`，未迁入。Kimi/Moonshot 只找到旧网页运行面的 `trial-kimi-priority` 标记，未找到可复用的真实 Moonshot API key，因此未创建不可用的 Kimi 配置。

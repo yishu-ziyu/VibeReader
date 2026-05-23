@@ -197,3 +197,29 @@ BDD/TDD：
 遗留风险：
 
 - 当前模型请求在本机返回 `Failed to fetch`，真实长回复 Stop 需要使用有效 API 配置做一次手工验收。
+
+## 2026-05-23 模型配置迁移
+
+结果：
+
+- 当前 Tauri 主线 `VibeReader Standalone Dev` 的 WebKit localStorage 已写入可用 MiniMax Token Plan 配置。
+- 写入目标：`~/Library/WebKit/vibereader/.../LocalStorage/localstorage.sqlite3`。
+- 写入前备份：`localstorage.sqlite3.bak-20260523160540`。
+- 选中配置：`vibereader-minimax-token-plan`。
+- 模型：`MiniMax-M2.7`。
+- Base URL：`https://api.minimaxi.com/anthropic`。
+- 协议：Anthropic 兼容。
+
+验证：
+
+- 回读 localStorage 确认 `ai-chat.modelConfigs` 包含 MiniMax 配置，`ai-chat.selectedConfigId` 指向该配置。
+- 使用同一 key 直接请求 `https://api.minimaxi.com/anthropic/v1/messages`，`MiniMax-M2.7` 返回 HTTP 200。
+- 旧 Codex 备份中的另一枚 MiniMax key 返回 HTTP 401，未迁入。
+- `npx vitest run --environment jsdom --pool=threads --testTimeout=30000` -> pass，2 个测试文件 / 3 个测试通过。
+- `npm run build` -> pass，仍有既有 chunk size warning。
+- `cd src-tauri && cargo check` -> pass。
+
+遗留风险：
+
+- 未找到可复用的 Kimi/Moonshot API key；旧网页运行面只有 `trial-kimi-priority` 标记，不是当前 VibeReader 可直接调用的 API 配置。
+- 如果迁移时 VibeReader 窗口已经打开，WebKit 可能仍持有旧 localStorage 缓存；重启 VibeReader 后会读取已写入的配置。
