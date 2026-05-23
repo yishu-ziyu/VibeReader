@@ -41,8 +41,10 @@ export async function extractTextFromPDF(file) {
             metadata: { agent: 'pdf-parser' },
         });
 
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const sourceBytes = new Uint8Array(await file.arrayBuffer());
+        const parserBytes = sourceBytes.slice();
+        const viewerBytes = sourceBytes.slice();
+        const pdf = await pdfjsLib.getDocument({ data: parserBytes }).promise;
         const numPages = pdf.numPages;
 
         progress.emitEvent({
@@ -84,8 +86,9 @@ export async function extractTextFromPDF(file) {
             metadata: { agent: 'pdf-parser', textLength: fullText.length },
         });
 
-        // Store the ArrayBuffer for visual rendering in PdfViewer
-        usePdfStore.getState().setPdfFile(arrayBuffer);
+        // Keep a separate byte copy for PdfViewer. pdf.js may transfer/consume the
+        // buffer passed to getDocument(), so reusing the parser bytes can render blank.
+        usePdfStore.getState().setPdfFile(viewerBytes);
 
         const result = {
             text: fullText.trim(),

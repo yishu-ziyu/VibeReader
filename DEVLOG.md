@@ -78,3 +78,29 @@
 - PDF.js worker 仍来自 CDN，离线打开 PDF 不是稳定保证。
 - 主前端 bundle 约 2.27 MB，后续需要 code splitting。
 - Tauri 环境可用 Homebrew Rust 构建，但 `tauri info` 提示更推荐 rustup；打包发布前应补齐正式 macOS 工具链检查。
+
+## 2026-05-23 Phase 2 PDF 可视渲染修复
+
+问题：
+
+- 真实手工打开文件时，曾选择到一个名字以 `.pdf` 结尾的目录：`/Users/mahaoxuan/Downloads/故事》罗伯特麦基-著 21.55.20.pdf`。
+- 旧逻辑只看扩展名，可能把目录当成 PDF 或文本文件继续读取。
+- PDF 文本解析成功后，视觉阅读器出现空白页风险；原因是 `pdfService` 把同一份二进制传给文本解析和 `PdfViewer` 复用，pdf.js 可能消费/转移该 buffer。
+
+改动：
+
+- `documentService` 规范化 Tauri dialog 返回值，并用 `stat(path)` 判断是否为目录。
+- Tauri capability 新增 `fs:allow-stat`。
+- `pdfService` 为文本解析和视觉阅读器分别创建独立 `Uint8Array` 副本。
+- `PdfViewer` 在加载 PDF 时再次复制传入数据，避免后续渲染拿到被消费的 buffer。
+
+命令：
+
+- `npm run build` -> pass。
+- `cd src-tauri && cargo check` -> pass。
+- `npm run tauri:dev` -> pass，桌面应用重新启动成功。
+
+手工验收建议：
+
+- 不要选择名字以 `.pdf` 结尾的目录。
+- 使用真实文件，例如 `/Users/mahaoxuan/Desktop/黑客松/Vibero/test/tests/data/wonderland_short.pdf`。

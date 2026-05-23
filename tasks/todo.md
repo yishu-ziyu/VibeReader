@@ -51,7 +51,9 @@
 - [x] Tauri 权限包含 dialog + 只读文件读取能力
 - [x] 浏览器 dev server 入口可访问
 - [x] Tauri dev 窗口可启动
-- [ ] 桌面窗口实际选择本地 PDF 并完成解析
+- [x] 文件夹误选会被拦截并提示
+- [x] PDF 解析和视觉渲染使用独立二进制副本
+- [ ] 桌面窗口实际选择真实本地 PDF 文件并完成解析
 - [ ] PDF 视觉渲染成功
 - [x] 打开失败有明确错误提示
 
@@ -129,3 +131,5 @@
 2026-05-23：已完成本轮规划接力，并完成 Phase 0 版本保护。当前基线提交为 `e6ea59f`。下一步应从 Phase 1：Tauri v2 壳 + Vite 迁移开始。
 
 2026-05-23：继续执行 Phase 1/2。已完成 Vite 迁移、Tauri v2 初始化、dialog/fs 插件、桌面图标、统一文档服务和文档状态 store。`npm run build`、`cargo check`、`npm run tauri:dev` 均通过。剩余需要在真实桌面交互中选择一份 PDF，完成 A3/A4/A5 手工验收。
+
+2026-05-23：根据真实截图和 dev 日志修复 PDF 可视渲染链路：拦截名字以 `.pdf` 结尾的目录，增加 `fs:allow-stat`，并为 pdf.js 文本解析和 Viewer 渲染拆分独立 byte copy。下一次手工验收建议选择 `/Users/mahaoxuan/Desktop/黑客松/Vibero/test/tests/data/wonderland_short.pdf`。

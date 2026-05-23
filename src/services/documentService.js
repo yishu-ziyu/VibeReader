@@ -63,17 +63,24 @@ export function fileToDocument(file, source = 'browser-upload') {
     };
 }
 
+function normalizeSelectedPath(selectedPath) {
+    if (typeof selectedPath === 'string') return selectedPath;
+    if (selectedPath && typeof selectedPath.path === 'string') return selectedPath.path;
+    return String(selectedPath || '');
+}
+
 export async function openTauriDocument() {
     if (!isTauriRuntime()) {
         return { status: 'unsupported' };
     }
 
-    const [{ open }, { readFile, readTextFile }] = await Promise.all([
+    const [{ open }, { readFile, readTextFile, stat }] = await Promise.all([
         import('@tauri-apps/plugin-dialog'),
         import('@tauri-apps/plugin-fs'),
     ]);
 
     const selectedPath = await open({
+        directory: false,
         multiple: false,
         filters: [
             {
@@ -91,12 +98,23 @@ export async function openTauriDocument() {
         return { status: 'cancelled' };
     }
 
-    const name = getFileNameFromPath(selectedPath);
+    const path = normalizeSelectedPath(selectedPath);
+    const name = getFileNameFromPath(path);
     const mimeType = inferMimeType(name);
-    const kind = inferDocumentKind(name, mimeType);
+    const kind = inferDocumentKind(path, mimeType);
+    const fileInfo = await stat(path);
+
+    if (fileInfo.isDirectory) {
+        return {
+            status: 'invalid',
+            reason: 'directory-selected',
+            path,
+            message: '请选择具体文件，不要选择文件夹。',
+        };
+    }
 
     if (kind === 'pdf') {
-        const bytes = await readFile(selectedPath);
+        const bytes = await readFile(path);
         const binary = bytes instanceof Uint8Array ? bytes.slice() : new Uint8Array(bytes);
         const file = new File([binary], name, { type: mimeType });
 
@@ -107,7 +125,7 @@ export async function openTauriDocument() {
                 name,
                 kind,
                 source: 'local-file',
-                path: selectedPath,
+                path,
                 mimeType,
                 size: file.size,
                 binary: binary.buffer,
@@ -117,7 +135,7 @@ export async function openTauriDocument() {
         };
     }
 
-    const contentText = await readTextFile(selectedPath);
+    const contentText = await readTextFile(path);
     const file = new File([contentText], name, { type: mimeType });
 
     return {
@@ -127,7 +145,7 @@ export async function openTauriDocument() {
             name,
             kind,
             source: 'local-file',
-            path: selectedPath,
+            path,
             mimeType,
             size: file.size,
             contentText,

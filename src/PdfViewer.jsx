@@ -22,6 +22,13 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3.0;
 const ZOOM_STEP = 0.25;
 
+function copyPdfData(data) {
+  if (data instanceof Uint8Array) return data.slice();
+  if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
+  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+  return data;
+}
+
 /**
  * PdfViewer - Visual PDF renderer using pdf.js with TextLayer support.
  *
@@ -59,7 +66,7 @@ export function PdfViewer({ onInject, style = {} }) {
     let cancelled = false;
     const load = async () => {
       try {
-        const pdf = await pdfjsLib.getDocument({ data: pdfFile }).promise;
+        const pdf = await pdfjsLib.getDocument({ data: copyPdfData(pdfFile) }).promise;
         if (!cancelled) {
           setPdfDoc(pdf);
           setCurrentPage(1);

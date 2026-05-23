@@ -201,6 +201,11 @@ function App() {
                 return;
             }
 
+            if (result.status === 'invalid') {
+                antMessage.warning(result.message || t('ai-chat-document-open-invalid', null, '请选择支持的文件。'));
+                return;
+            }
+
             const { document } = result;
             if (!document) return;
 
