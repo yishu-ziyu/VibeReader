@@ -2,6 +2,18 @@
 
 最后更新：2026-05-23
 
+## 当前执行状态
+
+2026-05-23 更新：
+
+- Phase 0 已完成：本目录已初始化 git，并保留迁移前基线提交。
+- Phase 1 已完成：已迁移到 Vite，并初始化 Tauri v2 桌面壳。
+- Phase 2 已进入实现状态：已新增统一文档服务、Tauri 文件选择器接入、浏览器上传 fallback、`documentStore` 和 PDF 解析复用链路。
+- 自动验证已通过：`npm run build`、`cd src-tauri && cargo check`、`npm run tauri:dev`。
+- 尚未完成的 Phase 2 手工验收：在真实桌面窗口中选择一份本地 PDF，确认解析、视觉渲染、翻页缩放和选区注入。
+
+下文 “当前项目状态” 保留为制定计划时的基线快照，实际进度以 `tasks/todo.md` 和 `DEVLOG.md` 为准。
+
 ## 0. 接力结论
 
 这份计划承接前一轮 Antigravity CLI 的讨论与本轮本机复核。结论已经确认：

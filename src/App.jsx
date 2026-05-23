@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Bubble } from '@ant-design/x';
 import { Button, Flex, message as antMessage, Spin, Modal, Slider, Tabs } from 'antd';
-import { FontSizeOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CommentOutlined, FileTextOutlined, BookOutlined, BranchesOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { FontSizeOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, FolderOpenOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CommentOutlined, FileTextOutlined, BookOutlined, BranchesOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import ChatInput from './ChatInput';
 import aiService from './aiService';
 import { MULTIMODAL_UNSUPPORTED_CODE } from './multimodalApiError';
@@ -10,12 +10,13 @@ import { buildChatHardFailureBubbleContent } from './chatHardFailureContent';
 import { t, formatCustomModelLabel } from './i18n';
 import MarkdownRenderer from './MarkdownRenderer';
 import { extractTextFromPDF } from './pdfService';
+import { fileToDocument, openTauriDocument } from './services/documentService';
 import { isVisionCapableByModelName } from './modelPresets';
 import {
     saveConversation, loadConversation, listConversations, deleteConversation,
     getFontScale, setFontScale, getModelConfigs, getSelectedConfigId
 } from './storage';
-import { useConversationStore, useModelStore, usePdfStore, useUIStore } from './store';
+import { useConversationStore, useDocumentStore, useModelStore, usePdfStore, useUIStore } from './store';
 import { useVibeStore } from './store';
 import { PdfViewer } from './PdfViewer';
 import { SummaryPanel } from './SummaryPanel';
@@ -77,8 +78,9 @@ function App() {
     // Zustand stores
     const { messages, loading, sessions, currentSessionId, historyLoaded, setMessages, setLoading, setSessions, setCurrentSessionId, setHistoryLoaded } = useConversationStore();
     const { selectedModel, visionCapable, selectModel } = useModelStore();
-    const { pdfText, pdfPages, pdfParsing, setPdfData, clearPdf, startParsing, finishParsing, failParsing } = usePdfStore();
+    const { pdfText, pdfPages, pdfParsing, clearPdf, startParsing, finishParsing, failParsing } = usePdfStore();
     const { fontScale, showFontSlider, sidebarCollapsed, activeToolTab, setFontScale: setFontScaleState, setShowFontSlider, setSidebarCollapsed, setActiveToolTab } = useUIStore();
+    const { addDocument } = useDocumentStore();
 
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
@@ -151,12 +153,19 @@ function App() {
     }, [selectedModel]);
 
     // PDF 上传处理
-    const handlePdfUpload = useCallback(async (file) => {
-        if (!file || !file.type.includes('pdf')) return;
+    const handlePdfUpload = useCallback(async (file, preparedDocument = null) => {
+        const document = preparedDocument || fileToDocument(file);
+        if (!document || document.kind !== 'pdf') {
+            antMessage.error(t('ai-chat-pdf-only', null, '请打开 PDF 文件。'));
+            return;
+        }
+
         startParsing();
         try {
             const { text, pages } = await extractTextFromPDF(file);
-            setPdfData(text, pages);
+            addDocument(document);
+            finishParsing(text, pages);
+            setActiveToolTab('pdf');
             // 触发 VIBE 解析
             useVibeStore.getState().parsePdfText(text);
             // 注入到当前服务
@@ -171,12 +180,42 @@ function App() {
             antMessage.error(t('ai-chat-pdf-parse-failed'));
             failParsing();
         }
-    }, [getCurrentService]);
+    }, [addDocument, finishParsing, getCurrentService, setActiveToolTab, startParsing, failParsing]);
 
     const handlePdfDrop = useCallback((e) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
         if (file) handlePdfUpload(file);
+    }, [handlePdfUpload]);
+
+    const handleOpenDocument = useCallback(async () => {
+        try {
+            const result = await openTauriDocument();
+
+            if (result.status === 'unsupported') {
+                fileInputRef.current?.click();
+                return;
+            }
+
+            if (result.status === 'cancelled') {
+                return;
+            }
+
+            const { document } = result;
+            if (!document) return;
+
+            if (document.kind !== 'pdf') {
+                antMessage.info(t('ai-chat-document-kind-pending', {
+                    kind: document.kind,
+                }, '该格式已纳入后续阅读器阶段；当前请先打开 PDF。'));
+                return;
+            }
+
+            await handlePdfUpload(document.file, document);
+        } catch (error) {
+            console.error('[App] Failed to open document:', error);
+            antMessage.error(t('ai-chat-document-open-failed', null, '打开文件失败，请重试或使用拖拽上传。'));
+        }
     }, [handlePdfUpload]);
 
     // 发送消息
@@ -430,7 +469,7 @@ function App() {
                     {/* PDF 上传 */}
                     <div style={{ padding: '0 12px 12px' }}>
                         <div
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={handleOpenDocument}
                             onDrop={handlePdfDrop}
                             onDragOver={(e) => e.preventDefault()}
                             style={{
@@ -451,6 +490,18 @@ function App() {
                                         : t('ai-chat-pdf-upload-drag')
                                 }
                             </div>
+                            <Button
+                                type="link"
+                                size="small"
+                                icon={<FolderOpenOutlined />}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDocument();
+                                }}
+                                style={{ padding: 0, height: 22, marginTop: 4 }}
+                            >
+                                {t('ai-chat-open-local-file', null, '打开文件')}
+                            </Button>
                         </div>
                         <input
                             ref={fileInputRef}

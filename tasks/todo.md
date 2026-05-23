@@ -25,32 +25,35 @@
 
 ## Phase 1：Tauri v2 壳
 
-- [ ] 安装 Tauri v2 依赖
-- [ ] 迁移 webpack 到 Vite
-- [ ] 初始化 `src-tauri`
-- [ ] 配置应用名、bundle id、窗口尺寸、图标
-- [ ] 添加 scripts：`dev`、`build`、`tauri:dev`、`tauri:build`
+- [x] 安装 Tauri v2 依赖
+- [x] 迁移 webpack 到 Vite
+- [x] 初始化 `src-tauri`
+- [x] 配置应用名、bundle id、窗口尺寸、图标
+- [x] 添加 scripts：`dev`、`build`、`tauri:dev`、`tauri:build`
 
 验收：
 
-- [ ] `npm run dev` 通过
-- [ ] `npm run build` 通过
-- [ ] `npm run tauri:dev` 打开桌面窗口
+- [x] `npm run dev` 通过
+- [x] `npm run build` 通过
+- [x] `npm run tauri:dev` 打开桌面窗口
 
 ## Phase 2：本地文件打开
 
-- [ ] 新增 `src/services/documentService.js`
-- [ ] 定义统一文档对象
-- [ ] Tauri 环境接入系统文件选择器
-- [ ] 浏览器环境保留上传 fallback
-- [ ] PDF 打开后继续复用 `extractTextFromPDF` 和 `PdfViewer`
+- [x] 新增 `src/services/documentService.js`
+- [x] 定义统一文档对象
+- [x] 新增 `src/store/documentStore.js`
+- [x] Tauri 环境接入系统文件选择器
+- [x] 浏览器环境保留上传 fallback
+- [x] PDF 打开后继续复用 `extractTextFromPDF` 和 `PdfViewer`
 
 验收：
 
-- [ ] 桌面窗口可选择本地 PDF
-- [ ] PDF 解析成功
+- [x] Tauri 权限包含 dialog + 只读文件读取能力
+- [x] 浏览器 dev server 入口可访问
+- [x] Tauri dev 窗口可启动
+- [ ] 桌面窗口实际选择本地 PDF 并完成解析
 - [ ] PDF 视觉渲染成功
-- [ ] 打开失败有明确错误提示
+- [x] 打开失败有明确错误提示
 
 ## Phase 3：阅读器 + AI 双栏工作台
 
@@ -124,3 +127,5 @@
 ## Review
 
 2026-05-23：已完成本轮规划接力，并完成 Phase 0 版本保护。当前基线提交为 `e6ea59f`。下一步应从 Phase 1：Tauri v2 壳 + Vite 迁移开始。
+
+2026-05-23：继续执行 Phase 1/2。已完成 Vite 迁移、Tauri v2 初始化、dialog/fs 插件、桌面图标、统一文档服务和文档状态 store。`npm run build`、`cargo check`、`npm run tauri:dev` 均通过。剩余需要在真实桌面交互中选择一份 PDF，完成 A3/A4/A5 手工验收。
