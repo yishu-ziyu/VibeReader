@@ -338,7 +338,7 @@ class AIService {
 
     async chatStream(userMessage, onChunk, options = {}) {
         const { baseUrl, apiKey, model, apiType } = this.config;
-        const { includeHistory = true, systemPrompt, temperature: temperatureOpt } = options;
+        const { includeHistory = true, signal, systemPrompt, temperature: temperatureOpt } = options;
         const temperature = resolveTemperatureForCustomModel(model, temperatureOpt);
 
         if (!baseUrl || !model) {
@@ -346,6 +346,9 @@ class AIService {
         }
 
         const isAnthropic = apiType === 'anthropic-compatible';
+        let fullMessage = '';
+        let fullThinking = '';
+        let hasThinking = false;
 
         try {
             let endpoint;
@@ -414,6 +417,7 @@ class AIService {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(body),
+                signal,
             });
 
             if (!response.ok) {
@@ -435,9 +439,6 @@ class AIService {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
-            let fullMessage = '';
-            let fullThinking = '';
-            let hasThinking = false;
             let detectedFormat = null; // 'openai' | 'anthropic-text' | 'anthropic-thinking' | null
 
             while (true) {
@@ -480,6 +481,17 @@ class AIService {
             }
             onChunk({ done: true, fullMessage, fullThinking, hasThinking });
         } catch (error) {
+            if (error?.name === 'AbortError') {
+                onChunk({
+                    done: true,
+                    fullMessage: typeof fullMessage === 'string' ? fullMessage : '',
+                    fullThinking: typeof fullThinking === 'string' ? fullThinking : '',
+                    hasThinking: !!hasThinking,
+                    interrupted: true,
+                    aborted: true,
+                });
+                return;
+            }
             console.error('[AIService] Error:', error);
             enhanceErrorWithMultimodalHint(error, error?.message);
             onChunk({

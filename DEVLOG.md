@@ -171,3 +171,29 @@
 遗留风险：
 
 - PDF 选区注入仍需在真实鼠标选中文本场景中手工验收。
+
+## 2026-05-23 Phase 4 Stop generating + PDF 选区注入验收
+
+BDD/TDD：
+
+- 新增 `tasks/bdd-tdd-phase4.md`，固定 Stop generating 与 PDF 选区注入的 Given / When / Then 行为。
+- 新增 Vitest + Testing Library 测试底座。
+- 红灯结果：`aiService.chatStream` 未向 `fetch` 传入 `AbortSignal`；AbortError 会抛出并丢失 partial 内容；loading 状态下 `ChatInput` 没有 Stop 控件。
+- 绿灯结果：`npm run test` 通过，2 个测试文件共 3 个测试通过。
+
+改动：
+
+- `aiService.chatStream` 支持 `options.signal`，AbortError 返回 `{ interrupted: true, aborted: true, fullMessage }`，不再抛成硬失败。
+- `App` 为每次发送创建独立 `AbortController`，Stop 只取消当前请求。
+- `ChatInput` 的发送按钮拆成 `ChatSubmitControl`，loading 时显示 Stop。
+
+验收：
+
+- `npm run test` -> pass。
+- `npm run build` -> pass，仍有既有 bundle size warning。
+- `cd src-tauri && cargo check` -> pass。
+- 真实 PDF 选区注入：通过 CDP 在 `wonderland_short.pdf` 中选中 `Project` 并点击注入，右侧 Chat 出现 `基于以下论文内容： Project`，左侧阅读器仍可见，截图 `/tmp/vibereader-phase4-qa.png`。
+
+遗留风险：
+
+- 当前模型请求在本机返回 `Failed to fetch`，真实长回复 Stop 需要使用有效 API 配置做一次手工验收。

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createEditor, Editor, Transforms } from 'slate';
 import { withHistory } from 'slate-history';
 import { Editable, Slate, withReact } from 'slate-react';
-import { GlobalOutlined, SendOutlined, DownOutlined, SettingOutlined, PlusOutlined, DeleteOutlined, LinkOutlined } from '@ant-design/icons';
+import { GlobalOutlined, DownOutlined, SettingOutlined, PlusOutlined, DeleteOutlined, LinkOutlined } from '@ant-design/icons';
 import { Button, Flex, theme, Dropdown, message as antMessage, Modal, Form, Input, Select } from 'antd';
 import { t, formatCustomModelLabel, isZhLocale } from './i18n';
 import {
@@ -13,6 +13,7 @@ import modelIcon from '../icons/model.svg';
 import ImageUploader from './ImageUploader';
 import ImagePreview from './ImagePreview';
 import { fetchWebContent, formatAsMarkdownBlock } from './browserTool';
+import { ChatSubmitControl } from './ChatSubmitControl';
 
 const MENU_SLOT_PX = 20;
 const TOOLBAR_ICON_PX = 18;
@@ -29,7 +30,7 @@ const initialEditorValue = [
     },
 ];
 
-function ChatInput({ currentModel, onModelChange, onSubmit, loading, visionCapable }) {
+function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, visionCapable }) {
     const { token } = theme.useToken();
     const [form] = Form.useForm();
     const [editor] = useState(() => withReact(withHistory(createEditor())));
@@ -676,15 +677,12 @@ function ChatInput({ currentModel, onModelChange, onSubmit, loading, visionCapab
 
                     {/* 右侧工具 */}
                     <Flex align="center" gap="small">
-                        <Button
-                            className="btn-black"
-                            icon={<SendOutlined />}
+                        <ChatSubmitControl
                             loading={loading}
                             disabled={isEditorEmpty()}
-                            onClick={handleSubmit}
-                        >
-                            Send
-                        </Button>
+                            onSubmit={handleSubmit}
+                            onStop={onStop}
+                        />
                     </Flex>
                 </Flex>
             </div>

@@ -98,6 +98,7 @@ function App() {
     const messagesContainerRef = useRef(null);
     const fileInputRef = useRef(null);
     const currentSessionIdRef = useRef(currentSessionId);
+    const abortControllerRef = useRef(null);
 
     useEffect(() => {
         currentSessionIdRef.current = currentSessionId;
@@ -247,6 +248,8 @@ function App() {
         }
 
         setLoading(true);
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
         // 论文上下文已准备好，添加用户消息
         const userMessage = {
@@ -288,7 +291,7 @@ function App() {
             try {
                 await service.chatStream(
                     messageContent,
-                    ({ done, content, fullMessage, thinking, fullThinking, hasThinking, interrupted, error, errorCode }) => {
+                    ({ done, content, fullMessage, thinking, fullThinking, hasThinking, interrupted, aborted, error, errorCode }) => {
                         if (!done && (content || thinking)) {
                             setMessages(prev => prev.map(msg =>
                                 msg.id === aiMessageId
@@ -298,7 +301,7 @@ function App() {
                         } else if (done) {
                             let finalContent = fullMessage;
                             const isMmRejected = interrupted && errorCode === MULTIMODAL_UNSUPPORTED_CODE;
-                            const streamFailedHard = interrupted && !!error && !isMmRejected;
+                            const streamFailedHard = interrupted && !!error && !aborted && !isMmRejected;
 
                             if (interrupted) {
                                 if (isMmRejected) {
@@ -331,12 +334,31 @@ function App() {
                                 return updated;
                             });
                             setLoading(false);
+                            if (abortControllerRef.current === abortController) {
+                                abortControllerRef.current = null;
+                            }
                         }
                     },
-                    { systemPrompt: SYSTEM_PROMPT }
+                    { systemPrompt: SYSTEM_PROMPT, signal: abortController.signal }
                 );
             } catch (error) {
                 console.error('[App] Chat error:', error);
+                if (abortController.signal.aborted || error?.name === 'AbortError') {
+                    setMessages(prev => {
+                        const updated = prev.map(msg =>
+                            msg.id === aiMessageId
+                                ? { ...msg, typing: false, timestamp: Date.now() }
+                                : msg
+                        );
+                        persistMessages(updated);
+                        return updated;
+                    });
+                    setLoading(false);
+                    if (abortControllerRef.current === abortController) {
+                        abortControllerRef.current = null;
+                    }
+                    return;
+                }
                 setMessages(prev => {
                     const updated = prev.filter(m => m.id !== aiMessageId);
                     persistMessages(updated);
@@ -344,11 +366,18 @@ function App() {
                 });
                 antMessage.error('发送失败: ' + error.message);
                 setLoading(false);
+                if (abortControllerRef.current === abortController) {
+                    abortControllerRef.current = null;
+                }
             }
         };
 
         performChat();
     }, [getCurrentService, selectedModel, persistMessages]);
+
+    const handleStopGenerating = useCallback(() => {
+        abortControllerRef.current?.abort();
+    }, []);
 
     // 从 PDF 段落注入到聊天
     const handleInjectPdfText = useCallback((text) => {
@@ -754,6 +783,7 @@ function App() {
                                     currentModel={selectedModel}
                                     onModelChange={handleModelChange}
                                     onSubmit={handleSubmit}
+                                    onStop={handleStopGenerating}
                                     loading={loading}
                                     visionCapable={visionCapable}
                                 />

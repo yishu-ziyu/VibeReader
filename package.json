@@ -7,6 +7,7 @@
     "build": "vite build",
     "dev": "vite --host 127.0.0.1",
     "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run --environment jsdom",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
@@ -37,7 +38,11 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^6.0.2",
-    "vite": "^8.0.14"
+    "jsdom": "^29.1.1",
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
   }
 }

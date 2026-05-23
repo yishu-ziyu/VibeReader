@@ -70,20 +70,22 @@
 
 - [x] 阅读器和 AI 面板同时可见
 - [x] 拖拽不会压坏布局
-- [ ] 选区注入仍能用
+- [x] 选区注入仍能用
 
 ## Phase 4：Stop generating
 
-- [ ] `aiService.chatStream` 支持 `AbortSignal`
-- [ ] UI 保存当前 `AbortController`
-- [ ] `ChatInput` loading 时显示停止按钮
-- [ ] 停止后保留已生成内容
+- [x] BDD/TDD 计划写入 `tasks/bdd-tdd-phase4.md`
+- [x] `aiService.chatStream` 支持 `AbortSignal`
+- [x] UI 保存当前 `AbortController`
+- [x] `ChatInput` loading 时显示停止按钮
+- [x] 停止后保留已生成内容
 
 验收：
 
-- [ ] 长回复可中断
-- [ ] UI 停止 loading
-- [ ] 控制台无未捕获异常
+- [x] 长回复可中断（自动化模拟 AbortError）
+- [x] UI 停止 loading（Abort 回调结束 typing/loading）
+- [x] 控制台无未捕获异常（构建、测试、PDF QA 未发现新增未捕获异常）
+- [ ] 真实模型长回复中断手工验收
 
 ## Phase 5：Markdown/Text 阅读
 
@@ -140,3 +142,5 @@
 2026-05-23：真实 PDF 验收通过。通过 `http://127.0.0.1:3217/` 灌入 `/Users/mahaoxuan/Desktop/黑客松/Vibero/test/tests/data/wonderland_short.pdf`，页面显示 `PDF 已加载，共 29 页`，文本层包含 Alice in Wonderland 内容，canvas 数量为 1，尺寸 612x792，采样到 613 个非白像素样本。截图保存在 `/tmp/vibereader-pdf-qa.png`。
 
 2026-05-23：Phase 3 双栏工作台已落地。左侧 PDF 阅读器与右侧 AI Tabs 同屏显示，拖拽分隔线将阅读器宽度从 666.8px 调整到 551px，右侧 AI 面板同步扩展到 589px；窄屏 820px 验证为上下堆叠且无横向溢出。桌面截图 `/tmp/vibereader-dual-pane-qa.png`，窄屏截图 `/tmp/vibereader-dual-pane-narrow-qa.png`。剩余需手工验证 PDF 选区注入。
+
+2026-05-23：Phase 4 Stop generating 已按 BDD/TDD 推进。新增 Vitest + Testing Library 测试底座，先观察到 `AbortSignal` 未传递、AbortError 会变成硬失败、loading 状态下没有 Stop 控件的红灯失败，再完成最小实现并转绿。真实 PDF 选区注入通过 CDP 验收：`wonderland_short.pdf` 加载 29 页，canvas 612x792 非空，文本层包含 Alice/Project Gutenberg，选中 `Project` 后右侧 Chat 出现 `基于以下论文内容： Project`，阅读器与 AI 面板仍同时可见。截图 `/tmp/vibereader-phase4-qa.png`。由于当前模型请求返回 `Failed to fetch`，真实模型长回复中断仍需用有效 API 配置手工验收。
