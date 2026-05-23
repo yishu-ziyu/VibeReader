@@ -1,18 +1,18 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Vibero",
+  "productName": "VibeReader",
   "version": "0.1.0",
-  "identifier": "cn.yishuziyu.vibero",
+  "identifier": "cn.yishuziyu.vibereader",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://127.0.0.1:3000",
+    "devUrl": "http://127.0.0.1:3217",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
     "windows": [
       {
-        "title": "Vibero",
+        "title": "VibeReader Standalone Dev",
         "width": 1280,
         "height": 820,
         "minWidth": 960,

@@ -1,4 +1,4 @@
-# Vibero Standalone 验收方法与验收矩阵
+# VibeReader Standalone Dev 验收方法与验收矩阵
 
 最后更新：2026-05-23
 
@@ -15,11 +15,11 @@ npm run build
 结果：
 
 - 通过。
-- webpack 编译成功。
-- 存在 3 条体积警告。
-- 主 bundle 约 2.43 MiB。
+- Vite 编译成功。
+- 存在单 chunk 大于 500 kB 的体积警告。
+- 主 bundle 约 2.27 MiB。
 
-这些警告不是当前阻塞项，但 Vite/Tauri 迁移后需要重新评估。
+这些警告不是当前阻塞项，但后续需要通过 code splitting 处理。
 
 ### 1.2 每次改动后的最低验证
 

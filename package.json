@@ -1,7 +1,7 @@
 {
-  "name": "ai-chat-standalone",
+  "name": "vibereader-desktop",
   "version": "1.0.0",
-  "description": "Standalone AI Chat Web App for Academic Paper Reading",
+  "description": "VibeReader Standalone Dev - local-first AI reading workspace",
   "main": "src/App.jsx",
   "scripts": {
     "build": "vite build",

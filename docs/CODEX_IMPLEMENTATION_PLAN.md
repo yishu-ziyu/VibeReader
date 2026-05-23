@@ -108,8 +108,8 @@
    - 将 `public/index.html` 迁移为 Vite 入口 `index.html`
    - 更新 `package.json` scripts：`dev`、`build`、`tauri:dev`、`tauri:build`
 3. 初始化 `src-tauri`：
-   - 应用名 `Vibero`
-   - bundle identifier 可先用 `cn.yishuziyu.vibero`
+   - 应用名 `VibeReader`
+   - bundle identifier `cn.yishuziyu.vibereader`
    - 权限只开放文件选择和必要文件读取。
 4. 迁移图标：使用现有 `icons/vibero.png` 生成 Tauri 所需 icon。
 
@@ -273,7 +273,7 @@
    - 8 分钟完整演示。
    - 失败时的备用路径。
 3. 视觉打磨：
-   - 应用标题显示 `Vibero`，不要继续显示 `AI Chat`。
+   - 应用标题显示 `VibeReader Standalone Dev`，不要继续显示 `AI Chat`。
    - 阅读器、AI 面板、侧边栏视觉层级统一。
    - 交互按钮使用图标和 tooltip。
 4. 加基础空状态和错误状态。

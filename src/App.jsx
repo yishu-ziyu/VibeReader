@@ -51,8 +51,8 @@ function generateSessionId() {
     return `session-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-// Vibero Logo
-const viberoLogo = (
+// VibeReader Logo
+const vibeReaderLogo = (
     <img src={viberoIconPng} width="40" height="40" alt="Logo" />
 );
 
@@ -79,7 +79,19 @@ function App() {
     const { messages, loading, sessions, currentSessionId, historyLoaded, setMessages, setLoading, setSessions, setCurrentSessionId, setHistoryLoaded } = useConversationStore();
     const { selectedModel, visionCapable, selectModel } = useModelStore();
     const { pdfText, pdfPages, pdfParsing, clearPdf, startParsing, finishParsing, failParsing } = usePdfStore();
-    const { fontScale, showFontSlider, sidebarCollapsed, activeToolTab, setFontScale: setFontScaleState, setShowFontSlider, setSidebarCollapsed, setActiveToolTab } = useUIStore();
+    const {
+        fontScale,
+        showFontSlider,
+        sidebarCollapsed,
+        rightToolTab,
+        workspaceSplitRatio,
+        setFontScale: setFontScaleState,
+        setShowFontSlider,
+        setSidebarCollapsed,
+        setActiveToolTab,
+        setRightToolTab,
+        setWorkspaceSplitRatio,
+    } = useUIStore();
     const { addDocument } = useDocumentStore();
 
     const messagesEndRef = useRef(null);
@@ -166,6 +178,7 @@ function App() {
             addDocument(document);
             finishParsing(text, pages);
             setActiveToolTab('pdf');
+            setRightToolTab('chat');
             // 触发 VIBE 解析
             useVibeStore.getState().parsePdfText(text);
             // 注入到当前服务
@@ -180,7 +193,7 @@ function App() {
             antMessage.error(t('ai-chat-pdf-parse-failed'));
             failParsing();
         }
-    }, [addDocument, finishParsing, getCurrentService, setActiveToolTab, startParsing, failParsing]);
+    }, [addDocument, finishParsing, getCurrentService, setActiveToolTab, setRightToolTab, startParsing, failParsing]);
 
     const handlePdfDrop = useCallback((e) => {
         e.preventDefault();
@@ -432,6 +445,28 @@ function App() {
         );
     }, []);
 
+    const handleWorkspaceDividerMouseDown = useCallback((event) => {
+        event.preventDefault();
+        const container = event.currentTarget.parentElement;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+
+        const handleMouseMove = (moveEvent) => {
+            const nextRatio = (moveEvent.clientX - rect.left) / rect.width;
+            setWorkspaceSplitRatio(nextRatio);
+        };
+
+        const stopDragging = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', stopDragging);
+            document.body.classList.remove('workspace-resizing');
+        };
+
+        document.body.classList.add('workspace-resizing');
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', stopDragging);
+    }, [setWorkspaceSplitRatio]);
+
     // 获取会话标题
     const getSessionTitle = useCallback((session) => {
         if (!session) return t('ai-chat-empty-session');
@@ -460,8 +495,8 @@ function App() {
                 }}>
                     {/* Logo 区域 */}
                     <div style={{ padding: '16px 12px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {viberoLogo}
-                        <span style={{ fontSize: 16, fontWeight: 600 }}>AI Chat</span>
+                        {vibeReaderLogo}
+                        <span style={{ fontSize: 16, fontWeight: 600 }}>VibeReader Dev</span>
                     </div>
 
                     {/* 新会话按钮 */}
@@ -576,21 +611,9 @@ function App() {
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                         style={{ marginRight: 8 }}
                     />
-                    <Tabs
-                        activeKey={activeToolTab}
-                        onChange={setActiveToolTab}
-                        size="small"
-                        style={{ flex: 1, minWidth: 0 }}
-                        items={[
-                            { key: 'chat', label: <span><CommentOutlined /> {t('ai-chat-empty-session')}</span> },
-                            { key: 'pdf', label: <span><FileTextOutlined /> PDF</span> },
-                            { key: 'summary', label: <span><ThunderboltOutlined /> {t('ai-chat-summary-panel-title', null, 'Summary')}</span> },
-                            { key: 'flashcard', label: <span><BookOutlined /> {t('ai-chat-flashcard-title', null, 'Flashcards')}</span> },
-                            { key: 'mindmap', label: <span><BranchesOutlined /> {t('ai-chat-mindmap-title', null, 'Mind Map')}</span> },
-                        ]}
-                    />
+                    <div style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>Workspace</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
-                        {activeToolTab === 'chat' && (
+                        {rightToolTab === 'chat' && (
                             <>
                                 <Button
                                     type="text"
@@ -621,107 +644,123 @@ function App() {
                     </div>
                 </div>
 
-                {/* Tab 内容区 */}
-                <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-                    {activeToolTab === 'chat' && (
-                        <>
-                            {/* 消息列表 */}
-                            <div
-                                ref={messagesContainerRef}
-                                style={{
-                                    flex: 1,
-                                    overflowY: 'auto',
-                                    padding: '16px 20px',
-                                    background: '#fafafa'
-                                }}
-                            >
-                                {messages.length === 0 && (
-                                    <div style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        height: '100%',
-                                        color: '#999'
-                                    }}>
-                                        {viberoLogo}
-                                        <div style={{ marginTop: 16, fontSize: 16 }}>
-                                            {t('ai-chat-empty-session')}
-                                        </div>
-                                        <div style={{ marginTop: 8, fontSize: 13 }}>
-                                            Upload a PDF or start chatting
-                                        </div>
-                                    </div>
-                                )}
-                                {messages.map((msg) => (
-                                    <div key={msg.id} style={{ marginBottom: 16, fontSize: `${14 * fontScale}px` }}>
-                                        <Bubble
-                                            placement={roles[msg.role]?.placement || 'start'}
-                                            variant={roles[msg.role]?.variant || 'shadow'}
-                                            loading={msg.typing}
-                                            loadingRender={msg.role === 'assistant' ? roles.assistant.loadingRender : undefined}
-                                            content={
-                                                msg.role === 'assistant' ? (
-                                                    <div>
-                                                        {msg.hasThinking && msg.thinking && (
-                                                            <details style={{ marginBottom: 8, fontSize: `${12 * fontScale}px` }}>
-                                                                <summary style={{ color: '#888', cursor: 'pointer', userSelect: 'none' }}>
-                                                                    {t('ai-chat-thinking', null, 'Thinking')} ({msg.thinking.length})
-                                                                </summary>
-                                                                <div style={{
-                                                                    padding: 8,
-                                                                    background: '#f8f9fa',
-                                                                    borderRadius: 4,
-                                                                    color: '#666',
-                                                                    marginTop: 4,
-                                                                    whiteSpace: 'pre-wrap',
-                                                                    lineHeight: 1.5,
-                                                                    maxHeight: 300,
-                                                                    overflow: 'auto',
-                                                                }}>
-                                                                    {msg.thinking}
-                                                                </div>
-                                                            </details>
-                                                        )}
-                                                        <MarkdownRenderer content={msg.content} onExplainCode={handleAskAI} />
-                                                    </div>
-                                                ) : (
-                                                    renderUserMessageContent(msg)
-                                                )
-                                            }
-                                        />
-                                    </div>
-                                ))}
-                                <div ref={messagesEndRef} />
-                            </div>
-                        </>
-                    )}
-                    {activeToolTab === 'pdf' && (
-                        <PdfViewer onInject={handleInjectPdfText} style={{ flex: 1 }} />
-                    )}
-                    {activeToolTab === 'summary' && (
-                        <SummaryPanel onAskAI={handleAskAI} style={{ flex: 1 }} />
-                    )}
-                    {activeToolTab === 'flashcard' && (
-                        <FlashcardDeck style={{ flex: 1 }} />
-                    )}
-                    {activeToolTab === 'mindmap' && (
-                        <MindMap onAskAI={handleAskAI} style={{ flex: 1 }} />
-                    )}
-                </div>
+                <div className="workspace-body">
+                    <section
+                        className="workspace-reader-pane"
+                        style={{ flexBasis: `${workspaceSplitRatio * 100}%` }}
+                    >
+                        <div className="workspace-pane-header">
+                            <span><FileTextOutlined /> PDF</span>
+                            <span className="workspace-pane-meta">
+                                {pdfText ? t('ai-chat-pdf-parsed', { pages: pdfPages }) : t('ai-chat-pdf-upload-drag')}
+                            </span>
+                        </div>
+                        <div className="workspace-pane-content">
+                            <PdfViewer onInject={handleInjectPdfText} style={{ flex: 1, minHeight: 0 }} />
+                        </div>
+                    </section>
 
-                {/* 输入区 — 仅在 Chat tab 显示 */}
-                {activeToolTab === 'chat' && (
-                    <div style={{ padding: '8px 16px 16px', borderTop: '1px solid #e0e0e0', background: '#fff', flexShrink: 0 }}>
-                        <ChatInput
-                            currentModel={selectedModel}
-                            onModelChange={handleModelChange}
-                            onSubmit={handleSubmit}
-                            loading={loading}
-                            visionCapable={visionCapable}
+                    <div
+                        className="workspace-divider"
+                        role="separator"
+                        aria-orientation="vertical"
+                        onMouseDown={handleWorkspaceDividerMouseDown}
+                    />
+
+                    <section className="workspace-ai-pane">
+                        <Tabs
+                            activeKey={rightToolTab}
+                            onChange={setRightToolTab}
+                            size="small"
+                            className="workspace-ai-tabs"
+                            items={[
+                                { key: 'chat', label: <span><CommentOutlined /> {t('ai-chat-empty-session')}</span> },
+                                { key: 'summary', label: <span><ThunderboltOutlined /> {t('ai-chat-summary-panel-title', null, 'Summary')}</span> },
+                                { key: 'flashcard', label: <span><BookOutlined /> {t('ai-chat-flashcard-title', null, 'Flashcards')}</span> },
+                                { key: 'mindmap', label: <span><BranchesOutlined /> {t('ai-chat-mindmap-title', null, 'Mind Map')}</span> },
+                            ]}
                         />
-                    </div>
-                )}
+
+                        <div className="workspace-ai-content">
+                            {rightToolTab === 'chat' && (
+                                <div
+                                    ref={messagesContainerRef}
+                                    className="workspace-messages"
+                                >
+                                    {messages.length === 0 && (
+                                        <div className="workspace-empty-chat">
+                                            {vibeReaderLogo}
+                                            <div style={{ marginTop: 16, fontSize: 16 }}>
+                                                {t('ai-chat-empty-session')}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {messages.map((msg) => (
+                                        <div key={msg.id} style={{ marginBottom: 16, fontSize: `${14 * fontScale}px` }}>
+                                            <Bubble
+                                                placement={roles[msg.role]?.placement || 'start'}
+                                                variant={roles[msg.role]?.variant || 'shadow'}
+                                                loading={msg.typing}
+                                                loadingRender={msg.role === 'assistant' ? roles.assistant.loadingRender : undefined}
+                                                content={
+                                                    msg.role === 'assistant' ? (
+                                                        <div>
+                                                            {msg.hasThinking && msg.thinking && (
+                                                                <details style={{ marginBottom: 8, fontSize: `${12 * fontScale}px` }}>
+                                                                    <summary style={{ color: '#888', cursor: 'pointer', userSelect: 'none' }}>
+                                                                        {t('ai-chat-thinking', null, 'Thinking')} ({msg.thinking.length})
+                                                                    </summary>
+                                                                    <div style={{
+                                                                        padding: 8,
+                                                                        background: '#f8f9fa',
+                                                                        borderRadius: 4,
+                                                                        color: '#666',
+                                                                        marginTop: 4,
+                                                                        whiteSpace: 'pre-wrap',
+                                                                        lineHeight: 1.5,
+                                                                        maxHeight: 300,
+                                                                        overflow: 'auto',
+                                                                    }}>
+                                                                        {msg.thinking}
+                                                                    </div>
+                                                                </details>
+                                                            )}
+                                                            <MarkdownRenderer content={msg.content} onExplainCode={handleAskAI} />
+                                                        </div>
+                                                    ) : (
+                                                        renderUserMessageContent(msg)
+                                                    )
+                                                }
+                                            />
+                                        </div>
+                                    ))}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                            )}
+                            {rightToolTab === 'summary' && (
+                                <SummaryPanel onAskAI={handleAskAI} style={{ flex: 1 }} />
+                            )}
+                            {rightToolTab === 'flashcard' && (
+                                <FlashcardDeck style={{ flex: 1 }} />
+                            )}
+                            {rightToolTab === 'mindmap' && (
+                                <MindMap onAskAI={handleAskAI} style={{ flex: 1 }} />
+                            )}
+                        </div>
+
+                        {rightToolTab === 'chat' && (
+                            <div className="workspace-input">
+                                <ChatInput
+                                    currentModel={selectedModel}
+                                    onModelChange={handleModelChange}
+                                    onSubmit={handleSubmit}
+                                    loading={loading}
+                                    visionCapable={visionCapable}
+                                />
+                            </div>
+                        )}
+                    </section>
+                </div>
             </div>
         </div>
     );

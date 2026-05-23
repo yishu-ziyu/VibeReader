@@ -9,6 +9,7 @@
 - [x] 桌面壳选择 Tauri v2
 - [x] Hackathon 格式优先级：PDF + Markdown/Text，EPUB 后置
 - [x] 当前基线验证：`npm run build` 通过，有 bundle size warning
+- [x] 当前主线运行面命名为 `VibeReader Standalone Dev`，旧 `Vibero.app` 只作为历史表面对照
 
 ## Phase 0：保护现场
 
@@ -53,22 +54,22 @@
 - [x] Tauri dev 窗口可启动
 - [x] 文件夹误选会被拦截并提示
 - [x] PDF 解析和视觉渲染使用独立二进制副本
-- [ ] 桌面窗口实际选择真实本地 PDF 文件并完成解析
-- [ ] PDF 视觉渲染成功
+- [x] 真实 PDF 文件完成解析
+- [x] PDF 视觉渲染成功
 - [x] 打开失败有明确错误提示
 
 ## Phase 3：阅读器 + AI 双栏工作台
 
-- [ ] 新增 `WorkspaceLayout`
-- [ ] 中间显示文档阅读器
-- [ ] 右侧显示 AI 面板 Tabs
-- [ ] 加可拖拽分隔线
-- [ ] 窄屏/小窗口有降级状态
+- [x] 新增双栏工作台布局
+- [x] 左侧显示文档阅读器
+- [x] 右侧显示 AI 面板 Tabs
+- [x] 加可拖拽分隔线
+- [x] 窄屏/小窗口有降级状态
 
 验收：
 
-- [ ] 阅读器和 AI 面板同时可见
-- [ ] 拖拽不会压坏布局
+- [x] 阅读器和 AI 面板同时可见
+- [x] 拖拽不会压坏布局
 - [ ] 选区注入仍能用
 
 ## Phase 4：Stop generating
@@ -133,3 +134,9 @@
 2026-05-23：继续执行 Phase 1/2。已完成 Vite 迁移、Tauri v2 初始化、dialog/fs 插件、桌面图标、统一文档服务和文档状态 store。`npm run build`、`cargo check`、`npm run tauri:dev` 均通过。剩余需要在真实桌面交互中选择一份 PDF，完成 A3/A4/A5 手工验收。
 
 2026-05-23：根据真实截图和 dev 日志修复 PDF 可视渲染链路：拦截名字以 `.pdf` 结尾的目录，增加 `fs:allow-stat`，并为 pdf.js 文本解析和 Viewer 渲染拆分独立 byte copy。下一次手工验收建议选择 `/Users/mahaoxuan/Desktop/黑客松/Vibero/test/tests/data/wonderland_short.pdf`。
+
+2026-05-23：为避免旧 Zotero fork、旧 `_apps/Vibero.app` 与当前 Tauri dev app 混淆，当前主线命名为 `VibeReader Standalone Dev`，并新增 `PROJECT_MAP.md` 作为路径和验收对象说明。下一步先完成真实 PDF 可视验收，再推进 Phase 3 双栏工作台。
+
+2026-05-23：真实 PDF 验收通过。通过 `http://127.0.0.1:3217/` 灌入 `/Users/mahaoxuan/Desktop/黑客松/Vibero/test/tests/data/wonderland_short.pdf`，页面显示 `PDF 已加载，共 29 页`，文本层包含 Alice in Wonderland 内容，canvas 数量为 1，尺寸 612x792，采样到 613 个非白像素样本。截图保存在 `/tmp/vibereader-pdf-qa.png`。
+
+2026-05-23：Phase 3 双栏工作台已落地。左侧 PDF 阅读器与右侧 AI Tabs 同屏显示，拖拽分隔线将阅读器宽度从 666.8px 调整到 551px，右侧 AI 面板同步扩展到 589px；窄屏 820px 验证为上下堆叠且无横向溢出。桌面截图 `/tmp/vibereader-dual-pane-qa.png`，窄屏截图 `/tmp/vibereader-dual-pane-narrow-qa.png`。剩余需手工验证 PDF 选区注入。

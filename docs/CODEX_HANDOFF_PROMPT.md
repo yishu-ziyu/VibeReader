@@ -3,7 +3,7 @@
 把下面整段交给新的 Codex 开发会话即可。
 
 ```text
-你正在接手 Vibero Standalone 的两周 Hackathon 开发任务。
+你正在接手 VibeReader Standalone Dev 的两周 Hackathon 开发任务。
 
 工作目录：
 /Users/mahaoxuan/Desktop/ai-chat-standalone
@@ -11,7 +11,8 @@
 重要背景：
 - 旧的 /Users/mahaoxuan/Desktop/黑客松/Vibero 是 Zotero fork 路线，不再作为主战场。
 - 用户已明确选择：全力推进 ai-chat-standalone，并用 Tauri v2 包成桌面端。
-- 当前 ai-chat-standalone 不是 git 仓库，改代码前先做版本保护。
+- 当前 ai-chat-standalone 已初始化 git。
+- 当前应用名为 `VibeReader Standalone Dev`，旧 `_apps/Vibero.app` 不用于当前验收。
 - 当前 npm run build 已验证通过，但有 bundle size warning。
 - 当前项目已有 React 18、Ant Design 5、pdfjs-dist、Zustand、AI streaming、Thinking block、Summary/Flashcard/MindMap 等能力。
 

@@ -18,12 +18,17 @@ export const useUIStore = create(
       fontScale: resolveInitialFontScale(),
       showFontSlider: false,
       activeToolTab: 'chat', // 'chat' | 'pdf' | 'summary' | 'flashcard' | 'mindmap'
+      rightToolTab: 'chat', // 'chat' | 'summary' | 'flashcard' | 'mindmap'
+      workspaceSplitRatio: 0.58,
 
       // Actions - setters
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       setFontScale: (fontScale) => set({ fontScale }),
       setShowFontSlider: (showFontSlider) => set({ showFontSlider }),
       setActiveToolTab: (activeToolTab) => set({ activeToolTab }),
+      setRightToolTab: (rightToolTab) => set({ rightToolTab }),
+      setWorkspaceSplitRatio: (workspaceSplitRatio) =>
+        set({ workspaceSplitRatio: Math.min(0.72, Math.max(0.38, workspaceSplitRatio)) }),
 
       // Actions - computed / helpers
       toggleSidebar: () =>
@@ -52,6 +57,8 @@ export const useUIStore = create(
         sidebarCollapsed: state.sidebarCollapsed,
         fontScale: state.fontScale,
         activeToolTab: state.activeToolTab,
+        rightToolTab: state.rightToolTab,
+        workspaceSplitRatio: state.workspaceSplitRatio,
       }),
     }
   )

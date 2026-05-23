@@ -104,3 +104,70 @@
 
 - 不要选择名字以 `.pdf` 结尾的目录。
 - 使用真实文件，例如 `/Users/mahaoxuan/Desktop/黑客松/Vibero/test/tests/data/wonderland_short.pdf`。
+
+## 2026-05-23 运行面去混淆
+
+背景：
+
+- 用户指出旧 Hackathon 目录、旧 `_apps/Vibero.app` 和当前独立开发目录容易混淆。
+- 当前后续开发主线应明确锁定 `/Users/mahaoxuan/Desktop/ai-chat-standalone`。
+
+改动：
+
+- 当前 Tauri 开发版窗口标题改为 `VibeReader Standalone Dev`。
+- Tauri product name 改为 `VibeReader`，bundle identifier 改为 `cn.yishuziyu.vibereader`。
+- Rust package / debug binary 改为 `vibereader`，避免进程名继续显示为旧 `vibero`。
+- NPM package name 改为 `vibereader-desktop`。
+- Vite/Tauri dev server 固定到 `http://127.0.0.1:3217`，避免误连其他项目占用的 3000 端口。
+- 侧边栏标题改为 `VibeReader Dev`。
+- 新增 `PROJECT_MAP.md`，记录当前主线、历史表面和 PDF 验收目标。
+
+下一步：
+
+1. 运行 `npm run build`、`cd src-tauri && cargo check`、`npm run tauri -- info`。
+2. 启动 `npm run tauri:dev`，确认窗口和进程均为 VibeReader。
+3. 使用真实 PDF 文件完成视觉渲染验收后，再进入 Phase 3 双栏工作台。
+
+## 2026-05-23 真实 PDF 可视验收
+
+验收文件：
+
+- `/Users/mahaoxuan/Desktop/黑客松/Vibero/test/tests/data/wonderland_short.pdf`
+
+结果：
+
+- 页面标题为 `VibeReader Standalone Dev`。
+- PDF 状态显示 `PDF 已加载，共 29 页`。
+- 文本层包含 `Alice in Wonderland` / `Project Gutenberg` 内容。
+- 页面存在 1 个 PDF canvas，尺寸为 612x792。
+- canvas 像素采样到 613 个非白样本，确认不是空白页。
+- 控制台未采集到相关 error/warn。
+- 截图保存在 `/tmp/vibereader-pdf-qa.png`。
+
+结论：
+
+- Phase 2 PDF 解析与可视渲染验收通过。
+- 可以进入 Phase 3 双栏工作台改造。
+
+## 2026-05-23 Phase 3 双栏工作台
+
+改动：
+
+- 主内容区改为左侧 PDF 阅读器、右侧 AI 工具区的双栏工作台。
+- 右侧 AI 工具区保留 Chat / Summary / Flashcard / MindMap Tabs。
+- 新增可拖拽分隔线，宽度比例持久化到 `uiStore`。
+- 小窗口下切换为上下堆叠，避免横向挤压。
+- PDF 上传后保持右侧 Chat，不再把主内容区互斥切到 PDF Tab。
+
+验收：
+
+- `npm run build` -> pass，仍有既有 bundle size warning。
+- 真实 PDF 加载后，左侧阅读器与右侧 AI 面板同时可见。
+- 拖拽分隔线后，阅读器宽度从 666.8px 调整到 551px，右侧 AI 面板扩展到 589px。
+- PDF canvas 仍为 612x792，采样到 613 个非白像素样本。
+- 820px 窄屏下自动上下堆叠，无横向溢出。
+- 截图：`/tmp/vibereader-dual-pane-qa.png`、`/tmp/vibereader-dual-pane-narrow-qa.png`。
+
+遗留风险：
+
+- PDF 选区注入仍需在真实鼠标选中文本场景中手工验收。
