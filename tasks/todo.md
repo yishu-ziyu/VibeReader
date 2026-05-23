@@ -12,16 +12,16 @@
 
 ## Phase 0：保护现场
 
-- [ ] 初始化 git，或创建时间戳备份目录
-- [ ] 创建/更新 `DEVLOG.md`
-- [ ] 记录当前 webpack build 基线
-- [ ] 标记当前版本为迁移前基线
+- [x] 初始化 git，或创建时间戳备份目录
+- [x] 创建/更新 `DEVLOG.md`
+- [x] 记录当前 webpack build 基线
+- [x] 标记当前版本为迁移前基线
 
 验收：
 
-- [ ] `git status` 可用，或备份目录存在
-- [ ] `npm run build` 通过
-- [ ] `DEVLOG.md` 有 Phase 0 记录
+- [x] `git status` 可用，或备份目录存在
+- [x] `npm run build` 通过
+- [x] `DEVLOG.md` 有 Phase 0 记录
 
 ## Phase 1：Tauri v2 壳
 
@@ -123,4 +123,4 @@
 
 ## Review
 
-2026-05-23：已完成本轮规划接力。当前尚未开始代码实现；下一步应从 Phase 0 版本保护开始。
+2026-05-23：已完成本轮规划接力，并完成 Phase 0 版本保护。当前基线提交为 `e6ea59f`。下一步应从 Phase 1：Tauri v2 壳 + Vite 迁移开始。

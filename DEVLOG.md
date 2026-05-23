@@ -24,6 +24,23 @@
 
 下一步：
 
-1. 初始化 git 或创建备份。
-2. 从 Tauri v2 + Vite 迁移开始。
-3. 每完成一个阶段更新本日志和 `tasks/todo.md`。
+1. 从 Tauri v2 + Vite 迁移开始。
+2. 每完成一个阶段更新本日志和 `tasks/todo.md`。
+
+## 2026-05-23 Phase 0 验收
+
+改动：
+
+- 新增 `.gitignore`，排除 `node_modules/`、`dist/`、`src-tauri/target/`、本地环境文件和编辑器状态。
+- 在 `/Users/mahaoxuan/Desktop/ai-chat-standalone` 初始化 git。
+- 创建本地基线提交 `e6ea59f`。
+
+命令：
+
+- `npm run build` -> pass，webpack 编译成功，有 bundle size warning。
+- `git status` -> 可用。
+
+遗留风险：
+
+- Tauri runtime 尚未初始化。
+- 当前仍是 webpack 构建，Phase 1 需要迁移到 Vite。
