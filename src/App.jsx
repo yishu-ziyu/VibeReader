@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Bubble } from '@ant-design/x';
 import { Button, Flex, message as antMessage, Spin, Modal, Slider, Tabs } from 'antd';
@@ -7,10 +7,12 @@ import ChatInput from './ChatInput';
 import aiService from './aiService';
 import { MULTIMODAL_UNSUPPORTED_CODE } from './multimodalApiError';
 import { buildChatHardFailureBubbleContent } from './chatHardFailureContent';
+import { buildUserFriendlyErrorContent, classifyAiError } from './aiError';
+import { validateRunnableModelConfig } from './modelConfigGuard';
 import { t, formatCustomModelLabel } from './i18n';
 import MarkdownRenderer from './MarkdownRenderer';
 import { extractTextFromPDF } from './pdfService';
-import { fileToDocument, openTauriDocument } from './services/documentService';
+import { fileToDocument, fileToDocumentWithContent, openTauriDocument, SUPPORTED_DOCUMENT_EXTENSIONS } from './services/documentService';
 import { isVisionCapableByModelName } from './modelPresets';
 import {
     saveConversation, loadConversation, listConversations, deleteConversation,
@@ -19,11 +21,23 @@ import {
 import { useConversationStore, useDocumentStore, useModelStore, usePdfStore, useUIStore } from './store';
 import { useVibeStore } from './store';
 import { PdfViewer } from './PdfViewer';
-import { SummaryPanel } from './SummaryPanel';
-import { FlashcardDeck } from './FlashcardDeck';
-import { MindMap } from './MindMap';
+import { DocumentReader } from './DocumentReader';
 import './styles.css';
 import viberoIconPng from '../icons/vibero.png';
+
+// Lazy-load AI panel components to reduce initial bundle size
+const SummaryPanel = React.lazy(() => import('./SummaryPanel').then(m => ({ default: m.SummaryPanel })));
+const FlashcardDeck = React.lazy(() => import('./FlashcardDeck').then(m => ({ default: m.FlashcardDeck })));
+const MindMap = React.lazy(() => import('./MindMap').then(m => ({ default: m.MindMap })));
+
+/** Simple fallback for lazy-loaded panels */
+function PanelFallback() {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Spin size="small" />
+        </div>
+    );
+}
 
 /** 附图仅 data URL */
 function chatImageDataUrl(img) {
@@ -78,7 +92,7 @@ function App() {
     // Zustand stores
     const { messages, loading, sessions, currentSessionId, historyLoaded, setMessages, setLoading, setSessions, setCurrentSessionId, setHistoryLoaded } = useConversationStore();
     const { selectedModel, visionCapable, selectModel } = useModelStore();
-    const { pdfText, pdfPages, pdfParsing, clearPdf, startParsing, finishParsing, failParsing } = usePdfStore();
+    const { pdfText, pdfPages, pdfParsing, clearPdf, startParsing, finishParsing, failParsing, setPdfFile } = usePdfStore();
     const {
         fontScale,
         showFontSlider,
@@ -92,7 +106,7 @@ function App() {
         setRightToolTab,
         setWorkspaceSplitRatio,
     } = useUIStore();
-    const { addDocument } = useDocumentStore();
+    const { addDocument, currentDocument } = useDocumentStore();
 
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
@@ -131,6 +145,91 @@ function App() {
         }
     }, [messages]);
 
+    // 获取当前 AI 服务实例（必须放在使用它的 useEffect 之前，避免 TDZ 错误）
+    const getCurrentService = useCallback((validatedConfig = null) => {
+        const config = validatedConfig || selectedModel.config;
+        if (!config) return null;
+        const apiType = config.apiType || (config.apiFormat === 'anthropic' ? 'anthropic-compatible' : 'openai-compatible');
+        aiService.setConfig({
+            baseUrl: config.baseUrl,
+            apiKey: config.apiKey,
+            model: config.model || config.modelName,
+            apiType
+        });
+        return aiService;
+    }, [selectedModel]);
+
+    // Synchronize reader stores with the active document to enforce multi-document isolation
+    useEffect(() => {
+        if (!currentDocument) {
+            clearPdf();
+            useVibeStore.getState().clearVibeData();
+            const service = getCurrentService();
+            if (service) {
+                service.clearHistory();
+                service.setPaperContext('');
+            }
+            return;
+        }
+
+        // Clear active window selections
+        window.getSelection()?.removeAllRanges();
+
+        // Restore PDF file/text/pages states
+        if (currentDocument.kind === 'pdf') {
+            const file = currentDocument.pdfFile || null;
+            const text = currentDocument.pdfText || '';
+            const pages = currentDocument.pdfPages || 0;
+            const vibeData = currentDocument.vibeData || null;
+
+            setPdfFile(file);
+            finishParsing(text, pages);
+
+            if (vibeData) {
+                useVibeStore.setState({
+                    vibeData,
+                    parsing: false,
+                    selectedSectionId: vibeData.sections[0]?.id || null,
+                    parseError: null
+                });
+            } else if (text) {
+                useVibeStore.getState().parsePdfText(text);
+            } else {
+                useVibeStore.getState().clearVibeData();
+            }
+
+            const service = getCurrentService();
+            if (service) {
+                service.clearHistory();
+                service.setPaperContext(text);
+            }
+        } else {
+            // Markdown, Text, HTML
+            const text = currentDocument.contentText || '';
+            const vibeData = currentDocument.vibeData || null;
+
+            setPdfFile(null);
+            finishParsing(text, 1);
+
+            if (vibeData) {
+                useVibeStore.setState({
+                    vibeData,
+                    parsing: false,
+                    selectedSectionId: vibeData.sections[0]?.id || null,
+                    parseError: null
+                });
+            } else {
+                useVibeStore.getState().parsePdfText(text);
+            }
+
+            const service = getCurrentService();
+            if (service) {
+                service.clearHistory();
+                service.setPaperContext(text);
+            }
+        }
+    }, [currentDocument, setPdfFile, finishParsing, clearPdf, getCurrentService]);
+
     // 保存消息到 IndexedDB
     const persistMessages = useCallback(async (msgs) => {
         const sid = currentSessionIdRef.current;
@@ -151,20 +250,6 @@ function App() {
         selectModel(model);
     };
 
-    // 获取当前 AI 服务实例
-    const getCurrentService = useCallback(() => {
-        const config = selectedModel.config;
-        if (!config) return null;
-        const apiType = config.apiFormat === 'anthropic' ? 'anthropic-compatible' : 'openai-compatible';
-        aiService.setConfig({
-            baseUrl: config.baseUrl,
-            apiKey: config.apiKey,
-            model: config.modelName,
-            apiType
-        });
-        return aiService;
-    }, [selectedModel]);
-
     // PDF 上传处理
     const handlePdfUpload = useCallback(async (file, preparedDocument = null) => {
         const document = preparedDocument || fileToDocument(file);
@@ -176,31 +261,76 @@ function App() {
         startParsing();
         try {
             const { text, pages } = await extractTextFromPDF(file);
-            addDocument(document);
+            
+            // Get the viewer bytes set by extractTextFromPDF
+            const pdfFileBytes = usePdfStore.getState().pdfFile;
+
+            // Generate VIBE data
+            useVibeStore.getState().parsePdfText(text);
+            const vibeData = useVibeStore.getState().vibeData;
+
+            const docWithContent = {
+                ...document,
+                pdfText: text,
+                pdfPages: pages,
+                contentText: text,
+                pdfFile: pdfFileBytes,
+                vibeData,
+            };
+
+            addDocument(docWithContent);
             finishParsing(text, pages);
             setActiveToolTab('pdf');
             setRightToolTab('chat');
-            // 触发 VIBE 解析
-            useVibeStore.getState().parsePdfText(text);
-            // 注入到当前服务
-            const service = getCurrentService();
-            if (service) {
-                service.clearHistory();
-                service.setPaperContext(text);
-            }
             antMessage.success(t('ai-chat-pdf-parsed', { pages }));
         } catch (error) {
             console.error('[App] PDF parsing failed:', error);
             antMessage.error(t('ai-chat-pdf-parse-failed'));
             failParsing();
         }
-    }, [addDocument, finishParsing, getCurrentService, setActiveToolTab, setRightToolTab, startParsing, failParsing]);
+    }, [addDocument, finishParsing, setActiveToolTab, setRightToolTab, startParsing, failParsing]);
 
-    const handlePdfDrop = useCallback((e) => {
+    const handleReadableDocument = useCallback((document) => {
+        if (!document || !['markdown', 'text', 'html'].includes(document.kind)) {
+            antMessage.error(t('ai-chat-document-open-invalid', null, '请选择支持的文件。'));
+            return;
+        }
+
+        useVibeStore.getState().parsePdfText(document.contentText || '');
+        const vibeData = useVibeStore.getState().vibeData;
+
+        const docWithContent = {
+            ...document,
+            pdfFile: null,
+            pdfText: document.contentText || '',
+            pdfPages: 1,
+            vibeData,
+        };
+
+        addDocument(docWithContent);
+        setPdfFile(null);
+        finishParsing(document.contentText || '', 1);
+        setActiveToolTab('pdf');
+        setRightToolTab('chat');
+        antMessage.success(t('ai-chat-document-opened', { name: document.name }, '文档已打开'));
+    }, [addDocument, finishParsing, setActiveToolTab, setPdfFile, setRightToolTab]);
+
+    const handleDocumentFile = useCallback(async (file) => {
+        if (!file) return;
+        const document = fileToDocument(file);
+        if (document?.kind === 'pdf') {
+            await handlePdfUpload(file, document);
+            return;
+        }
+        const textDocument = await fileToDocumentWithContent(file);
+        handleReadableDocument(textDocument);
+    }, [handlePdfUpload, handleReadableDocument]);
+
+    const handleDocumentDrop = useCallback((e) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
-        if (file) handlePdfUpload(file);
-    }, [handlePdfUpload]);
+        if (file) handleDocumentFile(file);
+    }, [handleDocumentFile]);
 
     const handleOpenDocument = useCallback(async () => {
         try {
@@ -223,25 +353,29 @@ function App() {
             const { document } = result;
             if (!document) return;
 
-            if (document.kind !== 'pdf') {
-                antMessage.info(t('ai-chat-document-kind-pending', {
-                    kind: document.kind,
-                }, '该格式已纳入后续阅读器阶段；当前请先打开 PDF。'));
+            if (document.kind === 'pdf') {
+                await handlePdfUpload(document.file, document);
                 return;
             }
 
-            await handlePdfUpload(document.file, document);
+            handleReadableDocument(document);
         } catch (error) {
             console.error('[App] Failed to open document:', error);
             antMessage.error(t('ai-chat-document-open-failed', null, '打开文件失败，请重试或使用拖拽上传。'));
         }
-    }, [handlePdfUpload]);
+    }, [handlePdfUpload, handleReadableDocument]);
 
     // 发送消息
     const handleSubmit = useCallback(async (text, images) => {
         if ((!text || !text.trim()) && (!images || images.length === 0)) return;
 
-        const service = getCurrentService();
+        const validation = validateRunnableModelConfig(selectedModel?.config);
+        if (!validation.ok) {
+            antMessage.error(validation.message);
+            return;
+        }
+
+        const service = getCurrentService(validation.config);
         if (!service) {
             antMessage.error(t('vibe-ai-chat-prompt-configure-custom-first'));
             return;
@@ -291,7 +425,7 @@ function App() {
             try {
                 await service.chatStream(
                     messageContent,
-                    ({ done, content, fullMessage, thinking, fullThinking, hasThinking, interrupted, aborted, error, errorCode }) => {
+                    ({ done, content, fullMessage, thinking, fullThinking, hasThinking, interrupted, aborted, error, errorCode, errorTitle, errorAction, aiError }) => {
                         if (!done && (content || thinking)) {
                             setMessages(prev => prev.map(msg =>
                                 msg.id === aiMessageId
@@ -309,10 +443,14 @@ function App() {
                                         model: selectedModel.label,
                                     });
                                 } else if (streamFailedHard) {
-                                    finalContent = buildChatHardFailureBubbleContent(String(error), {
-                                        modelLabel: selectedModel.label,
-                                        multimodalRejectedCode: errorCode,
-                                    });
+                                    if (aiError) {
+                                        finalContent = buildUserFriendlyErrorContent(aiError);
+                                    } else {
+                                        finalContent = buildChatHardFailureBubbleContent(String(error), {
+                                            modelLabel: selectedModel.label,
+                                            multimodalRejectedCode: errorCode,
+                                        });
+                                    }
                                 }
                             }
 
@@ -359,12 +497,19 @@ function App() {
                     }
                     return;
                 }
+                // 兜底：将未预料的错误显示在气泡中，而不是删除消息
+                const fallbackError = buildUserFriendlyErrorContent(
+                    classifyAiError(null, error.message, error)
+                );
                 setMessages(prev => {
-                    const updated = prev.filter(m => m.id !== aiMessageId);
+                    const updated = prev.map(msg =>
+                        msg.id === aiMessageId
+                            ? { ...msg, content: fallbackError, typing: false, timestamp: Date.now() }
+                            : msg
+                    );
                     persistMessages(updated);
                     return updated;
                 });
-                antMessage.error('发送失败: ' + error.message);
                 setLoading(false);
                 if (abortControllerRef.current === abortController) {
                     abortControllerRef.current = null;
@@ -383,6 +528,12 @@ function App() {
     const handleInjectPdfText = useCallback((text) => {
         if (!text) return;
         const prefix = t('ai-chat-pdf-context-prefix', null, 'Based on the following paper content:\n');
+        handleSubmit(prefix + text, []);
+    }, [handleSubmit]);
+
+    const handleInjectDocumentText = useCallback((text) => {
+        if (!text) return;
+        const prefix = t('ai-chat-document-context-prefix', null, 'Based on the following document content:\n');
         handleSubmit(prefix + text, []);
     }, [handleSubmit]);
 
@@ -539,7 +690,7 @@ function App() {
                     <div style={{ padding: '0 12px 12px' }}>
                         <div
                             onClick={handleOpenDocument}
-                            onDrop={handlePdfDrop}
+                            onDrop={handleDocumentDrop}
                             onDragOver={(e) => e.preventDefault()}
                             style={{
                                 border: '2px dashed #d9d9d9',
@@ -550,12 +701,12 @@ function App() {
                                 background: '#fff'
                             }}
                         >
-                            <FilePdfOutlined style={{ fontSize: 24, color: pdfText ? '#52c41a' : '#999' }} />
+                            <FilePdfOutlined style={{ fontSize: 24, color: currentDocument ? '#52c41a' : '#999' }} />
                             <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
                                 {pdfParsing
                                     ? t('ai-chat-pdf-parsing')
-                                    : pdfText
-                                        ? t('ai-chat-pdf-parsed', { pages: pdfPages })
+                                    : currentDocument
+                                        ? `${currentDocument.name}`
                                         : t('ai-chat-pdf-upload-drag')
                                 }
                             </div>
@@ -575,11 +726,11 @@ function App() {
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".pdf"
+                            accept={SUPPORTED_DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`).join(',')}
                             style={{ display: 'none' }}
                             onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) handlePdfUpload(file);
+                                if (file) handleDocumentFile(file);
                                 e.target.value = '';
                             }}
                         />
@@ -679,13 +830,23 @@ function App() {
                         style={{ flexBasis: `${workspaceSplitRatio * 100}%` }}
                     >
                         <div className="workspace-pane-header">
-                            <span><FileTextOutlined /> PDF</span>
+                            <span><FileTextOutlined /> {currentDocument?.name || 'Reader'}</span>
                             <span className="workspace-pane-meta">
-                                {pdfText ? t('ai-chat-pdf-parsed', { pages: pdfPages }) : t('ai-chat-pdf-upload-drag')}
+                                {currentDocument?.kind === 'pdf' && pdfText
+                                    ? t('ai-chat-pdf-parsed', { pages: pdfPages })
+                                    : currentDocument?.kind || t('ai-chat-pdf-upload-drag')}
                             </span>
                         </div>
                         <div className="workspace-pane-content">
-                            <PdfViewer onInject={handleInjectPdfText} style={{ flex: 1, minHeight: 0 }} />
+                            {currentDocument && currentDocument.kind !== 'pdf' ? (
+                                <DocumentReader document={currentDocument} onInject={handleInjectDocumentText} style={{ flex: 1, minHeight: 0 }} />
+                            ) : (
+                                <PdfViewer
+                                    onInject={handleInjectPdfText}
+                                    documentId={currentDocument?.id}
+                                    style={{ flex: 1, minHeight: 0 }}
+                                />
+                            )}
                         </div>
                     </section>
 
@@ -767,13 +928,19 @@ function App() {
                                 </div>
                             )}
                             {rightToolTab === 'summary' && (
-                                <SummaryPanel onAskAI={handleAskAI} style={{ flex: 1 }} />
+                                <Suspense fallback={<PanelFallback />}>
+                                    <SummaryPanel onAskAI={handleAskAI} style={{ flex: 1 }} />
+                                </Suspense>
                             )}
                             {rightToolTab === 'flashcard' && (
-                                <FlashcardDeck style={{ flex: 1 }} />
+                                <Suspense fallback={<PanelFallback />}>
+                                    <FlashcardDeck style={{ flex: 1 }} />
+                                </Suspense>
                             )}
                             {rightToolTab === 'mindmap' && (
-                                <MindMap onAskAI={handleAskAI} style={{ flex: 1 }} />
+                                <Suspense fallback={<PanelFallback />}>
+                                    <MindMap onAskAI={handleAskAI} style={{ flex: 1 }} />
+                                </Suspense>
                             )}
                         </div>
 

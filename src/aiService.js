@@ -4,12 +4,16 @@
  */
 
 import { enhanceErrorWithMultimodalHint } from './multimodalApiError';
+import { classifyAiError, extractErrorFromResponse } from './aiError';
 import { resolveTemperatureForCustomModel } from './customChatTemperature';
 import {
     inlineHttpsImageUrlsInOpenAIParts,
     fetchHttpsImageAsDataUrl,
 } from './clientImageDataUrl';
 import { normalizeBaseUrl } from './modelPresets';
+import { resolveAiEndpointForRuntime } from './aiEndpoint';
+import { isTauriRuntime } from './services/documentService';
+import { tauriChatStream } from './tauriHttp';
 
 // ==================== OpenAI 协议工具 ====================
 
@@ -413,33 +417,37 @@ class AIService {
                 };
             }
 
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(body),
-                signal,
-            });
-
-            if (!response.ok) {
-                let errorMsg = `API 请求失败: ${response.status}`;
-                let backendDetail = '';
-                try {
-                    const errData = await response.json();
-                    backendDetail =
-                        errData.error?.message || errData.message || errData.detail || '';
-                    if (backendDetail) errorMsg += ` - ${backendDetail}`;
-                } catch (_) {
-                    /* ignore */
-                }
-                const err = new Error(errorMsg);
-                enhanceErrorWithMultimodalHint(err, backendDetail || errorMsg);
-                throw err;
-            }
-
-            const reader = response.body.getReader();
+            let reader;
             const decoder = new TextDecoder();
             let buffer = '';
             let detectedFormat = null; // 'openai' | 'anthropic-text' | 'anthropic-thinking' | null
+
+            if (isTauriRuntime()) {
+                const tauriBody = await tauriChatStream(endpoint, {
+                    headers,
+                    body: JSON.stringify(body),
+                });
+                reader = tauriBody.getReader();
+            } else {
+                const response = await fetch(resolveAiEndpointForRuntime(endpoint), {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(body),
+                    signal,
+                });
+
+                if (!response.ok) {
+                    const { statusCode, message } = await extractErrorFromResponse(response);
+                    const classified = classifyAiError(statusCode, message);
+                    const err = new Error(classified.message);
+                    err.code = classified.code;
+                    err.aiError = classified;
+                    enhanceErrorWithMultimodalHint(err, message);
+                    throw err;
+                }
+
+                reader = response.body.getReader();
+            }
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -494,14 +502,19 @@ class AIService {
             }
             console.error('[AIService] Error:', error);
             enhanceErrorWithMultimodalHint(error, error?.message);
+            const classifiedError = error.aiError || classifyAiError(null, error.message, error);
             onChunk({
                 done: true,
                 fullMessage: '',
-                error: error.message,
-                errorCode: error.code,
+                error: classifiedError.message,
+                errorCode: classifiedError.code,
+                errorTitle: classifiedError.title,
+                errorAction: classifiedError.action,
+                aiError: classifiedError,
                 interrupted: true,
             });
-            throw error;
+            // 错误已通过 onChunk 报告给 UI，不再抛出以避免 App.jsx catch 块重复处理
+            return;
         }
     }
 }

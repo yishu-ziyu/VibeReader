@@ -1,4 +1,4 @@
-# Vibero Standalone 任务跟踪
+# VibeReader Standalone 任务跟踪
 
 最后更新：2026-05-23
 
@@ -85,49 +85,69 @@
 - [x] 长回复可中断（自动化模拟 AbortError）
 - [x] UI 停止 loading（Abort 回调结束 typing/loading）
 - [x] 控制台无未捕获异常（构建、测试、PDF QA 未发现新增未捕获异常）
-- [ ] 真实模型长回复中断手工验收
+- [x] 真实模型长回复中断手工验收
 
 ## Phase 5：Markdown/Text 阅读
 
-- [ ] 新增 Markdown 文档阅读器
-- [ ] 新增 Text 文档阅读器
-- [ ] HTML 只做安全正文读取，不执行脚本
-- [ ] 所有文本阅读器支持选区注入
+- [x] 新增 Markdown 文档阅读器
+- [x] 新增 Text 文档阅读器
+- [x] HTML 只做安全正文读取，不执行脚本
+- [x] 所有文本阅读器支持选区注入
 
 验收：
 
-- [ ] `.md` 可打开
-- [ ] `.txt` 可打开
-- [ ] `.html` 可安全打开或给出明确提示
-- [ ] 选区可注入 AI
+- [x] `.md` 可打开
+- [x] `.txt` 可打开
+- [x] `.html` 可安全打开或给出明确提示
+- [x] 选区可注入 AI
 
 ## Phase 6：PDF 大纲与最小批注
 
-- [ ] `pdfDoc.getOutline()` 显示目录
-- [ ] 点击目录跳转
-- [ ] 选区创建高亮记录
-- [ ] 选区创建笔记记录
-- [ ] 批注保存到 IndexedDB
+- [x] `pdfDoc.getOutline()` 显示目录
+- [x] 点击目录跳转
+- [x] 选区创建高亮记录
+- [x] 选区创建笔记记录
+- [x] 批注保存到本地持久存储
 
 验收：
 
-- [ ] 有目录 PDF 可跳转
-- [ ] 批注列表刷新后仍存在
-- [ ] 不要求第一版写回 PDF 文件
+- [x] 有目录 PDF 可跳转
+- [x] 批注列表刷新后仍存在
+- [x] 不要求第一版写回 PDF 文件
 
 ## Phase 7：演示准备
 
-- [ ] 新建 `demo-assets/`
-- [ ] 准备 PDF/Markdown/Text 示例文件
-- [ ] 新建 `docs/DEMO_SCRIPT.md`
-- [ ] 写 3 分钟和 8 分钟演示脚本
-- [ ] 按 `docs/ACCEPTANCE_AND_QA.md` 完整验收
+- [x] 新建 `demo-assets/`
+- [x] 准备 PDF/Markdown/Text/HTML 示例文件
+- [x] 新建 `docs/DEMO_SCRIPT.md`
+- [x] 写 3 分钟和 8 分钟演示脚本
+- [x] 按 `docs/ACCEPTANCE_AND_QA.md` 完整验收
 
 验收：
 
-- [ ] 3 分钟演示闭环可跑通
-- [ ] 失败备用路径可执行
-- [ ] 最终 QA 结果写入 `DEVLOG.md`
+- [x] 3 分钟演示闭环可跑通
+- [x] 失败备用路径可执行
+- [x] 最终 QA 结果写入 `DEVLOG.md`
+
+## Phase 8：gstack 对齐后的发布硬化
+
+- [x] 新增 `tasks/bdd-tdd-phase8.md`
+- [x] MiniMax/AI 生产包通信路径明确并测试（Tauri 原生 HTTP 绕过 CORS）
+- [x] 无 API key / 坏 key 用户提示闭环
+- [x] 多文档状态隔离验收（App.jsx useEffect + PdfViewer 重置 + documentIsolation 测试）
+- [x] Playwright smoke 脚本固化（5 spec 文件 / 20 测试全部通过）
+- [x] PDF 批注高亮视觉重绘（rect 坐标存储 + highlightLayer 叠加渲染）
+- [x] 包体优化与代码分割（manualChunks + React.lazy，首屏 -80%）
+- [ ] gstack pre-landing review 报告
+- [ ] Commit/checkpoint 当前 demo-ready 基线
+
+验收：
+
+- [x] `npm run test` 通过（14 files / 48 tests）
+- [x] `npm run build` 通过
+- [x] `cd src-tauri && cargo check` 通过
+- [x] `npx playwright test` 通过（20 tests）
+- [ ] Phase 8 结果写入 `DEVLOG.md`
 
 ## Review
 
@@ -146,3 +166,13 @@
 2026-05-23：Phase 4 Stop generating 已按 BDD/TDD 推进。新增 Vitest + Testing Library 测试底座，先观察到 `AbortSignal` 未传递、AbortError 会变成硬失败、loading 状态下没有 Stop 控件的红灯失败，再完成最小实现并转绿。真实 PDF 选区注入通过 CDP 验收：`wonderland_short.pdf` 加载 29 页，canvas 612x792 非空，文本层包含 Alice/Project Gutenberg，选中 `Project` 后右侧 Chat 出现 `基于以下论文内容： Project`，阅读器与 AI 面板仍同时可见。截图 `/tmp/vibereader-phase4-qa.png`。由于当前模型请求返回 `Failed to fetch`，真实模型长回复中断仍需用有效 API 配置手工验收。
 
 2026-05-23：已把可用的 MiniMax Token Plan 配置迁回当前 Tauri 主线 `VibeReader Standalone Dev` 的 WebKit localStorage。来源为本机 `~/.mmx/config.json`，写入目标为 `~/Library/WebKit/vibereader/.../LocalStorage/localstorage.sqlite3`，写入前已生成 `.bak-20260523160540` 备份。回读确认选中配置为 `vibereader-minimax-token-plan`，模型为 `MiniMax-M2.7`，协议为 Anthropic 兼容，API key 存在但未写入 git 或文档。旧 Codex 备份里的另一枚 MiniMax key 已验证为 `401 invalid api key`，未迁入。Kimi/Moonshot 只找到旧网页运行面的 `trial-kimi-priority` 标记，未找到可复用的真实 Moonshot API key，因此未创建不可用的 Kimi 配置。
+
+2026-05-23：Phase 5 Markdown/Text/HTML 通用阅读已按 BDD/TDD 完成。新增 `DocumentReader`、HTML 安全正文提取、浏览器/Tauri 非 PDF 文档读取链路，并把 `.md/.markdown/.txt/.html/.htm` 接入现有“左读右问”工作台。定向红灯先失败于缺少 `DocumentReader`、`fileToDocumentWithContent`、`sanitizeHtmlToText`；实现后 `npm run test` 通过 4 个测试文件 / 9 个测试，`npm run build` 通过且仅保留既有 chunk size warning。CDP 浏览器验收已灌入 `/tmp/vibereader-phase5/sample.md`、`sample.txt`、`sample.html`：Markdown/Text/HTML 均可见，HTML script/style 不显示且脚本未执行，Markdown 选区注入后右侧 Chat 出现 document context 消息。截图 `/tmp/vibereader-phase5-qa.png`。
+
+2026-05-23：Phase 6 PDF 大纲与最小批注已按 BDD/TDD 完成。新增 `annotationService`、`PdfAnnotationToolbar`、`pdfOutline`，并接入 `PdfViewer`。红灯覆盖缺少批注服务、批注工具栏、大纲解析；绿灯后 `npm run test` 通过 7 个测试文件 / 15 个测试，`npm run build` 通过，`cargo check` 通过。真实浏览器验收使用 `/tmp/vibereader-phase6-outline.pdf`：pdf.js 读出 Introduction / Methods / Findings 三个大纲项，点击 Methods 跳转到第 2 页；选中第 2 页文本后保存高亮和 `QA note` 笔记，`localStorage.vibereader.annotations` 记录 2 条批注，批注列表显示 P2、高亮文本和笔记。截图 `/tmp/vibereader-phase6-qa.png`。第一版批注不写回 PDF 文件。
+
+2026-05-23：Phase 7 演示闭环已完成。新增 `demo-assets/`，包含 `outline-demo.pdf`、`wonderland_short.pdf`、`sample.md`、`sample.txt`、`sample.html`、`demo-fallback-answer.md`；新增 `docs/DEMO_SCRIPT.md` 和 `tasks/bdd-tdd-phase7.md`。PDF worker 改为 Vite/Tauri 本地打包资产，构建产物包含 `dist/assets/pdf.worker.min-*.mjs`，不再依赖 CDN。MiniMax 在本地 dev 运行面新增同源 `/api/minimax` 代理，解决浏览器 CORS 预检失败。最终验收：`npm run test` 通过 11 个测试文件 / 23 个测试，`npm run build` 通过，`cargo check` 通过，`npx tauri dev --no-watch --config '{"build":{"beforeDevCommand":""}}'` 成功启动 `target/debug/vibereader`。Playwright 真实闭环使用 demo 资产完成 PDF 大纲跳转、批注、Markdown 选区注入、MiniMax 长回复 Stop，控制台无错误，截图 `/tmp/vibereader-phase7-qa.png`。
+
+2026-05-23：根据 `/Users/mahaoxuan/gstack` 规范完成 VibeReader 项目治理对齐。新增 `docs/GSTACK_ALIGNMENT.md`、`tasks/gstack-backlog.md`、`tasks/bdd-tdd-phase8.md` 和 `docs/superpowers/plans/2026-05-23-vibereader-gstack-roadmap.md`。当前下一阶段是 Phase 8 发布硬化：优先处理生产包 AI 通信路径、无 key/坏 key UX、多文档隔离、Playwright smoke 固化和 gstack pre-landing review。
+
+2026-05-23：Phase 8 开始执行。已新增 `src/modelConfigGuard.js` 和 `src/modelConfigGuard.test.js`，发送前拦截缺少配置、缺少 API key、缺少 base URL、缺少模型名四类问题，不进入 loading，也不泄露 key。已新增 `scripts/qa-smoke.mjs` 和 `npm run qa:smoke`，无密钥时输出 `SKIPPED_LIVE_AI`，Playwright 未安装时给出明确依赖错误。

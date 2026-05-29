@@ -233,6 +233,151 @@
     margin-bottom: 0;
 }
 
+.document-reader,
+.document-reader-empty {
+    position: relative;
+    display: flex;
+    min-height: 0;
+    height: 100%;
+    background: #f6f7f8;
+}
+
+.document-reader-empty {
+    align-items: center;
+    justify-content: center;
+}
+
+.document-reader {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.document-reader-scroll {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    padding: 32px;
+}
+
+.document-reader-markdown,
+.document-reader-text {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 32px;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    background: #fff;
+    color: #1f2328;
+    line-height: 1.7;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+.document-reader-text {
+    white-space: pre-wrap;
+    font-size: 15px;
+}
+
+.document-reader-inject {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+    z-index: 4;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+.pdf-outline-strip {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 6px 10px;
+    border-bottom: 1px solid #e8e8e8;
+    background: #fafafa;
+    flex-shrink: 0;
+}
+
+.pdf-outline-item {
+    flex: 0 0 auto;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdf-annotation-toolbar {
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.pdf-annotation-preview {
+    max-width: 120px;
+    overflow: hidden;
+    color: #666;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdf-annotation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 116px;
+    overflow: auto;
+    padding: 8px 12px;
+    border-top: 1px solid #e8e8e8;
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.pdf-annotation-list-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: #4b5563;
+    font-size: 12px;
+}
+
+.pdf-annotation-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.pdf-annotation-color-yellow {
+    background: #fadb14;
+}
+
+.pdf-annotation-color-blue {
+    background: #1677ff;
+}
+
+.pdf-annotation-color-green {
+    background: #52c41a;
+}
+
+.pdf-annotation-page {
+    color: #6b7280;
+    flex-shrink: 0;
+}
+
+.pdf-annotation-text,
+.pdf-annotation-note {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .workspace-messages {
     flex: 1;
     overflow-y: auto;

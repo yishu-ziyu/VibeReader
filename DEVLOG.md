@@ -223,3 +223,197 @@ BDD/TDD：
 
 - 未找到可复用的 Kimi/Moonshot API key；旧网页运行面只有 `trial-kimi-priority` 标记，不是当前 VibeReader 可直接调用的 API 配置。
 - 如果迁移时 VibeReader 窗口已经打开，WebKit 可能仍持有旧 localStorage 缓存；重启 VibeReader 后会读取已写入的配置。
+
+## 2026-05-23 Phase 5 Markdown/Text/HTML 通用阅读
+
+BDD/TDD：
+
+- 新增 `tasks/bdd-tdd-phase5.md`，固定 Markdown、Text、HTML 安全读取和选区注入四个行为。
+- 红灯结果：缺少 `DocumentReader`、`fileToDocumentWithContent`、`sanitizeHtmlToText`。
+- 绿灯结果：`npm run test -- src/services/documentService.test.js src/DocumentReader.test.jsx` 通过，2 个测试文件共 6 个测试通过。
+
+改动：
+
+- 新增 `src/DocumentReader.jsx`，用于 Markdown/Text/HTML 文档阅读。
+- `src/services/documentService.js` 增加非 PDF 文档读取和 HTML 安全正文提取。
+- `src/App.jsx` 的打开文件入口从 PDF-only 升级为 PDF + Markdown + Text + HTML，并保留 PDF 原链路。
+- `src/styles.css` 增加通用文档阅读器样式。
+
+验收：
+
+- `npm run test` -> pass，4 个测试文件共 9 个测试通过。
+- `npm run build` -> pass，仍有既有 chunk size warning。
+- 通过 CDP 在 `http://127.0.0.1:3217/` 灌入 `/tmp/vibereader-phase5/sample.md`、`sample.txt`、`sample.html`。
+- Markdown/Text/HTML 均在左侧阅读器显示。
+- HTML 验收结果：标题和正文可见，script/style 文本不可见，`window.__vibereader_hacked` 未被设置。
+- Markdown 选区注入后右侧 Chat 出现 document context 用户消息。
+- 截图：`/tmp/vibereader-phase5-qa.png`。
+
+遗留风险：
+
+- Summary/Flashcard/MindMap 仍复用 `pdfStore.pdfText` 命名，行为可用但命名已经不准确；Phase 6/7 前建议重命名为通用 `documentText`。
+
+## 2026-05-23 Phase 6 PDF 大纲与最小批注
+
+BDD/TDD：
+
+- 新增 `tasks/bdd-tdd-phase6.md`，固定 PDF 大纲、无大纲降级、高亮、笔记、批注持久化五个行为。
+- 第一轮红灯：缺少 `annotationService`。
+- 第二轮红灯：缺少 `PdfAnnotationToolbar`。
+- 第三轮红灯：缺少 `pdfOutline`。
+- 绿灯结果：`npm run test` 通过，7 个测试文件共 15 个测试通过。
+
+改动：
+
+- 新增 `src/services/annotationService.js`，提供本地批注创建、读取、清理接口。
+- 新增 `src/PdfAnnotationToolbar.jsx`，把 PDF 选区操作扩展为“注入 AI / 高亮 / 保存笔记”。
+- 新增 `src/pdfOutline.js`，处理 PDF outline 扁平化和 destination 到页码的解析。
+- `src/PdfViewer.jsx` 接入大纲条、点击跳页、批注保存和批注列表。
+- `src/App.jsx` 将当前 PDF 文档 ID 传给 `PdfViewer`，用于批注归属。
+
+验收：
+
+- `npm run test` -> pass，7 个测试文件 / 15 个测试。
+- `npm run build` -> pass，仍有既有 chunk size warning。
+- `cd src-tauri && cargo check` -> pass。
+- 使用 ReportLab 在 `/tmp/vibereader-phase6-outline.pdf` 生成 3 页带书签 PDF，并用 pdf.js 确认 outline 标题为 Introduction / Methods / Findings。
+- CDP 浏览器验收：上传该 PDF 后大纲显示，点击 Methods 后页码输入框变为 2。
+- 在第 2 页文本层选中 `This is page 2...` 后，保存高亮和 `QA note` 笔记。
+- 回读 `localStorage.vibereader.annotations`：2 条批注，包含 page=2 的 yellow highlight 和 note=`QA note`。
+- 截图：`/tmp/vibereader-phase6-qa.png`。
+
+遗留风险：
+
+- 批注第一版只持久化到本地存储并在列表中展示，不写回 PDF，也不在 canvas/text layer 上复原高亮 overlay。
+- 批注服务当前用 localStorage，适合 hackathon MVP；如果批注规模变大，应迁移到 IndexedDB object store。
+
+## 2026-05-23 Phase 7 演示闭环与最终 QA
+
+BDD/TDD：
+
+- 新增 `tasks/bdd-tdd-phase7.md`，固定演示资产自包含、本地 PDF worker、3 分钟/8 分钟演示脚本和失败备用路径。
+- 红灯结果：演示资产测试缺少稳定仓库内文件；PDF worker 测试暴露旧配置依赖 CDN；真实 Playwright 验收暴露 PDF 笔记输入会触发 `selectionchange` 清掉工具栏。
+- 绿灯结果：`npm run test` 通过，11 个测试文件共 23 个测试通过。
+
+改动：
+
+- 新增 `demo-assets/`，包含 `outline-demo.pdf`、`wonderland_short.pdf`、`sample.md`、`sample.txt`、`sample.html`、`demo-fallback-answer.md` 和说明文件。
+- 新增 `docs/DEMO_SCRIPT.md`，覆盖 3 分钟脚本、8 分钟脚本、AI API 失败备用路径和验收清单。
+- 新增 `src/pdfWorker.js`，让 `pdfService` 与 `PdfViewer` 使用 Vite/Tauri 本地打包的 `pdf.worker.min.mjs`，构建产物已包含 `dist/assets/pdf.worker.min-*.mjs`。
+- 新增 `src/aiEndpoint.js` 与 Vite `/api/minimax` dev proxy，本地开发环境把 MiniMax Anthropic 兼容请求改走同源代理，避免浏览器 CORS 预检失败。
+- 新增 `src/pdfSelection.js`，修复焦点进入 PDF 批注工具栏时选区被清空、导致笔记按钮消失的问题。
+
+验收：
+
+- `npm run test` -> pass，11 个测试文件 / 23 个测试。
+- `npm run build` -> pass，仍有既有 chunk size warning；本地 PDF worker 已进入 `dist/assets/`。
+- `cd src-tauri && cargo check` -> pass。
+- `npx tauri dev --no-watch --config '{"build":{"beforeDevCommand":""}}'` -> pass，`target/debug/vibereader` 成功启动；验证后已手动停止。
+- Playwright 真实闭环：在 `http://127.0.0.1:3217/` 打开应用，上传 `demo-assets/outline-demo.pdf`，大纲显示 Introduction / Methods / Findings，点击 Methods 后页码为 2。
+- PDF 批注验收：第 2 页保存高亮和 `Phase 7 QA note` 笔记，`localStorage.vibereader.annotations` 为 2 条，批注列表显示 P2 和笔记。
+- Markdown 验收：上传 `demo-assets/sample.md`，选中 `The important design decision...` 段落并注入 AI，右侧 Chat 收到文档上下文。
+- AI/Stop 验收：Playwright 从本机 `~/.mmx/config.json` 临时注入 MiniMax Token Plan 配置，发送长回复请求后点击 Stop，loading 恢复为 Send，页面无 `Failed to fetch` / `login fail`，控制台错误列表为空。API key 未写入 git 或文档。
+- 最终截图：`/tmp/vibereader-phase7-qa.png`。
+
+遗留风险：
+
+- 当前 Vite dev proxy 解决的是本地开发和 Tauri dev 演示面；正式打包发布前仍应实现 Tauri 侧 HTTP/proxy 能力或部署 `proxy/api/minimax.js`，否则生产包直连部分模型可能再次遇到 CORS。
+- 仍有既有主 bundle 大于 500 kB warning；不阻塞 hackathon demo，但发布前应做 code splitting。
+- 批注仍不写回 PDF 文件，也不复原页面 overlay；当前只保证本地列表持久化。
+
+## 2026-05-23 gstack 规范对齐规划
+
+来源：
+
+- `/Users/mahaoxuan/gstack/AGENTS.md`
+- `/Users/mahaoxuan/gstack/ETHOS.md`
+- `/Users/mahaoxuan/gstack/SKILL.md`
+- `/Users/mahaoxuan/gstack/plan-eng-review/SKILL.md`
+- `/Users/mahaoxuan/gstack/qa/SKILL.md`
+- `/Users/mahaoxuan/gstack/review/checklist.md`
+- `/Users/mahaoxuan/gstack/review/TODOS-format.md`
+- `/Users/mahaoxuan/gstack/qa/references/issue-taxonomy.md`
+
+落地：
+
+- 新增 `docs/GSTACK_ALIGNMENT.md`，把 gstack 的 Boil the Lake、Search Before Building、User Sovereignty、两轮 pre-landing review、QA taxonomy 和 release gate 转成 VibeReader 本地规则。
+- 新增 `tasks/gstack-backlog.md`，按 gstack TODO 格式整理发布硬化 backlog。
+- 新增 `tasks/bdd-tdd-phase8.md`，把发布硬化拆成可转测试的 Given/When/Then 行为。
+- 新增 `docs/superpowers/plans/2026-05-23-vibereader-gstack-roadmap.md`，作为 Superpowers 可执行计划。
+- 更新 `tasks/todo.md` 标题为 VibeReader，并新增 Phase 8：gstack 对齐后的发布硬化。
+
+下一阶段：
+
+- 按 `tasks/bdd-tdd-phase8.md` 先写红灯测试，再实现最小代码改动。
+- 不扩大到 EPUB、PDF 写回或移动端。
+
+验证：
+
+- 本次只改文档和任务跟踪，不改运行时代码。
+
+## 2026-05-23 Phase 8 发布硬化启动
+
+BDD/TDD：
+
+- `tasks/bdd-tdd-phase8.md` 已固定缺少配置、坏 key/ provider 拒绝、生产包 endpoint、Stop regression、多文档隔离和无密钥 smoke 六个行为。
+- 新增 `src/modelConfigGuard.test.js`，覆盖缺少配置、缺少 API key、缺少 base URL、缺少模型名和 Anthropic-compatible 配置归一化。
+
+改动：
+
+- 新增 `src/modelConfigGuard.js`，提供 `validateRunnableModelConfig(config)`。
+- `src/App.jsx` 在发送前调用配置 guard；校验失败时显示可读错误并且不进入 loading/request 流程。
+- 新增 `scripts/qa-smoke.mjs`，作为 Phase 8 smoke 自动化入口；无 live key 时输出 `SKIPPED_LIVE_AI`。
+- `package.json` 新增 `npm run qa:smoke`。
+
+当前限制：
+
+- `qa:smoke` 需要 Playwright 依赖；当前项目尚未安装 Playwright，因此脚本会明确报依赖缺失并退出非零。
+- MiniMax 生产包通信路径仍是 P0 未完成项；当前只确认 dev proxy 和 Tauri/release 风险边界。
+
+## 2026-05-28 Phase 8 Tauri 原生 HTTP 迁移
+
+背景：
+
+- Phase 7 遗留风险：生产包依赖 Vite dev proxy 解决 CORS，正式桌面包外发后 AI 请求会失效。
+- 目标：Tauri 运行时使用 `@tauri-apps/plugin-http` 原生 HTTP 客户端，100% 绕过浏览器 CORS，不再依赖云端 edge function 或 Vite dev proxy。
+
+改动：
+
+- 新增 `src/tauriHttp.js`，封装 `@tauri-apps/plugin-http` 的流式 POST 请求，返回 `ReadableStream<Uint8Array>` 保持与浏览器 fetch SSE 解析兼容。
+- 修改 `src/aiService.js`：`chatStream` 在 `isTauriRuntime()` 为 true 时走 `tauriChatStream`（直接请求完整 endpoint），否则走浏览器 `fetch`（仍经过 `resolveAiEndpointForRuntime` 和 Vite dev proxy）。
+- 修改 `src/aiEndpoint.js`：新增 `shouldUseDevProxy()` 显式判断浏览器本地开发何时需要 Vite proxy。
+- `src-tauri/Cargo.toml`：新增依赖 `tauri-plugin-http = “2”`。
+- `src-tauri/src/lib.rs`：Builder 链追加 `.plugin(tauri_plugin_http::init())`。
+- `src-tauri/capabilities/default.json`：权限数组追加 `”http:default”`。
+- `package.json`：新增 `@tauri-apps/plugin-http@^2`（通过 `npm install` 自动写入）。
+
+验证：
+
+- `cd src-tauri && cargo check` -> pass，tauri-plugin-http v2.5.9 成功编译。
+- `npm run test` -> pass，14 个测试文件共 48 个测试通过（含原有 33 个 + 新增配置 guard / endpoint / abort 测试）。
+- `npm run build` -> pass，既有 bundle size warning 未恶化。
+- 无 API key 硬编码；Tauri 运行时直接请求原始 endpoint，不经过本地 dev proxy。
+
+遗留风险：
+
+- Tauri 原生 HTTP 的 SSE 流式响应尚未在真实 MiniMax 长回复场景中手工验收；`tauriChatStream` 返回的 `ReadableStream` 与现有 SSE 解析器接口一致，但真实网络路径需 `npm run tauri:dev` + 有效 key 验证。
+- 浏览器 `npm run dev` 路径仍依赖 Vite dev proxy；本地开发不受影响。
+- 生产包若用户选择非 MiniMax provider（如直接 OpenAI endpoint），Tauri 原生 HTTP 同样适用，但各 provider 的 CORS 策略不同，需逐个验证。
+
+## 2026-05-27 Agent runtime 映射
+
+背景：
+
+- 针对 Pi / Codex / Claude Code 这类 coding agent 的核心机制，明确 VibeReader 不能只理解为”接入一个大模型就智能”。
+- 真正的 agent 能力来自：模型、上下文、工具、循环、权限、记忆和验证的组合。
+
+落地：
+
+- 新增 `docs/AGENT_RUNTIME_MAPPING.md`，把 coding agent harness 映射为 VibeReader 的 reading agent runtime。
+- 更新 `tasks/gstack-backlog.md`，加入 `Reading agent runtime skeleton` 架构任务。
+
+关键结论：
+
+- VibeReader 不应照搬 Pi 的代码编辑 agent；应该借鉴其 agent loop 模式。
+- VibeReader 的工具边界应是 reading-only：读当前文档、取选区、查大纲、搜索文档、生成摘要/卡片/思维导图、保存批注和 artifact。
+- 后续重点是 source span grounding、context packer、bounded reading agent loop 和 artifact-centric UI。

@@ -1,22 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Button, Empty, Spin, Tooltip, Input } from 'antd';
+import { Button, Empty, Spin, Tooltip, Input, message as antMessage } from 'antd';
 import {
   ZoomInOutlined,
   ZoomOutOutlined,
   ColumnWidthOutlined,
   LeftOutlined,
   RightOutlined,
-  MessageOutlined,
   FilePdfOutlined,
 } from '@ant-design/icons';
 import * as pdfjsLib from 'pdfjs-dist';
 import { usePdfStore } from './store';
 import { useProgressStore } from './store/progressStore';
 import { AgentProgressPanel } from './AgentProgressPanel';
+import { PdfAnnotationToolbar } from './PdfAnnotationToolbar';
+import { createAnnotation, listAnnotationsForDocument } from './services/annotationService';
+import { flattenPdfOutline, resolveOutlinePageNumber } from './pdfOutline';
+import { configurePdfWorker } from './pdfWorker';
+import { isInsidePdfAnnotationToolbar } from './pdfSelection';
 import { t } from './i18n';
 
-// Ensure worker is configured (matches pdfService.js)
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+configurePdfWorker(pdfjsLib);
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3.0;
@@ -41,19 +44,23 @@ function copyPdfData(data) {
  *
  * Props:
  *   - onInject: (text: string) => void — called when user clicks inject button
+ *   - documentId: string — used for annotation persistence
  *   - style: CSS style object
  */
-export function PdfViewer({ onInject, style = {} }) {
+export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) {
   const { pdfFile, pdfText, pdfParsing, pdfPages } = usePdfStore();
 
   const [pdfDoc, setPdfDoc] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
   const [pageLoading, setPageLoading] = useState(false);
-  const [selection, setSelection] = useState(null); // { text, x, y }
+  const [selection, setSelection] = useState(null); // { text, x, y, rect }
+  const [outlineItems, setOutlineItems] = useState([]);
+  const [annotations, setAnnotations] = useState([]);
 
   const canvasRef = useRef(null);
   const textLayerRef = useRef(null);
+  const highlightLayerRef = useRef(null);
   const containerRef = useRef(null);
   const renderTaskRef = useRef(null);
 
@@ -81,6 +88,49 @@ export function PdfViewer({ onInject, style = {} }) {
       cancelled = true;
     };
   }, [pdfFile]);
+
+  useEffect(() => {
+    if (!pdfDoc) {
+      setOutlineItems([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadOutline = async () => {
+      try {
+        const outline = await pdfDoc.getOutline();
+        if (!cancelled) setOutlineItems(flattenPdfOutline(outline || []));
+      } catch (error) {
+        console.warn('[PdfViewer] Failed to load outline:', error);
+        if (!cancelled) setOutlineItems([]);
+      }
+    };
+    loadOutline();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfDoc]);
+
+  // Reset visual/page states immediately when documentId changes to isolate documents completely
+  useEffect(() => {
+    setPdfDoc(null);
+    setCurrentPage(1);
+    setZoom(1.0);
+    setSelection(null);
+    setOutlineItems([]);
+    setAnnotations([]);
+  }, [documentId]);
+
+  useEffect(() => {
+    if (!documentId) return;
+    let cancelled = false;
+    listAnnotationsForDocument(documentId).then((items) => {
+      if (!cancelled) setAnnotations(items);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId]);
 
   // Render current page
   useEffect(() => {
@@ -170,19 +220,64 @@ export function PdfViewer({ onInject, style = {} }) {
     };
   }, [pdfDoc, currentPage, zoom]);
 
+  // Render annotation highlights on the current page
+  useEffect(() => {
+    if (!highlightLayerRef.current || !textLayerRef.current) return;
+
+    const layer = highlightLayerRef.current;
+    layer.innerHTML = '';
+
+    const pageAnnotations = annotations.filter((a) => a.page === currentPage && a.rect);
+    if (pageAnnotations.length === 0) return;
+
+    const { width, height } = textLayerRef.current.getBoundingClientRect();
+    layer.style.width = `${width}px`;
+    layer.style.height = `${height}px`;
+
+    pageAnnotations.forEach((annotation) => {
+      const el = document.createElement('div');
+      el.style.position = 'absolute';
+      el.style.left = `${annotation.rect.left}px`;
+      el.style.top = `${annotation.rect.top}px`;
+      el.style.width = `${annotation.rect.width}px`;
+      el.style.height = `${annotation.rect.height}px`;
+      el.style.backgroundColor =
+        annotation.color === 'yellow' ? 'rgba(255, 235, 59, 0.4)' : 'rgba(33, 150, 243, 0.3)';
+      el.style.borderRadius = '2px';
+      el.style.pointerEvents = 'auto';
+      el.style.cursor = 'pointer';
+      el.title = annotation.note || annotation.selectedText;
+      el.addEventListener('click', () => {
+        antMessage.info(annotation.note || annotation.selectedText);
+      });
+      layer.appendChild(el);
+    });
+  }, [annotations, currentPage]);
+
   // Listen for text selection to show floating inject button
   useEffect(() => {
     const handleSelectionChange = () => {
+      if (isInsidePdfAnnotationToolbar(document.activeElement)) {
+        return;
+      }
+
       const sel = window.getSelection();
       const text = sel.toString().trim();
       if (text && textLayerRef.current && textLayerRef.current.contains(sel.anchorNode)) {
         const range = sel.getRangeAt(0);
         const rect = range.getBoundingClientRect();
         const containerRect = containerRef.current.getBoundingClientRect();
+        const textLayerRect = textLayerRef.current.getBoundingClientRect();
         setSelection({
           text,
           x: rect.left - containerRect.left + rect.width / 2,
           y: rect.top - containerRect.top - 40,
+          rect: {
+            left: rect.left - textLayerRect.left,
+            top: rect.top - textLayerRect.top,
+            width: rect.width,
+            height: rect.height,
+          },
         });
       } else {
         setSelection(null);
@@ -224,6 +319,46 @@ export function PdfViewer({ onInject, style = {} }) {
       window.getSelection().removeAllRanges();
     }
   }, [selection, onInject]);
+
+  const handleHighlight = useCallback(async (selectedText) => {
+    if (!selectedText || !documentId) return;
+    const annotation = await createAnnotation({
+      documentId,
+      page: currentPage,
+      selectedText,
+      color: 'yellow',
+      rect: selection?.rect || null,
+    });
+    setAnnotations((items) => [annotation, ...items]);
+    setSelection(null);
+    window.getSelection().removeAllRanges();
+    antMessage.success('已保存高亮');
+  }, [currentPage, documentId, selection]);
+
+  const handleSaveNote = useCallback(async (selectedText, note) => {
+    if (!selectedText || !note || !documentId) return;
+    const annotation = await createAnnotation({
+      documentId,
+      page: currentPage,
+      selectedText,
+      note,
+      color: 'blue',
+      rect: selection?.rect || null,
+    });
+    setAnnotations((items) => [annotation, ...items]);
+    setSelection(null);
+    window.getSelection().removeAllRanges();
+    antMessage.success('已保存笔记');
+  }, [currentPage, documentId, selection]);
+
+  const handleOutlineClick = useCallback(async (outlineItem) => {
+    const pageNumber = await resolveOutlinePageNumber(pdfDoc, outlineItem);
+    if (pageNumber) {
+      goToPage(pageNumber);
+    } else {
+      antMessage.warning('暂时无法跳转该目录项');
+    }
+  }, [goToPage, pdfDoc]);
 
   const { visible: progressVisible, status: progressStatus, dismiss } = useProgressStore();
 
@@ -326,6 +461,23 @@ export function PdfViewer({ onInject, style = {} }) {
         </div>
       </div>
 
+      {outlineItems.length > 0 && (
+        <div className="pdf-outline-strip" aria-label="PDF 大纲">
+          {outlineItems.map((item) => (
+            <Button
+              key={item.id}
+              type="text"
+              size="small"
+              className="pdf-outline-item"
+              style={{ paddingLeft: 8 + item.level * 14 }}
+              onClick={() => handleOutlineClick(item)}
+            >
+              {item.title}
+            </Button>
+          ))}
+        </div>
+      )}
+
       {/* Page canvas area */}
       <div
         style={{
@@ -349,6 +501,16 @@ export function PdfViewer({ onInject, style = {} }) {
               userSelect: 'text',
             }}
           />
+          <div
+            ref={highlightLayerRef}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          />
           {pageLoading && (
             <div
               style={{
@@ -368,46 +530,30 @@ export function PdfViewer({ onInject, style = {} }) {
           )}
         </div>
 
-        {/* Floating inject button */}
-        {selection && (
-          <div
-            style={{
-              position: 'absolute',
-              left: Math.max(8, Math.min(selection.x, (containerRef.current?.clientWidth || 400) - 140)),
-              top: Math.max(8, selection.y),
-              zIndex: 100,
-              background: '#fff',
-              borderRadius: 6,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              padding: '4px 8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 12,
-                color: '#666',
-                maxWidth: 120,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {selection.text.slice(0, 30)}...
-            </span>
-            <Button
-              type="primary"
-              size="small"
-              icon={<MessageOutlined />}
-              onClick={handleInject}
-            >
-              {t('ai-chat-ask-about', null, 'Inject')}
-            </Button>
-          </div>
-        )}
+        <PdfAnnotationToolbar
+          selection={selection && {
+            ...selection,
+            x: Math.max(8, Math.min(selection.x, (containerRef.current?.clientWidth || 400) - 420)),
+            y: Math.max(8, selection.y),
+          }}
+          onInject={() => handleInject()}
+          onHighlight={handleHighlight}
+          onSaveNote={handleSaveNote}
+        />
       </div>
+
+      {annotations.length > 0 && (
+        <div className="pdf-annotation-list" aria-label="PDF 批注列表">
+          {annotations.slice(0, 5).map((annotation) => (
+            <div key={annotation.id} className="pdf-annotation-list-item">
+              <span className={`pdf-annotation-color pdf-annotation-color-${annotation.color}`} />
+              <span className="pdf-annotation-page">P{annotation.page}</span>
+              <span className="pdf-annotation-text">{annotation.selectedText}</span>
+              {annotation.note && <span className="pdf-annotation-note">｜{annotation.note}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

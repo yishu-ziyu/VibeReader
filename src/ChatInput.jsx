@@ -116,7 +116,8 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                 baseUrl,
                 apiKey,
                 modelName,
-                apiFormat: apiFormat || 'openai'
+                apiFormat: apiFormat || 'openai',
+                requiresApiKey: selectedPreset ? selectedPreset.requiresApiKey !== false : true
             };
 
             if (editingConfigId) {
@@ -819,7 +820,12 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                                 label={t('vibe-ai-chat-api-key-shared')}
                                 tooltip={t('vibe-ai-chat-api-key-tooltip')}
                             >
-                                <Input.Password placeholder={t('vibe-ai-chat-api-key-placeholder')} />
+                                <Input.Password 
+                                    placeholder={selectedPreset && selectedPreset.requiresApiKey === false
+                                        ? '无需 API Key (体验版)'
+                                        : t('vibe-ai-chat-api-key-placeholder')
+                                    } 
+                                />
                             </Form.Item>
                             <Form.Item
                                 name="modelName"

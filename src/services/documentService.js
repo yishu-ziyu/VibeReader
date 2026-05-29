@@ -63,6 +63,43 @@ export function fileToDocument(file, source = 'browser-upload') {
     };
 }
 
+export function sanitizeHtmlToText(html) {
+    if (!html) return '';
+
+    if (typeof DOMParser === 'undefined') {
+        return String(html)
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    const parser = new DOMParser();
+    const parsed = parser.parseFromString(String(html), 'text/html');
+    parsed.querySelectorAll('script, style, noscript, template').forEach((node) => node.remove());
+    return (parsed.body?.innerText || parsed.body?.textContent || '')
+        .replace(/\s+\n/g, '\n')
+        .replace(/\n\s+/g, '\n')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim();
+}
+
+export async function fileToDocumentWithContent(file, source = 'browser-upload') {
+    const document = fileToDocument(file, source);
+    if (!document) return null;
+
+    if (document.kind === 'pdf') {
+        return document;
+    }
+
+    const rawText = await file.text();
+    return {
+        ...document,
+        contentText: document.kind === 'html' ? sanitizeHtmlToText(rawText) : rawText,
+    };
+}
+
 function normalizeSelectedPath(selectedPath) {
     if (typeof selectedPath === 'string') return selectedPath;
     if (selectedPath && typeof selectedPath.path === 'string') return selectedPath.path;
@@ -135,7 +172,8 @@ export async function openTauriDocument() {
         };
     }
 
-    const contentText = await readTextFile(path);
+    const rawContentText = await readTextFile(path);
+    const contentText = kind === 'html' ? sanitizeHtmlToText(rawContentText) : rawContentText;
     const file = new File([contentText], name, { type: mimeType });
 
     return {

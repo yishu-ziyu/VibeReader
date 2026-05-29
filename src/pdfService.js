@@ -7,10 +7,9 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { usePdfStore } from './store';
 import { useProgressStore } from './store/progressStore';
+import { configurePdfWorker } from './pdfWorker';
 
-// 设置 worker（使用 pdfjs-dist 内置的 worker）
-// 在生产构建中，需要确保 worker 文件可被访问
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+configurePdfWorker(pdfjsLib);
 
 /**
  * 从 File 对象提取 PDF 文本

@@ -13,19 +13,32 @@ const DEFAULT_MINIMAX_CONFIG = {
   apiKey: '',
 };
 
+/** Kimi Priority Trial 默认配置 */
+const DEFAULT_KIMI_TRIAL_CONFIG = {
+  id: 'preset-kimi-free-trial',
+  baseUrl: 'https://api.moonshot.cn/v1',
+  modelName: 'moonshot-v1-8k',
+  apiFormat: 'openai',
+  apiKey: '',
+  requiresApiKey: false,
+};
+
 function resolveInitialModel() {
   try {
     let configs = getModelConfigs();
-    // 首次使用：自动创建 MiniMax 默认配置
+    // 首次使用：自动创建 Kimi 体验和 MiniMax 默认配置
     if (!Array.isArray(configs) || configs.length === 0) {
-      configs = [{ ...DEFAULT_MINIMAX_CONFIG }];
+      configs = [
+        { ...DEFAULT_KIMI_TRIAL_CONFIG },
+        { ...DEFAULT_MINIMAX_CONFIG }
+      ];
       saveModelConfigs(configs);
-      setSelectedConfigId(DEFAULT_MINIMAX_CONFIG.id);
+      setSelectedConfigId(DEFAULT_KIMI_TRIAL_CONFIG.id);
       return {
         key: 'custom',
-        label: formatCustomModelLabel(DEFAULT_MINIMAX_CONFIG.modelName),
-        configId: DEFAULT_MINIMAX_CONFIG.id,
-        config: DEFAULT_MINIMAX_CONFIG,
+        label: formatCustomModelLabel(DEFAULT_KIMI_TRIAL_CONFIG.modelName),
+        configId: DEFAULT_KIMI_TRIAL_CONFIG.id,
+        config: DEFAULT_KIMI_TRIAL_CONFIG,
       };
     }
     const selectedId = getSelectedConfigId();

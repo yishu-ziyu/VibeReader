@@ -6,6 +6,7 @@
 import { enhanceErrorWithMultimodalHint } from './multimodalApiError';
 import { resolveTemperatureForCustomModel } from './customChatTemperature';
 import { fetchHttpsImageAsDataUrl } from './clientImageDataUrl';
+import { resolveAiEndpointForRuntime } from './aiEndpoint';
 
 class CustomAnthropicService {
     constructor() {
@@ -246,7 +247,7 @@ class CustomAnthropicService {
         const body = await this._buildBodyAsync(systemPrompt, includeHistory, userMessage, temperature);
 
         try {
-            const response = await fetch(endpoint, {
+            const response = await fetch(resolveAiEndpointForRuntime(endpoint), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

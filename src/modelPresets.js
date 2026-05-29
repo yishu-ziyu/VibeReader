@@ -91,6 +91,25 @@ const PROVIDER_PRESETS = [
     tokenPlan: true,
   },
   {
+    id: 'kimi-free-trial',
+    name: 'Kimi Priority Trial (免 Key)',
+    apiType: 'openai-compatible',
+    region: 'china',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    defaultModel: 'moonshot-v1-8k',
+    models: [
+      { id: 'moonshot-v1-8k', name: 'Kimi k1-8K', vision: false },
+      { id: 'moonshot-v1-32k', name: 'Kimi k1-32K', vision: false },
+      { id: 'moonshot-v1-128k', name: 'Kimi k1-128K', vision: false },
+    ],
+    doc: 'https://platform.moonshot.cn/docs/intro',
+    apiKeyPlaceholder: '无需 API Key (体验版)',
+    requiresApiKey: false,
+    codingPlan: true,
+    tokenPlan: true,
+    notes: '体验通道：由后端代理提供支持，无需配置个人 API Key',
+  },
+  {
     id: 'kimi',
     name: 'Kimi (Moonshot)',
     apiType: 'openai-compatible',
@@ -316,6 +335,7 @@ function transformToOldFormat(preset) {
     })),
     docs: preset.doc ? { api: preset.doc } : {},
     notes: preset.notes || '',
+    requiresApiKey: preset.requiresApiKey !== false,
   };
 }
 
