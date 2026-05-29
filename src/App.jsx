@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState, Suspense } from 'react
 import { createRoot } from 'react-dom/client';
 import { Bubble } from '@ant-design/x';
 import { Button, Flex, message as antMessage, Spin, Modal, Slider, Tabs } from 'antd';
-import { FontSizeOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, FolderOpenOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CommentOutlined, FileTextOutlined, BookOutlined, BranchesOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { FontSizeOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, FolderOpenOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CommentOutlined, FileTextOutlined, BookOutlined, BranchesOutlined, ThunderboltOutlined, CompassOutlined } from '@ant-design/icons';
 import ChatInput from './ChatInput';
 import aiService from './aiService';
 import { MULTIMODAL_UNSUPPORTED_CODE } from './multimodalApiError';
@@ -36,6 +36,7 @@ import viberoIconPng from '../icons/vibero.png';
 const SummaryPanel = React.lazy(() => import('./SummaryPanel').then(m => ({ default: m.SummaryPanel })));
 const FlashcardDeck = React.lazy(() => import('./FlashcardDeck').then(m => ({ default: m.FlashcardDeck })));
 const ThinkingTreePanel = React.lazy(() => import('./ThinkingTreePanel').then(m => ({ default: m.ThinkingTreePanel })));
+const AttentionNavigatorPanel = React.lazy(() => import('./AttentionNavigatorPanel').then(m => ({ default: m.AttentionNavigatorPanel })));
 
 /** Simple fallback for lazy-loaded panels */
 function PanelFallback() {
@@ -122,6 +123,8 @@ function App() {
     const abortControllerRef = useRef(null);
     const [dragInjectActive, setDragInjectActive] = useState(false);
     const [pendingDragInjection, setPendingDragInjection] = useState(null);
+    const [selectedParagraphId, setSelectedParagraphId] = useState(null);
+    const [insights, setInsights] = useState([]);
 
     useEffect(() => {
         currentSessionIdRef.current = currentSessionId;
@@ -163,13 +166,16 @@ function App() {
             baseUrl: config.baseUrl,
             apiKey: config.apiKey,
             model: config.model || config.modelName,
-            apiType
+            apiType,
+            authType: config.authType,
         });
         return aiService;
     }, [selectedModel]);
 
     // Synchronize reader stores with the active document to enforce multi-document isolation
     useEffect(() => {
+        setInsights([]);
+        setSelectedParagraphId(null);
         if (!currentDocument) {
             clearPdf();
             useVibeStore.getState().clearVibeData();
@@ -559,6 +565,19 @@ function App() {
         }));
     }, []);
 
+    // Listen for paragraph selections from PdfViewer to sync with ThinkingTreePanel
+    useEffect(() => {
+        const handleSelectParagraph = (event) => {
+            const paragraphId = event.detail?.paragraphId;
+            if (!paragraphId) return;
+            setSelectedParagraphId(paragraphId);
+            // Auto-switch to mindmap tab so the tree is visible
+            setRightToolTab('mindmap');
+        };
+        window.addEventListener('vibereader:select-paragraph', handleSelectParagraph);
+        return () => window.removeEventListener('vibereader:select-paragraph', handleSelectParagraph);
+    }, [setRightToolTab]);
+
     const handleAiPaneDragEnter = useCallback((event) => {
         if (!hasDragInjectData(event.dataTransfer)) return;
         event.preventDefault();
@@ -897,6 +916,7 @@ function App() {
                                 <PdfViewer
                                     onInject={handleInjectPdfText}
                                     documentId={currentDocument?.id}
+                                    insights={insights}
                                     style={{ flex: 1, minHeight: 0 }}
                                 />
                             )}
@@ -927,6 +947,7 @@ function App() {
                                 { key: 'summary', label: <span><ThunderboltOutlined /> {t('ai-chat-summary-panel-title', null, 'Summary')}</span> },
                                 { key: 'flashcard', label: <span><BookOutlined /> {t('ai-chat-flashcard-title', null, 'Flashcards')}</span> },
                                 { key: 'mindmap', label: <span><BranchesOutlined /> {t('ai-chat-thinking-tree-title', null, '思维树')}</span> },
+                                { key: 'navigator', label: <span><CompassOutlined /> 导航仪</span> },
                             ]}
                         />
 
@@ -1001,6 +1022,16 @@ function App() {
                                     <ThinkingTreePanel
                                         onAskAI={handleAskAI}
                                         onNavigateToParagraph={handleNavigateToParagraph}
+                                        activeParagraphId={selectedParagraphId}
+                                        style={{ flex: 1 }}
+                                    />
+                                </Suspense>
+                            )}
+                            {rightToolTab === 'navigator' && (
+                                <Suspense fallback={<PanelFallback />}>
+                                    <AttentionNavigatorPanel
+                                        onNavigateToParagraph={handleNavigateToParagraph}
+                                        onInsightsChange={setInsights}
                                         style={{ flex: 1 }}
                                     />
                                 </Suspense>

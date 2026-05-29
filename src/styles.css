@@ -1738,3 +1738,154 @@
     border: 1px solid var(--fill-quinary);
     background: var(--material-background);
 }
+
+/* ========== Attention Navigator ========== */
+
+.attention-navigator-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--material-sidepane);
+}
+
+.attention-navigator-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--fill-quinary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.attention-navigator-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--fill-primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.attention-navigator-empty,
+.attention-navigator-generate,
+.attention-navigator-progress {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px;
+}
+
+.attention-navigator-generate-icon {
+    color: var(--accent-blue);
+    font-size: 24px;
+}
+
+.attention-navigator-muted {
+    color: var(--fill-tertiary);
+    font-size: 13px;
+}
+
+.attention-navigator-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px;
+}
+
+.attention-navigator-item {
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+
+.attention-navigator-item:hover {
+    background: rgba(24, 144, 255, 0.06);
+}
+
+.attention-navigator-item .ant-list-item-action {
+    display: none;
+}
+
+.attention-navigator-item-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.attention-navigator-item-body {
+    min-width: 0;
+    flex: 1;
+}
+
+.attention-navigator-item-desc {
+    font-size: 13px;
+    color: var(--fill-primary);
+    line-height: 1.5;
+}
+
+.attention-navigator-item-meta {
+    font-size: 11px;
+    color: var(--fill-tertiary);
+    margin-top: 2px;
+}
+
+.attention-navigator-footer {
+    padding: 12px;
+    display: flex;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* Attention markers on PDF page */
+
+.pdf-attention-marker-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.pdf-attention-marker {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    pointer-events: auto;
+    transition: transform 0.15s;
+}
+
+.pdf-attention-marker:hover {
+    transform: scale(1.3);
+}
+
+.pdf-attention-marker-label {
+    position: absolute;
+    left: 14px;
+    top: -2px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.pdf-attention-marker:hover .pdf-attention-marker-label {
+    opacity: 1;
+}

@@ -72,7 +72,7 @@ function findParagraphIdForItem(item, paragraphs) {
  *   - documentId: string — used for annotation persistence
  *   - style: CSS style object
  */
-export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) {
+export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [], style = {} }) {
   const { pdfFile, pdfText, pdfParsing, pdfPages } = usePdfStore();
 
   const [pdfDoc, setPdfDoc] = useState(null);
@@ -86,6 +86,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
   const canvasRef = useRef(null);
   const textLayerRef = useRef(null);
   const highlightLayerRef = useRef(null);
+  const attentionMarkerLayerRef = useRef(null);
   const containerRef = useRef(null);
   const renderTaskRef = useRef(null);
   const pendingParagraphIdRef = useRef(null);
@@ -232,6 +233,12 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
             el.textContent = item.str;
             if (paragraphId) {
               el.setAttribute('data-paragraph-id', paragraphId);
+              el.addEventListener('click', (event) => {
+                event.stopPropagation();
+                window.dispatchEvent(new CustomEvent('vibereader:select-paragraph', {
+                  detail: { paragraphId },
+                }));
+              });
             }
             el.style.position = 'absolute';
             el.style.left = `${tx[4]}px`;
@@ -242,7 +249,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
             el.style.transformOrigin = '0 0';
             el.style.whiteSpace = 'pre';
             el.style.userSelect = 'text';
-            el.style.cursor = 'text';
+            el.style.cursor = paragraphId ? 'pointer' : 'text';
             el.style.color = 'transparent';
             textLayerDiv.appendChild(el);
           });
@@ -252,6 +259,45 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
             window.setTimeout(() => {
               if (highlightParagraph(pendingParagraphId)) pendingParagraphIdRef.current = null;
             }, 0);
+          }
+
+          // Render attention markers for the current page
+          const markerLayer = attentionMarkerLayerRef.current;
+          if (markerLayer && textLayerRef.current) {
+            markerLayer.innerHTML = '';
+            const pageInsights = (insights || []).filter((i) => i.location?.page === currentPage);
+            pageInsights.forEach((insight) => {
+              const spans = textLayerRef.current.querySelectorAll(
+                `[data-paragraph-id="${insight.paragraphId}"]`
+              );
+              if (spans.length === 0) return;
+
+              const firstSpan = spans[0];
+              const spanRect = firstSpan.getBoundingClientRect();
+              const layerRect = textLayerRef.current.getBoundingClientRect();
+              const top = spanRect.top - layerRect.top;
+
+              const marker = document.createElement('div');
+              marker.className = 'pdf-attention-marker';
+              marker.style.top = `${top}px`;
+              marker.style.right = '4px';
+              marker.style.backgroundColor = insight.typeColor || '#999';
+              marker.title = `${insight.typeLabel || insight.type}: ${insight.description}`;
+              marker.addEventListener('click', () => {
+                window.dispatchEvent(
+                  new CustomEvent('vibereader:navigate-paragraph', {
+                    detail: { paragraphId: insight.paragraphId },
+                  })
+                );
+              });
+
+              const label = document.createElement('span');
+              label.className = 'pdf-attention-marker-label';
+              label.textContent = insight.typeLabel || insight.type;
+              marker.appendChild(label);
+
+              markerLayer.appendChild(marker);
+            });
           }
         }
       } catch (err) {
@@ -270,7 +316,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
         renderTaskRef.current.cancel();
       }
     };
-  }, [pdfDoc, currentPage, zoom, highlightParagraph]);
+  }, [pdfDoc, currentPage, zoom, highlightParagraph, insights]);
 
   // Render annotation highlights on the current page
   useEffect(() => {
@@ -603,6 +649,18 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
               left: 0,
               pointerEvents: 'none',
               zIndex: 1,
+            }}
+          />
+          <div
+            ref={attentionMarkerLayerRef}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '20px',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 2,
             }}
           />
           {pageLoading && (

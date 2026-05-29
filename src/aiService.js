@@ -411,9 +411,13 @@ class AIService {
                 finalMessages.push({ role: 'user', content: userContentForRequest });
                 body.messages = finalMessages;
 
+                // MiMo 使用 api-key 头部认证（非 Bearer）
+                const isApiKeyAuth = this.config.authType === 'api-key';
                 headers = {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${apiKey}`,
+                    ...(isApiKeyAuth
+                        ? { 'api-key': apiKey }
+                        : { Authorization: `Bearer ${apiKey}` }),
                 };
             }
 

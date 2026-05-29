@@ -124,7 +124,8 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                 apiKey,
                 modelName,
                 apiFormat: apiFormat || 'openai',
-                requiresApiKey: selectedPreset ? selectedPreset.requiresApiKey !== false : true
+                requiresApiKey: selectedPreset ? selectedPreset.requiresApiKey !== false : true,
+                authType: selectedPreset?.authType || 'bearer',
             };
 
             if (editingConfigId) {
@@ -249,7 +250,8 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
             form.setFieldsValue({
                 baseUrl: preset.baseUrl,
                 modelName: model ? model.id : '',
-                apiFormat: preset.apiFormats[0] || 'openai'
+                apiFormat: preset.apiFormats[0] || 'openai',
+                authType: preset.authType || 'bearer',
             });
         }
     };

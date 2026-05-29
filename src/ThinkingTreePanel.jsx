@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Empty, Progress, Spin, Tag } from 'antd';
 import {
   BranchesOutlined,
@@ -9,6 +9,10 @@ import {
 import { usePdfStore, useVibeStore } from './store';
 import { groupParagraphsBySection } from './paragraphExtractor';
 import { t } from './i18n';
+import {
+  expandTreeToParagraph,
+  scrollTreeToNode,
+} from './bidirectionalAnchor';
 
 const SUMMARY_MAX_LENGTH = 50;
 const POINT_MAX_LENGTH = 20;
@@ -161,18 +165,35 @@ function ThinkingTreeNode({ node, depth, expandedIds, onToggle, onParagraphClick
   );
 }
 
-export function ThinkingTreePanel({ onAskAI, onNavigateToParagraph, style = {} }) {
+export function ThinkingTreePanel({ onAskAI, onNavigateToParagraph, activeParagraphId, style = {} }) {
   const { pdfText, pdfParsing } = usePdfStore();
   const { vibeData } = useVibeStore();
   const [tree, setTree] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [expandedIds, setExpandedIds] = useState(new Set());
+  const treeContentRef = useRef(null);
 
   useEffect(() => {
     setTree(null);
     setExpandedIds(new Set());
   }, [pdfText, vibeData]);
+
+  // Expand tree and scroll to node when a paragraph is selected from PdfViewer
+  useEffect(() => {
+    if (!tree || !activeParagraphId) return;
+
+    expandTreeToParagraph(activeParagraphId, setExpandedIds, tree.children);
+
+    // Wait for React to render the expanded nodes before scrolling
+    const timer = window.setTimeout(() => {
+      if (treeContentRef.current) {
+        scrollTreeToNode(activeParagraphId, treeContentRef.current);
+      }
+    }, 50);
+
+    return () => window.clearTimeout(timer);
+  }, [activeParagraphId, tree]);
 
   const handleGenerate = useCallback(async () => {
     if (!pdfText) return;
@@ -248,7 +269,7 @@ export function ThinkingTreePanel({ onAskAI, onNavigateToParagraph, style = {} }
       )}
 
       {tree && (
-        <div className="thinking-tree-content">
+        <div ref={treeContentRef} className="thinking-tree-content">
           <ThinkingTreeNode
             node={tree}
             depth={0}
