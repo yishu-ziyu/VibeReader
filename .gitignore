@@ -3,6 +3,7 @@ dist/
 .DS_Store
 
 # Build and runtime outputs
+coverage/
 src-tauri/target/
 *.log
 npm-debug.log*
