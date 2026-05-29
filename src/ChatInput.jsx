@@ -14,6 +14,12 @@ import ImageUploader from './ImageUploader';
 import ImagePreview from './ImagePreview';
 import { fetchWebContent, formatAsMarkdownBlock } from './browserTool';
 import { ChatSubmitControl } from './ChatSubmitControl';
+import {
+    DRAG_INJECT_EFFECT,
+    formatDragInjectQuote,
+    hasDragInjectData,
+    readDragInjectData,
+} from './dragInject';
 
 const MENU_SLOT_PX = 20;
 const TOOLBAR_ICON_PX = 18;
@@ -30,7 +36,7 @@ const initialEditorValue = [
     },
 ];
 
-function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, visionCapable }) {
+function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, visionCapable, pendingInjection, onDragInjectHandled }) {
     const { token } = theme.useToken();
     const [form] = Form.useForm();
     const [editor] = useState(() => withReact(withHistory(createEditor())));
@@ -47,6 +53,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
     const [isBrowserModalOpen, setIsBrowserModalOpen] = useState(false);
     const [browserUrl, setBrowserUrl] = useState('');
     const [browserLoading, setBrowserLoading] = useState(false);
+    const lastInjectionIdRef = useRef(null);
 
     // 预设选择
     const [selectedPresetKey, setSelectedPresetKey] = useState(null);
@@ -283,6 +290,37 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
         const { text } = extractContent();
         return !text.trim() && attachedImages.length === 0;
     };
+
+    const insertDraftText = useCallback((text) => {
+        const existingText = Editor.string(editor, []);
+        const prefix = existingText.trim() ? '\n\n' : '';
+        Transforms.select(editor, Editor.end(editor, []));
+        Transforms.insertText(editor, `${prefix}${text}`);
+    }, [editor]);
+
+    useEffect(() => {
+        if (!pendingInjection?.id || !pendingInjection.text) return;
+        if (lastInjectionIdRef.current === pendingInjection.id) return;
+        lastInjectionIdRef.current = pendingInjection.id;
+
+        insertDraftText(pendingInjection.text);
+    }, [insertDraftText, pendingInjection]);
+
+    const handleDragOver = useCallback((event) => {
+        if (!hasDragInjectData(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = DRAG_INJECT_EFFECT;
+    }, []);
+
+    const handleDrop = useCallback((event) => {
+        const payload = readDragInjectData(event.dataTransfer);
+        if (!payload) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        insertDraftText(formatDragInjectQuote(payload));
+        onDragInjectHandled?.();
+    }, [insertDraftText, onDragInjectHandled]);
 
     // 附图仅本地 base64
     const handleImageSelect = useCallback(async (imageData) => {
@@ -560,6 +598,8 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                 transition: 'border-color 0.2s, box-shadow 0.2s',
             }}
             className="slate-sender-container"
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
         >
             {/* 图片预览区域 */}
             <ImagePreview

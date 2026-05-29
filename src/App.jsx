@@ -22,13 +22,20 @@ import { useConversationStore, useDocumentStore, useModelStore, usePdfStore, use
 import { useVibeStore } from './store';
 import { PdfViewer } from './PdfViewer';
 import { DocumentReader } from './DocumentReader';
+import {
+    createDragInjectDraftId,
+    DRAG_INJECT_EFFECT,
+    formatDragInjectQuote,
+    hasDragInjectData,
+    readDragInjectData,
+} from './dragInject';
 import './styles.css';
 import viberoIconPng from '../icons/vibero.png';
 
 // Lazy-load AI panel components to reduce initial bundle size
 const SummaryPanel = React.lazy(() => import('./SummaryPanel').then(m => ({ default: m.SummaryPanel })));
 const FlashcardDeck = React.lazy(() => import('./FlashcardDeck').then(m => ({ default: m.FlashcardDeck })));
-const MindMap = React.lazy(() => import('./MindMap').then(m => ({ default: m.MindMap })));
+const ThinkingTreePanel = React.lazy(() => import('./ThinkingTreePanel').then(m => ({ default: m.ThinkingTreePanel })));
 
 /** Simple fallback for lazy-loaded panels */
 function PanelFallback() {
@@ -113,6 +120,8 @@ function App() {
     const fileInputRef = useRef(null);
     const currentSessionIdRef = useRef(currentSessionId);
     const abortControllerRef = useRef(null);
+    const [dragInjectActive, setDragInjectActive] = useState(false);
+    const [pendingDragInjection, setPendingDragInjection] = useState(null);
 
     useEffect(() => {
         currentSessionIdRef.current = currentSessionId;
@@ -543,6 +552,50 @@ function App() {
         handleSubmit(question, []);
     }, [handleSubmit]);
 
+    const handleNavigateToParagraph = useCallback((paragraphId) => {
+        if (!paragraphId) return;
+        window.dispatchEvent(new CustomEvent('vibereader:navigate-paragraph', {
+            detail: { paragraphId },
+        }));
+    }, []);
+
+    const handleAiPaneDragEnter = useCallback((event) => {
+        if (!hasDragInjectData(event.dataTransfer)) return;
+        event.preventDefault();
+        setDragInjectActive(true);
+    }, []);
+
+    const handleAiPaneDragOver = useCallback((event) => {
+        if (!hasDragInjectData(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = DRAG_INJECT_EFFECT;
+        setDragInjectActive(true);
+    }, []);
+
+    const handleAiPaneDragLeave = useCallback((event) => {
+        const nextTarget = event.relatedTarget;
+        if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+        setDragInjectActive(false);
+    }, []);
+
+    const handleAiPaneDrop = useCallback((event) => {
+        const payload = readDragInjectData(event.dataTransfer);
+        setDragInjectActive(false);
+        if (!payload) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        setRightToolTab('chat');
+        setPendingDragInjection({
+            id: createDragInjectDraftId(),
+            text: formatDragInjectQuote(payload),
+        });
+    }, [setRightToolTab]);
+
+    const handleChatInputDragInjectHandled = useCallback(() => {
+        setDragInjectActive(false);
+    }, []);
+
     // 新建会话
     const handleNewSession = useCallback(() => {
         const newId = generateSessionId();
@@ -857,7 +910,13 @@ function App() {
                         onMouseDown={handleWorkspaceDividerMouseDown}
                     />
 
-                    <section className="workspace-ai-pane">
+                    <section
+                        className={`workspace-ai-pane${dragInjectActive ? ' drag-over' : ''}`}
+                        onDragEnter={handleAiPaneDragEnter}
+                        onDragLeave={handleAiPaneDragLeave}
+                        onDragOver={handleAiPaneDragOver}
+                        onDrop={handleAiPaneDrop}
+                    >
                         <Tabs
                             activeKey={rightToolTab}
                             onChange={setRightToolTab}
@@ -867,7 +926,7 @@ function App() {
                                 { key: 'chat', label: <span><CommentOutlined /> {t('ai-chat-empty-session')}</span> },
                                 { key: 'summary', label: <span><ThunderboltOutlined /> {t('ai-chat-summary-panel-title', null, 'Summary')}</span> },
                                 { key: 'flashcard', label: <span><BookOutlined /> {t('ai-chat-flashcard-title', null, 'Flashcards')}</span> },
-                                { key: 'mindmap', label: <span><BranchesOutlined /> {t('ai-chat-mindmap-title', null, 'Mind Map')}</span> },
+                                { key: 'mindmap', label: <span><BranchesOutlined /> {t('ai-chat-thinking-tree-title', null, '思维树')}</span> },
                             ]}
                         />
 
@@ -939,7 +998,11 @@ function App() {
                             )}
                             {rightToolTab === 'mindmap' && (
                                 <Suspense fallback={<PanelFallback />}>
-                                    <MindMap onAskAI={handleAskAI} style={{ flex: 1 }} />
+                                    <ThinkingTreePanel
+                                        onAskAI={handleAskAI}
+                                        onNavigateToParagraph={handleNavigateToParagraph}
+                                        style={{ flex: 1 }}
+                                    />
                                 </Suspense>
                             )}
                         </div>
@@ -953,6 +1016,8 @@ function App() {
                                     onStop={handleStopGenerating}
                                     loading={loading}
                                     visionCapable={visionCapable}
+                                    pendingInjection={pendingDragInjection}
+                                    onDragInjectHandled={handleChatInputDragInjectHandled}
                                 />
                             </div>
                         )}

@@ -170,6 +170,30 @@
 
 .workspace-ai-pane {
     flex: 1;
+    position: relative;
+}
+
+.workspace-ai-pane.drag-over {
+    box-sizing: border-box;
+    border: 2px dashed var(--accent-blue);
+    border-radius: 8px;
+    background: rgba(24, 144, 255, 0.05);
+}
+
+.workspace-ai-pane.drag-over::after {
+    content: 'Drop here to inject';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 100;
+    padding: 12px 24px;
+    border-radius: 8px;
+    background: rgba(24, 144, 255, 0.9);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
 }
 
 .workspace-pane-header {
@@ -1457,6 +1481,148 @@
     color: var(--fill-tertiary);
     text-align: center;
     flex-shrink: 0;
+}
+
+/* ========== Thinking Tree ========== */
+
+.thinking-tree-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--material-sidepane);
+}
+
+.thinking-tree-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--fill-quinary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.thinking-tree-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--fill-primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.thinking-tree-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px;
+}
+
+.thinking-tree-empty,
+.thinking-tree-generate,
+.thinking-tree-progress {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px;
+}
+
+.thinking-tree-generate-icon {
+    color: var(--accent-blue);
+    font-size: 24px;
+}
+
+.thinking-tree-muted {
+    color: var(--fill-tertiary);
+    font-size: 13px;
+}
+
+.thinking-tree-node {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    border-radius: 6px;
+    color: var(--fill-primary);
+}
+
+.thinking-tree-node:hover {
+    background: rgba(24, 144, 255, 0.06);
+}
+
+.thinking-tree-toggle,
+.thinking-tree-label-button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+}
+
+.thinking-tree-toggle {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    color: var(--fill-tertiary);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.thinking-tree-toggle-spacer {
+    width: 20px;
+    flex-shrink: 0;
+}
+
+.thinking-tree-label,
+.thinking-tree-label-button {
+    min-width: 0;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.thinking-tree-label-button {
+    cursor: pointer;
+}
+
+.thinking-tree-node-section .thinking-tree-label {
+    font-weight: 600;
+}
+
+.thinking-tree-node-paragraph .thinking-tree-label-button {
+    color: var(--fill-secondary);
+}
+
+.thinking-tree-node-point .thinking-tree-label {
+    color: var(--fill-tertiary);
+    font-size: 12px;
+}
+
+.thinking-tree-page {
+    margin-left: auto;
+    color: var(--fill-tertiary);
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+@keyframes paragraph-pulse {
+    0%, 100% {
+        background-color: rgba(255, 235, 59, 0);
+    }
+    50% {
+        background-color: rgba(255, 235, 59, 0.45);
+    }
+}
+
+.paragraph-pulse-highlight {
+    animation: paragraph-pulse 1s ease-in-out 3;
+    border-radius: 2px;
 }
 
 /* ========== Flashcard ========== */

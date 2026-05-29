@@ -3,6 +3,7 @@ import { Button, Empty } from 'antd';
 import { MessageOutlined } from '@ant-design/icons';
 import MarkdownRenderer from './MarkdownRenderer';
 import { sanitizeHtmlToText } from './services/documentService';
+import { createDragInjectPayload, DEFAULT_DRAG_REFERENCE_PAGE, writeDragInjectData } from './dragInject';
 
 function getReadableContent(document) {
     if (!document?.contentText) return '';
@@ -42,6 +43,16 @@ export function DocumentReader({ document: activeDocument, onInject, style = {} 
         window.getSelection()?.removeAllRanges();
     }, [onInject, selection]);
 
+    const handleDragStart = useCallback((event) => {
+        const payload = createDragInjectPayload({
+            text: selection,
+            page: DEFAULT_DRAG_REFERENCE_PAGE,
+            source: activeDocument?.kind || 'document',
+        });
+        if (!payload) return;
+        writeDragInjectData(event.dataTransfer, payload);
+    }, [activeDocument?.kind, selection]);
+
     if (!activeDocument || !content) {
         return (
             <div className="document-reader-empty" style={style}>
@@ -52,7 +63,12 @@ export function DocumentReader({ document: activeDocument, onInject, style = {} 
 
     return (
         <div className="document-reader" style={style}>
-            <div ref={containerRef} className="document-reader-scroll">
+            <div
+                ref={containerRef}
+                className="document-reader-scroll"
+                draggable={!!selection}
+                onDragStart={handleDragStart}
+            >
                 {activeDocument.kind === 'markdown' && (
                     <div className="document-reader-markdown">
                         <MarkdownRenderer content={content} />

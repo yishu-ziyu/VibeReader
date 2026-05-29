@@ -18,6 +18,8 @@ import { flattenPdfOutline, resolveOutlinePageNumber } from './pdfOutline';
 import { configurePdfWorker } from './pdfWorker';
 import { isInsidePdfAnnotationToolbar } from './pdfSelection';
 import { t } from './i18n';
+import { createDragInjectPayload, writeDragInjectData } from './dragInject';
+import { extractParagraphsFromPage } from './paragraphExtractor';
 
 configurePdfWorker(pdfjsLib);
 
@@ -30,6 +32,29 @@ function copyPdfData(data) {
   if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
   if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
   return data;
+}
+
+function getParagraphPage(paragraphId) {
+  const match = String(paragraphId || '').match(/^page-(\d+)-para-\d+$/);
+  return match ? Number(match[1]) : null;
+}
+
+function getTextItemY(item) {
+  const transform = Array.isArray(item?.transform) ? item.transform : [];
+  return Number(transform[5]) || 0;
+}
+
+function findParagraphIdForItem(item, paragraphs) {
+  if (!paragraphs.length) return null;
+  const y = getTextItemY(item);
+  const sorted = [...paragraphs].sort((a, b) => b.y - a.y);
+  if (y >= sorted[0].y) return sorted[0].id;
+
+  for (let index = 0; index < sorted.length; index += 1) {
+    const next = sorted[index + 1];
+    if (y <= sorted[index].y && (!next || y > next.y)) return sorted[index].id;
+  }
+  return sorted[sorted.length - 1].id;
 }
 
 /**
@@ -63,6 +88,21 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
   const highlightLayerRef = useRef(null);
   const containerRef = useRef(null);
   const renderTaskRef = useRef(null);
+  const pendingParagraphIdRef = useRef(null);
+
+  const highlightParagraph = useCallback((paragraphId) => {
+    const textLayer = textLayerRef.current;
+    if (!paragraphId || !textLayer) return false;
+    const spans = textLayer.querySelectorAll(`[data-paragraph-id="${paragraphId}"]`);
+    if (spans.length === 0) return false;
+
+    spans[0].scrollIntoView({ block: 'center', inline: 'nearest' });
+    spans.forEach((span) => span.classList.add('paragraph-pulse-highlight'));
+    window.setTimeout(() => {
+      spans.forEach((span) => span.classList.remove('paragraph-pulse-highlight'));
+    }, 3000);
+    return true;
+  }, []);
 
   // Load PDF document when pdfFile changes
   useEffect(() => {
@@ -180,14 +220,19 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
 
           const textContent = await page.getTextContent();
           const textItems = textContent.items;
+          const paragraphs = extractParagraphsFromPage(textContent, currentPage);
 
           textItems.forEach((item) => {
             const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
             const fontHeight = Math.hypot(tx[0], tx[1]);
             const fontWidth = Math.hypot(tx[2], tx[3]);
+            const paragraphId = findParagraphIdForItem(item, paragraphs);
 
             const el = document.createElement('span');
             el.textContent = item.str;
+            if (paragraphId) {
+              el.setAttribute('data-paragraph-id', paragraphId);
+            }
             el.style.position = 'absolute';
             el.style.left = `${tx[4]}px`;
             el.style.top = `${tx[5] - fontHeight}px`;
@@ -201,6 +246,13 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
             el.style.color = 'transparent';
             textLayerDiv.appendChild(el);
           });
+
+          const pendingParagraphId = pendingParagraphIdRef.current;
+          if (getParagraphPage(pendingParagraphId) === currentPage) {
+            window.setTimeout(() => {
+              if (highlightParagraph(pendingParagraphId)) pendingParagraphIdRef.current = null;
+            }, 0);
+          }
         }
       } catch (err) {
         if (err.name !== 'RenderingCancelledException') {
@@ -218,7 +270,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
         renderTaskRef.current.cancel();
       }
     };
-  }, [pdfDoc, currentPage, zoom]);
+  }, [pdfDoc, currentPage, zoom, highlightParagraph]);
 
   // Render annotation highlights on the current page
   useEffect(() => {
@@ -301,6 +353,26 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
   const goPrev = useCallback(() => goToPage(currentPage - 1), [currentPage, goToPage]);
   const goNext = useCallback(() => goToPage(currentPage + 1), [currentPage, goToPage]);
 
+  useEffect(() => {
+    const handleNavigateParagraph = (event) => {
+      const paragraphId = event.detail?.paragraphId;
+      const page = getParagraphPage(paragraphId);
+      if (!paragraphId || !page) return;
+
+      pendingParagraphIdRef.current = paragraphId;
+      if (page !== currentPage) {
+        goToPage(page);
+      } else {
+        window.setTimeout(() => {
+          if (highlightParagraph(paragraphId)) pendingParagraphIdRef.current = null;
+        }, 0);
+      }
+    };
+
+    window.addEventListener('vibereader:navigate-paragraph', handleNavigateParagraph);
+    return () => window.removeEventListener('vibereader:navigate-paragraph', handleNavigateParagraph);
+  }, [currentPage, goToPage, highlightParagraph]);
+
   const zoomIn = useCallback(() => {
     setZoom((z) => (z === 'fit-width' ? 1.25 : Math.min(MAX_ZOOM, z + ZOOM_STEP)));
   }, []);
@@ -319,6 +391,26 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
       window.getSelection().removeAllRanges();
     }
   }, [selection, onInject]);
+
+  const handleSelectionDragStart = useCallback((event) => {
+    const payload = createDragInjectPayload({
+      text: selection?.text,
+      page: currentPage,
+      source: 'pdf-selection',
+    });
+    if (!payload) return;
+    writeDragInjectData(event.dataTransfer, payload);
+  }, [currentPage, selection]);
+
+  const handleAnnotationDragStart = useCallback((event, annotation) => {
+    const payload = createDragInjectPayload({
+      text: annotation?.selectedText,
+      page: annotation?.page,
+      source: 'pdf-annotation',
+    });
+    if (!payload) return;
+    writeDragInjectData(event.dataTransfer, payload);
+  }, []);
 
   const handleHighlight = useCallback(async (selectedText) => {
     if (!selectedText || !documentId) return;
@@ -493,6 +585,8 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
           <canvas ref={canvasRef} style={{ display: 'block', background: '#fff' }} />
           <div
             ref={textLayerRef}
+            draggable={!!selection}
+            onDragStart={handleSelectionDragStart}
             style={{
               position: 'absolute',
               top: 0,
@@ -545,7 +639,12 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', style = {} }) 
       {annotations.length > 0 && (
         <div className="pdf-annotation-list" aria-label="PDF 批注列表">
           {annotations.slice(0, 5).map((annotation) => (
-            <div key={annotation.id} className="pdf-annotation-list-item">
+            <div
+              key={annotation.id}
+              className="pdf-annotation-list-item"
+              draggable
+              onDragStart={(event) => handleAnnotationDragStart(event, annotation)}
+            >
               <span className={`pdf-annotation-color pdf-annotation-color-${annotation.color}`} />
               <span className="pdf-annotation-page">P{annotation.page}</span>
               <span className="pdf-annotation-text">{annotation.selectedText}</span>

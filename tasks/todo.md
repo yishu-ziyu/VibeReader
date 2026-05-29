@@ -1,6 +1,6 @@
 # VibeReader Standalone 任务跟踪
 
-最后更新：2026-05-23
+最后更新：2026-05-29
 
 ## 当前决策
 
@@ -148,6 +148,29 @@
 - [x] `cd src-tauri && cargo check` 通过
 - [x] `npx playwright test` 通过（20 tests）
 - [ ] Phase 8 结果写入 `DEVLOG.md`
+
+## Phase 9：非线性阅读 P0/P1 任务信封
+
+- [x] P0 拖拽引用：`tasks/codex-drag-to-inject.md`
+  - [x] RED 基线：在临时 `HEAD` worktree 复制现有测试后，`src/dragInject.test.js` 2 失败 / 1 通过
+  - [x] GREEN：当前工作树 `src/dragInject.test.js` 3 通过
+  - [x] 全量测试：`npm run test` 通过（并行任务前 20 文件 / 69 测试；最终 24 文件 / 100 测试）
+  - [x] 构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] P0 段落级思维树：`tasks/codex-thinking-tree.md`
+  - [x] Agent Team Worker A 执行 `paragraphExtractor` + `ThinkingTreePanel` 主实现
+  - [x] 定向测试：`src/paragraphExtractor.test.js` 6 测试通过，`src/ThinkingTreePanel.test.jsx` 4 测试通过
+  - [x] 集成修复：`PdfViewer.jsx` 段落导航 effect 移到 `goToPage` 初始化之后，避免初始化顺序回归
+- [x] P1 双向锚定核心：`tasks/codex-bidirectional-anchor.md`
+  - [x] Agent Team Worker B 执行 `bidirectionalAnchor` 核心模块与测试
+  - [x] 定向测试：`src/bidirectionalAnchor.test.js` 13 测试通过
+  - [ ] UI / PDF / 思维树集成闭环待接入
+- [x] P1 AI 注意力导航仪核心：`tasks/codex-attention-navigator.md`
+  - [x] Agent Team Worker C 执行 `attentionNavigator` 核心模块与测试
+  - [x] 定向测试：`src/attentionNavigator.test.js` 8 测试通过
+  - [ ] Attention Navigator 面板与触发入口待接入
+- [x] GitHub 开发效率调研
+  - [x] Agent Team Researcher 输出可立即应用的 agent workflow 改进
+  - [x] 本轮采用：窄上下文子代理、互斥写入范围、任务轨迹、轻量测试/构建 gate
 
 ## Review
 
