@@ -1,28 +1,44 @@
 /* ========== CSS 变量定义 ========== */
-/* 浅色主题（默认） */
+/* 浅色主题（默认）— Esther Brand + Vibero Craft */
 :root {
-    --material-background: #ffffff;
-    --material-sidepane: #f5f5f5;
-    --fill-primary: #333;
-    --fill-secondary: #595959;
-    --fill-tertiary: #999;
+    --material-background: #fefcf6;
+    --material-sidepane: #faf6eb;
+    --fill-primary: #1a1a2e;
+    --fill-secondary: #4a4a5a;
+    --fill-tertiary: #888;
     --fill-quaternary: #ccc;
-    --fill-quinary: #e0e0e0;
-    --accent-blue: #1890ff;
+    --fill-quinary: rgba(26, 26, 26, 0.06);
+    --accent-blue: #2B7FD8;
+    --accent-yellow: #F4D758;
+    --accent-red: #E84A5F;
     --panel-font-scale: 1;
+
+    /* Glow 体系 */
+    --glow-blue: 0 0 20px rgba(43, 127, 216, 0.25);
+    --glow-yellow: 0 0 16px rgba(244, 215, 88, 0.3);
+    --glow-card: 0 2px 12px rgba(0, 0, 0, 0.04);
+    --glow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* 暗夜主题 */
 @media (prefers-color-scheme: dark) {
     :root {
-        --material-background: #1e1e1e;
-        --material-sidepane: #303030;
+        --material-background: #0d1117;
+        --material-sidepane: #151821;
         --fill-primary: #ffffffe5;
         --fill-secondary: #ffffff8c;
         --fill-tertiary: #ffffff4d;
         --fill-quaternary: #ffffff2e;
-        --fill-quinary: #ffffff0f;
+        --fill-quinary: rgba(255, 255, 255, 0.1);
         --accent-blue: #4072e5;
+        --accent-yellow: #F4D758;
+        --accent-red: #E84A5F;
+
+        /* Glow 体系 — 暗夜 */
+        --glow-blue: 0 0 20px rgba(64, 114, 229, 0.3);
+        --glow-yellow: 0 0 16px rgba(244, 215, 88, 0.2);
+        --glow-card: 0 2px 12px rgba(0, 0, 0, 0.2);
+        --glow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.35);
     }
 
     /* 强制覆盖 Ant Design 组件的默认样式 */
@@ -136,13 +152,26 @@
     }
 }
 
+/* ========== Font System ========== */
+@font-face {
+    font-family: 'Huiwen Mincho';
+    src: local('Huiwen Mincho'), local('HuiwenMincho'), local('汇文明朝体');
+    font-weight: 400 900;
+    font-display: swap;
+}
+
+::selection {
+    background: #F4D758;
+    color: #1a1a1a;
+}
+
 /* AI Chat Container */
 .ai-chat-container {
     display: flex;
     flex-direction: column;
     height: 100%;
     background: var(--material-background);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
     font-size: calc(14px * var(--panel-font-scale, 1));
 }
 
@@ -151,7 +180,7 @@
     display: flex;
     min-height: 0;
     overflow: hidden;
-    background: #f2f3f5;
+    background: var(--material-background);
 }
 
 .workspace-reader-pane,
@@ -161,11 +190,14 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #fff;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: var(--glow-card);
+    margin: 8px;
 }
 
 .workspace-reader-pane {
-    border-right: 1px solid #e5e7eb;
+    border-right: 1px solid var(--fill-quinary);
 }
 
 .workspace-ai-pane {
@@ -197,16 +229,18 @@
 }
 
 .workspace-pane-header {
-    height: 44px;
+    height: 48px;
     padding: 0 16px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--fill-quinary);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     font-weight: 600;
-    background: #fff;
+    background: var(--material-background);
     flex-shrink: 0;
+    font-family: 'Fraunces', 'Noto Serif SC', 'Huiwen Mincho', serif;
+    font-size: 15px;
 }
 
 .workspace-pane-meta {
@@ -231,14 +265,14 @@
     width: 6px;
     flex: 0 0 6px;
     cursor: col-resize;
-    background: #eef0f3;
-    border-left: 1px solid #e5e7eb;
-    border-right: 1px solid #e5e7eb;
+    background: rgba(26, 26, 26, 0.03);
+    border-left: 1px solid var(--fill-quinary);
+    border-right: 1px solid var(--fill-quinary);
 }
 
 .workspace-divider:hover,
 .workspace-resizing .workspace-divider {
-    background: #dbeafe;
+    background: rgba(43, 127, 216, 0.1);
 }
 
 .workspace-resizing {
@@ -248,9 +282,29 @@
 
 .workspace-ai-tabs {
     padding: 0 12px;
-    border-bottom: 1px solid #e5e7eb;
-    background: #fff;
+    border-bottom: 2px solid var(--fill-quinary);
+    background: var(--material-background);
     flex-shrink: 0;
+}
+
+.workspace-ai-tabs .ant-tabs-tab {
+    padding: 10px 16px;
+    margin: 0 2px -2px 2px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    color: var(--fill-tertiary);
+}
+
+.workspace-ai-tabs .ant-tabs-tab-active {
+    border-bottom-color: var(--accent-blue);
+    color: var(--accent-blue);
+    font-weight: 600;
+}
+
+.workspace-ai-tabs .ant-tabs-ink-bar {
+    background: var(--accent-blue);
+    height: 2px;
+    box-shadow: 0 0 8px rgba(43, 127, 216, 0.4);
 }
 
 .workspace-ai-tabs .ant-tabs-nav {
@@ -263,7 +317,7 @@
     display: flex;
     min-height: 0;
     height: 100%;
-    background: #f6f7f8;
+    background: var(--material-background);
 }
 
 .document-reader-empty {
@@ -290,12 +344,12 @@
     max-width: 860px;
     margin: 0 auto;
     padding: 32px;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
+    border: 1px solid rgba(26, 26, 26, 0.06);
+    border-radius: 12px;
     background: #fff;
-    color: #1f2328;
+    color: #1a1a2e;
     line-height: 1.7;
-    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+    box-shadow: var(--glow-card);
 }
 
 .document-reader-text {
@@ -316,8 +370,8 @@
     gap: 4px;
     overflow-x: auto;
     padding: 6px 10px;
-    border-bottom: 1px solid #e8e8e8;
-    background: #fafafa;
+    border-bottom: 1px solid var(--fill-quinary);
+    background: var(--material-background);
     flex-shrink: 0;
 }
 
@@ -335,10 +389,10 @@
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
-    background: #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--fill-quinary);
+    border-radius: 10px;
+    background: var(--material-background);
+    box-shadow: var(--glow-card-hover);
 }
 
 .pdf-annotation-preview {
@@ -357,8 +411,8 @@
     max-height: 116px;
     overflow: auto;
     padding: 8px 12px;
-    border-top: 1px solid #e8e8e8;
-    background: #fff;
+    border-top: 1px solid var(--fill-quinary);
+    background: var(--material-background);
     flex-shrink: 0;
 }
 
@@ -383,7 +437,7 @@
 }
 
 .pdf-annotation-color-blue {
-    background: #1677ff;
+    background: var(--accent-blue);
 }
 
 .pdf-annotation-color-green {
@@ -406,7 +460,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 16px 20px;
-    background: #fafafa;
+    background: var(--material-background);
 }
 
 .workspace-empty-chat {
@@ -420,8 +474,8 @@
 
 .workspace-input {
     padding: 8px 16px 16px;
-    border-top: 1px solid #e0e0e0;
-    background: #fff;
+    border-top: 1px solid var(--fill-quinary);
+    background: var(--material-background);
     flex-shrink: 0;
 }
 
@@ -435,7 +489,7 @@
         min-width: 0;
         min-height: 320px;
         border-right: 0;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--fill-quinary);
     }
 
     .workspace-divider {
@@ -642,14 +696,15 @@
 /* Slate 输入框 */
 .slate-input-container {
     background: var(--material-background);
-    border: 1px solid var(--fill-quinary);
-    border-radius: 4px;
+    border: 1.5px solid rgba(26, 26, 26, 0.1);
+    border-radius: 10px;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .slate-input-container:focus-within {
+    outline: none;
     border-color: var(--accent-blue);
-    box-shadow: 0 0 0 2px rgba(64, 114, 229, 0.1);
+    box-shadow: 0 0 0 3px rgba(43, 127, 216, 0.1);
 }
 
 .slate-input-container [data-slate-editor] {
@@ -673,8 +728,8 @@
 /* Slate Sender 组件（Ant Design X 风格） */
 .slate-sender-container {
     background: var(--material-background);
-    border: 1px solid var(--fill-quinary);
-    border-radius: 8px;
+    border: 1.5px solid rgba(26, 26, 26, 0.1);
+    border-radius: 10px;
     transition: border-color 0.2s, box-shadow 0.2s;
     overflow: hidden;
     /* 防止内容溢出 */
@@ -685,8 +740,9 @@
 }
 
 .slate-sender-container:focus-within {
-    border-color: var(--fill-quaternary);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(43, 127, 216, 0.1);
 }
 
 .slate-sender-container [data-slate-editor] {
@@ -783,13 +839,14 @@
 /* Sender 输入框 */
 .ant-sender {
     background: var(--material-background);
-    border: 1px solid var(--fill-quinary);
-    border-radius: 4px;
+    border: 1.5px solid rgba(26, 26, 26, 0.1);
+    border-radius: 10px;
 }
 
 .ant-sender:focus-within {
+    outline: none;
     border-color: var(--accent-blue);
-    box-shadow: 0 0 0 2px rgba(64, 114, 229, 0.1);
+    box-shadow: 0 0 0 3px rgba(43, 127, 216, 0.1);
 }
 
 .ant-sender-input {
@@ -939,7 +996,7 @@
     margin-bottom: 0;
 }
 
-/* 标题 */
+/* 标题 — Esther 衬线标题 */
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3,
@@ -947,9 +1004,10 @@
 .markdown-content h5,
 .markdown-content h6 {
     margin: 16px 0 8px 0;
-    font-weight: 600;
+    font-weight: 700;
     line-height: 1.3;
     color: var(--fill-primary);
+    font-family: 'Fraunces', 'Noto Serif SC', 'Huiwen Mincho', serif;
 }
 
 .markdown-content h1 {
@@ -1379,13 +1437,13 @@
 /* 自定义模型：右侧表单「添加」重复点击时的轻微高亮脉冲 */
 @keyframes custom-config-form-pulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.35);
+        box-shadow: 0 0 0 0 rgba(43, 127, 216, 0.35);
     }
     40% {
-        box-shadow: 0 0 0 6px rgba(24, 144, 255, 0.12);
+        box-shadow: 0 0 0 6px rgba(43, 127, 216, 0.12);
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(24, 144, 255, 0);
+        box-shadow: 0 0 0 0 rgba(43, 127, 216, 0);
     }
 }
 
@@ -1398,14 +1456,16 @@
 
 .summary-card {
     margin-bottom: 12px;
-    border-radius: 8px;
-    border: 1px solid var(--fill-quinary);
-    background: var(--material-background);
-    transition: box-shadow 0.2s ease;
+    border-radius: 12px;
+    border: 1px solid rgba(26, 26, 26, 0.06);
+    background: #ffffff;
+    box-shadow: var(--glow-card);
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .summary-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+    box-shadow: var(--glow-card-hover);
 }
 
 .summary-card-header {
@@ -1553,7 +1613,7 @@
 }
 
 .thinking-tree-node:hover {
-    background: rgba(24, 144, 255, 0.06);
+    background: rgba(43, 127, 216, 0.06);
 }
 
 .thinking-tree-toggle,
@@ -1663,7 +1723,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--glow-card);
 }
 
 .flashcard-face-front {
@@ -1802,12 +1862,14 @@
 .attention-navigator-item {
     cursor: pointer;
     padding: 8px 12px;
-    border-radius: 6px;
-    transition: background 0.15s;
+    border-radius: 10px;
+    border-left: 3px solid transparent;
+    transition: background 0.15s, transform 0.15s;
 }
 
 .attention-navigator-item:hover {
-    background: rgba(24, 144, 255, 0.06);
+    background: rgba(43, 127, 216, 0.06);
+    transform: translateX(2px);
 }
 
 .attention-navigator-item .ant-list-item-action {
