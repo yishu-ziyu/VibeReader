@@ -1,5 +1,26 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 27：Reading Note Source Links
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-note-source-links.md`。
+- Reading Note Markdown 中的 source refs 从纯文本改为 Markdown 链接。
+- 导出文末新增 `## Sources` 区块。
+- Sources 区块包含稳定 HTML anchor 和原文摘录，并按 anchor 去重。
+
+命令：
+
+- RED：`cargo test --test storage_core reading_note_export_renders_artifact_body_and_source_refs` -> failed，缺少 Markdown source 链接。
+- GREEN：`cargo test --test storage_core reading_note_export_renders_artifact_body_and_source_refs` -> pass（1 test）。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（19 storage tests + 1 command test）。
+- `npm run test` -> pass（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+
+遗留风险：
+
+- 当前链接是导出 Markdown 内部跳转，还不是 Obsidian 反向打开 VibeReader 的应用深链。
+
 ## 2026-06-11 Phase 26：Reading Note Export Source Refs
 
 改动：

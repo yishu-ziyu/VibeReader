@@ -1013,5 +1013,13 @@ fn reading_note_export_renders_artifact_body_and_source_refs() {
         .contains("The paper's contribution is grounded in the method section."));
     assert!(export.markdown.contains("P2"));
     assert!(export.markdown.contains("page-2-para-0"));
+    assert!(export
+        .markdown
+        .contains("[P2 page-2-para-0](#source-p2-page-2-para-0)"));
+    assert!(export.markdown.contains("## Sources"));
+    assert!(export
+        .markdown
+        .contains("<a id=\"source-p2-page-2-para-0\"></a>"));
+    assert!(export.markdown.contains("Method section source text"));
     assert!(export.json.contains("sourceRefs"));
 }

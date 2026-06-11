@@ -1605,6 +1605,7 @@ fn document_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DocumentRecord
 
 fn render_reading_note_markdown(payload: &ReadingNoteExportPayload) -> String {
     let mut output = String::new();
+    let mut exported_source_refs: Vec<MarkdownSourceRef> = vec![];
     output.push_str("# Reading Note\n\n");
     output.push_str("## Metadata\n");
     output.push_str(&format!("- Title: {}\n", payload.document.name));
@@ -1685,7 +1686,8 @@ fn render_reading_note_markdown(payload: &ReadingNoteExportPayload) -> String {
                 output.push_str(&format!("  - Source: {}\n", card.source_text));
             }
             for source_ref in source_refs {
-                output.push_str(&format!("  - Source ref: {}\n", source_ref));
+                output.push_str(&format!("  - Source ref: {}\n", source_ref.markdown_link()));
+                push_unique_source_ref(&mut exported_source_refs, source_ref);
             }
             if !card.user_note.is_empty() {
                 output.push_str(&format!("  - Note: {}\n", card.user_note));
@@ -1737,6 +1739,19 @@ fn render_reading_note_markdown(payload: &ReadingNoteExportPayload) -> String {
         output.push('\n');
     }
 
+    if !exported_source_refs.is_empty() {
+        output.push_str("## Sources\n\n");
+        for source_ref in &exported_source_refs {
+            output.push_str(&format!("<a id=\"{}\"></a>\n\n", source_ref.anchor));
+            output.push_str(&format!("### {}\n\n", source_ref.label));
+            if let Some(text) = &source_ref.text {
+                output.push_str(&format!("> {}\n\n", text));
+            } else {
+                output.push_str("_No source excerpt saved._\n\n");
+            }
+        }
+    }
+
     output.push_str("## Follow-up\n\n- \n");
     output
 }
@@ -1753,14 +1768,42 @@ fn json_string_field<'a>(value: &'a serde_json::Value, key: &str) -> Option<&'a 
     value.get(key)?.as_str().map(str::trim)
 }
 
-fn card_page_label(card: &VibeCardRecord, source_refs: &[String]) -> String {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MarkdownSourceRef {
+    label: String,
+    anchor: String,
+    text: Option<String>,
+}
+
+impl MarkdownSourceRef {
+    fn new(label: String, text: Option<String>) -> Self {
+        Self {
+            anchor: source_ref_anchor(&label),
+            label,
+            text,
+        }
+    }
+
+    fn markdown_link(&self) -> String {
+        format!("[{}](#{})", self.label, self.anchor)
+    }
+}
+
+fn card_page_label(card: &VibeCardRecord, source_refs: &[MarkdownSourceRef]) -> String {
     card.page
         .map(|page| format!("P{}", page))
-        .or_else(|| source_refs.first().cloned())
+        .or_else(|| {
+            source_refs
+                .first()
+                .map(|source_ref| source_ref.label.clone())
+        })
         .unwrap_or_else(|| "No source page".into())
 }
 
-fn card_source_refs(card: &VibeCardRecord, ai_content: Option<&serde_json::Value>) -> Vec<String> {
+fn card_source_refs(
+    card: &VibeCardRecord,
+    ai_content: Option<&serde_json::Value>,
+) -> Vec<MarkdownSourceRef> {
     let refs = ai_content
         .and_then(|content| content.get("sourceRefs"))
         .and_then(serde_json::Value::as_array)
@@ -1777,25 +1820,79 @@ fn card_source_refs(card: &VibeCardRecord, ai_content: Option<&serde_json::Value
     }
 
     match (card.page, card.paragraph_id.as_deref()) {
-        (Some(page), Some(paragraph_id)) => vec![format!("P{} {}", page, paragraph_id)],
-        (Some(page), None) => vec![format!("P{}", page)],
+        (Some(page), Some(paragraph_id)) => {
+            vec![MarkdownSourceRef::new(
+                format!("P{} {}", page, paragraph_id),
+                if card.source_text.is_empty() {
+                    None
+                } else {
+                    Some(card.source_text.clone())
+                },
+            )]
+        }
+        (Some(page), None) => vec![MarkdownSourceRef::new(
+            format!("P{}", page),
+            if card.source_text.is_empty() {
+                None
+            } else {
+                Some(card.source_text.clone())
+            },
+        )],
         _ => vec![],
     }
 }
 
-fn source_ref_label(value: &serde_json::Value) -> Option<String> {
+fn source_ref_label(value: &serde_json::Value) -> Option<MarkdownSourceRef> {
     let page = value.get("page").and_then(serde_json::Value::as_i64);
     let paragraph_id = value
         .get("paragraphId")
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
         .filter(|paragraph_id| !paragraph_id.is_empty());
+    let text = value
+        .get("text")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_string);
 
-    match (page, paragraph_id) {
+    let label = match (page, paragraph_id) {
         (Some(page), Some(paragraph_id)) => Some(format!("P{} {}", page, paragraph_id)),
         (Some(page), None) => Some(format!("P{}", page)),
         (None, Some(paragraph_id)) => Some(paragraph_id.to_string()),
         (None, None) => None,
+    }?;
+
+    Some(MarkdownSourceRef::new(label, text))
+}
+
+fn source_ref_anchor(label: &str) -> String {
+    let slug = label
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+
+    format!("source-{}", slug)
+}
+
+fn push_unique_source_ref(source_refs: &mut Vec<MarkdownSourceRef>, source_ref: MarkdownSourceRef) {
+    if !source_refs
+        .iter()
+        .any(|existing| existing.anchor == source_ref.anchor)
+    {
+        source_refs.push(source_ref);
     }
 }
 

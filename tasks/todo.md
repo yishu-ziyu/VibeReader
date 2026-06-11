@@ -541,7 +541,25 @@
 - [x] 全量前端测试：`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
 - [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
 
+## Phase 27：Reading Note Source Links
+
+- [x] 新增 `tasks/bdd-tdd-reading-note-source-links.md`
+- [x] Reading Note Markdown 中的 source refs 渲染为页码/段落链接
+- [x] 文末生成 `## Sources` 区块
+- [x] Sources 区块包含稳定 HTML anchor 和原文摘录
+- [x] 相同 anchor 的来源在 Sources 区块中去重
+
+验收：
+
+- [x] RED：`cargo test --test storage_core reading_note_export_renders_artifact_body_and_source_refs` 先失败于缺少 `[P2 page-2-para-0](#source-p2-page-2-para-0)` 链接
+- [x] GREEN：`cargo test --test storage_core reading_note_export_renders_artifact_body_and_source_refs` 通过（1 test）
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+
 ## Review
+
+2026-06-11：继续推进 Phase 27，把 Reading Note 导出中的 source refs 从纯文本锚点推进为 Markdown 内可点击链接。新增 `tasks/bdd-tdd-reading-note-source-links.md`；Rust `export_reading_note` 现在将 `sourceRefs` 渲染为 `[P2 page-2-para-0](#source-p2-page-2-para-0)`，并在文末生成去重后的 `## Sources` 区块，包含稳定 HTML anchor 和原文摘录。验证：红灯先失败于缺少 Markdown source 链接；实现后目标测试通过（1 test），`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test），`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning。剩余风险：这些链接是导出 Markdown 内部跳转，不是从 Obsidian 反向打开 VibeReader 的应用深链。
 
 2026-06-11：继续推进 Phase 26，把 Agent task result 保存成 `reading_note` 后的完整导出补上来源。新增 `tasks/bdd-tdd-reading-note-export-source-refs.md`；Rust `export_reading_note` 的 Markdown renderer 现在会解析 `reading_note` VibeCard 的 `ai_content.body` 和 `ai_content.sourceRefs`，导出正文、页码和 `paragraphId`，同时普通 VibeCard 仍保留已有 page fallback。验证：红灯先失败于 Markdown 未包含 reading note 正文；实现后目标测试通过（1 test），`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test），`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning。剩余风险：Markdown source refs 仍是文本锚点，尚未做 Obsidian/wiki-link 或应用内深链格式。
 
