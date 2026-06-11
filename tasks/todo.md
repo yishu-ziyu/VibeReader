@@ -557,7 +557,25 @@
 - [x] 全量前端测试：`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
 - [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
 
+## Phase 28：Export Filenames
+
+- [x] 新增 `tasks/bdd-tdd-export-filenames.md`
+- [x] 完整 Reading Note Markdown / JSON 下载文件名包含清理后的文档名和日期
+- [x] Selected VibeCards Markdown / Obsidian Markdown 下载文件名包含清理后的文档名、导出类型和日期
+- [x] `ArtifactPanel` 在缺少文档名时继续 fallback 到 `documentId`
+- [x] App 将 `currentDocument.name` 传入 Notes export 面板
+
+验收：
+
+- [x] RED：`npm run test -- src/ArtifactPanel.test.jsx` 先失败于下载文件名仍为 `vibereader-doc-1-...`
+- [x] GREEN：`npm run test -- src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` 通过（2 files / 22 tests）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）
+
 ## Review
+
+2026-06-11：继续推进 Phase 28，补齐 PRD Notes / Export P0 的“导出文件名包含文档名和日期”。新增 `tasks/bdd-tdd-export-filenames.md`；`ArtifactPanel` 的完整 Reading Note Markdown/JSON 下载、Selected VibeCards Markdown、Selected Obsidian Markdown 下载现在优先使用清理后的 `documentName`，并追加导出类型和日期；缺少文档名时继续 fallback 到 `documentId`；App 已把 `currentDocument.name` 传给 Notes 面板。验证：红灯先失败于文件名仍为 `vibereader-doc-1-...`；实现后 `npm run test -- src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` 通过（2 files / 22 tests），全量 `npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）。剩余风险：文件名使用本地浏览器时区日期，尚未接 Rust export payload 的 opened/exported timestamp。
 
 2026-06-11：继续推进 Phase 27，把 Reading Note 导出中的 source refs 从纯文本锚点推进为 Markdown 内可点击链接。新增 `tasks/bdd-tdd-reading-note-source-links.md`；Rust `export_reading_note` 现在将 `sourceRefs` 渲染为 `[P2 page-2-para-0](#source-p2-page-2-para-0)`，并在文末生成去重后的 `## Sources` 区块，包含稳定 HTML anchor 和原文摘录。验证：红灯先失败于缺少 Markdown source 链接；实现后目标测试通过（1 test），`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test），`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning。剩余风险：这些链接是导出 Markdown 内部跳转，不是从 Obsidian 反向打开 VibeReader 的应用深链。
 

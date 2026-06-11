@@ -1690,6 +1690,7 @@ export function App() {
                                 <Suspense fallback={<PanelFallback />}>
                                     <ArtifactPanel
                                         documentId={currentDocument?.id}
+                                        documentName={currentDocument?.name}
                                         artifacts={artifacts}
                                         onNavigateToSource={handleNavigateArtifactSource}
                                         onArtifactUpdated={handleArtifactUpdated}

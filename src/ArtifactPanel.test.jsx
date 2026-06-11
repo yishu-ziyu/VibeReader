@@ -27,12 +27,37 @@ function createDataTransfer() {
     return transfer;
 }
 
+function appendedDownloads(appendChildSpy) {
+    return appendChildSpy.mock.calls
+        .map((call) => call[0]?.download)
+        .filter(Boolean);
+}
+
 describe('ArtifactPanel', () => {
+    let createObjectURLSpy;
+    let revokeObjectURLSpy;
+    let appendChildSpy;
+
     beforeEach(() => {
         persistentMock.exportPersistentReadingNote.mockReset();
+        createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:export');
+        revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+        appendChildSpy = vi.spyOn(document.body, 'appendChild');
+        const originalCreateElement = document.createElement.bind(document);
+        vi.spyOn(document, 'createElement').mockImplementation((tagName, options) => {
+            const element = originalCreateElement(tagName, options);
+            if (tagName === 'a') {
+                element.click = vi.fn();
+                element.remove = vi.fn();
+            }
+            return element;
+        });
     });
 
-    afterEach(() => cleanup());
+    afterEach(() => {
+        cleanup();
+        vi.restoreAllMocks();
+    });
 
     it('renders Lens Card artifacts with source and inference labels', () => {
         const onNavigateToSource = vi.fn();
@@ -448,13 +473,50 @@ describe('ArtifactPanel', () => {
             json: '{"document":{"id":"doc-1"}}',
         });
 
-        render(<ArtifactPanel documentId="doc-1" artifacts={[]} />);
+        render(<ArtifactPanel documentId="doc-1" documentName="Export Paper.pdf" artifacts={[]} />);
 
         fireEvent.click(screen.getByRole('button', { name: /Preview Export|预览导出/ }));
 
         expect(await screen.findByText(/# Reading Note/)).toBeTruthy();
-        expect(screen.getByRole('button', { name: /Markdown/ })).toBeTruthy();
-        expect(screen.getByRole('button', { name: /JSON/ })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: /Markdown/ }));
+        fireEvent.click(screen.getByRole('button', { name: /JSON/ }));
+
+        const date = new Date().toISOString().slice(0, 10);
+        expect(appendedDownloads(appendChildSpy)).toEqual([
+            `vibereader-export-paper-${date}.md`,
+            `vibereader-export-paper-${date}.json`,
+        ]);
+        expect(createObjectURLSpy).toHaveBeenCalledTimes(2);
+        expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:export');
         expect(persistentMock.exportPersistentReadingNote).toHaveBeenCalledWith('doc-1');
+    });
+
+    it('downloads selected VibeCard exports with document-name based filenames', () => {
+        const artifacts = [
+            {
+                id: 'selected-card',
+                type: 'concept_card',
+                goal: 'Concept Card：Introduction',
+                verificationStatus: 'grounded',
+                currentContent: {
+                    summary: 'Selected summary only.',
+                    sourceRefs: [{ documentId: 'doc-1', page: 3, paragraphId: 'section-0' }],
+                },
+            },
+        ];
+
+        render(<ArtifactPanel documentId="doc-1" documentName="Export Paper.pdf" artifacts={artifacts} />);
+
+        fireEvent.click(screen.getByRole('checkbox', { name: /选择卡片 Concept Card：Introduction/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Export Selected/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Selected Markdown/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Obsidian/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Obsidian Markdown/ }));
+
+        const date = new Date().toISOString().slice(0, 10);
+        expect(appendedDownloads(appendChildSpy)).toEqual([
+            `vibereader-export-paper-selected-vibecards-${date}.md`,
+            `vibereader-export-paper-selected-vibecards-obsidian-${date}.md`,
+        ]);
     });
 });

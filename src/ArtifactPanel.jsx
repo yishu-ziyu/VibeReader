@@ -177,9 +177,20 @@ function downloadTextFile(filename, content, type) {
     URL.revokeObjectURL(url);
 }
 
-function exportFilename(documentId, extension) {
+function filenameSlug(value) {
+    const withoutExtension = String(value || 'document')
+        .trim()
+        .replace(/\.[^/.\\]+$/, '');
+    return withoutExtension
+        .toLowerCase()
+        .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
+        .replace(/^-+|-+$/g, '') || 'document';
+}
+
+function exportFilename(baseName, extension, suffix = '') {
     const date = new Date().toISOString().slice(0, 10);
-    return `vibereader-${documentId || 'document'}-${date}.${extension}`;
+    const suffixPart = suffix ? `-${filenameSlug(suffix)}` : '';
+    return `vibereader-${filenameSlug(baseName)}${suffixPart}-${date}.${extension}`;
 }
 
 export function LensCard({
@@ -371,6 +382,7 @@ export function LensCard({
 
 export function ArtifactPanel({
     documentId,
+    documentName,
     artifacts = [],
     onNavigateToSource,
     onArtifactUpdated,
@@ -383,6 +395,7 @@ export function ArtifactPanel({
     const [selectedObsidianMarkdown, setSelectedObsidianMarkdown] = useState('');
 
     const selectedArtifacts = artifacts.filter((artifact) => selectedArtifactIds.has(artifact.id));
+    const exportBaseName = documentName || documentId || 'document';
 
     const handleSelectedChange = useCallback((artifactId, checked) => {
         setSelectedArtifactIds((current) => {
@@ -417,20 +430,20 @@ export function ArtifactPanel({
     const handleDownloadMarkdown = useCallback(() => {
         if (!exportPreview?.markdown) return;
         downloadTextFile(
-            exportFilename(documentId, 'md'),
+            exportFilename(exportBaseName, 'md'),
             exportPreview.markdown,
             'text/markdown;charset=utf-8'
         );
-    }, [documentId, exportPreview]);
+    }, [exportBaseName, exportPreview]);
 
     const handleDownloadJson = useCallback(() => {
         if (!exportPreview?.json) return;
         downloadTextFile(
-            exportFilename(documentId, 'json'),
+            exportFilename(exportBaseName, 'json'),
             exportPreview.json,
             'application/json;charset=utf-8'
         );
-    }, [documentId, exportPreview]);
+    }, [exportBaseName, exportPreview]);
 
     const handlePreviewSelectedExport = useCallback(() => {
         if (selectedArtifacts.length === 0) {
@@ -453,20 +466,20 @@ export function ArtifactPanel({
     const handleDownloadSelectedMarkdown = useCallback(() => {
         if (!selectedExportMarkdown) return;
         downloadTextFile(
-            exportFilename(`${documentId || 'document'}-selected-vibecards`, 'md'),
+            exportFilename(exportBaseName, 'md', 'selected-vibecards'),
             selectedExportMarkdown,
             'text/markdown;charset=utf-8'
         );
-    }, [documentId, selectedExportMarkdown]);
+    }, [exportBaseName, selectedExportMarkdown]);
 
     const handleDownloadSelectedObsidianMarkdown = useCallback(() => {
         if (!selectedObsidianMarkdown) return;
         downloadTextFile(
-            exportFilename(`${documentId || 'document'}-selected-vibecards-obsidian`, 'md'),
+            exportFilename(exportBaseName, 'md', 'selected-vibecards-obsidian'),
             selectedObsidianMarkdown,
             'text/markdown;charset=utf-8'
         );
-    }, [documentId, selectedObsidianMarkdown]);
+    }, [exportBaseName, selectedObsidianMarkdown]);
 
     return (
         <div className="artifact-panel">

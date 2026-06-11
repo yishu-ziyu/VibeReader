@@ -1,5 +1,27 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 28：Export Filenames
+
+改动：
+
+- 新增 `tasks/bdd-tdd-export-filenames.md`。
+- Reading Note Markdown / JSON 下载文件名优先使用清理后的文档名。
+- Selected VibeCards / Obsidian Markdown 下载文件名包含文档名、导出类型和日期。
+- App 将 `currentDocument.name` 传入 Notes export 面板。
+- 缺少文档名时继续 fallback 到 `documentId`。
+
+命令：
+
+- RED：`npm run test -- src/ArtifactPanel.test.jsx` -> failed，下载文件名仍为 `vibereader-doc-1-...`。
+- GREEN：`npm run test -- src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（2 files / 22 tests）。
+- `npm run test` -> pass（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（19 storage tests + 1 command test）。
+
+遗留风险：
+
+- 文件名日期来自本地前端时区，尚未接 Rust export payload 的 exported timestamp。
+
 ## 2026-06-11 Phase 27：Reading Note Source Links
 
 改动：
