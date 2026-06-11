@@ -936,7 +936,11 @@ fn builds_markdown_reading_note_export_without_secrets() {
     let export = storage
         .export_reading_note("doc-export")
         .expect("build reading note export");
+    let payload: serde_json::Value =
+        serde_json::from_str(&export.json).expect("reading note export json");
 
+    assert_eq!(export.export_type, "reading_note");
+    assert_eq!(export.schema_version, 1);
     assert!(export.exported_at > 0);
     assert_eq!(export.document.id, "doc-export");
     assert_eq!(export.annotations.len(), 1);
@@ -953,6 +957,8 @@ fn builds_markdown_reading_note_export_without_secrets() {
     assert!(!export.markdown.to_lowercase().contains("authorization"));
     assert!(export.json.contains("\"doc-export\""));
     assert!(export.json.contains("\"exportedAt\""));
+    assert_eq!(payload["exportType"], "reading_note");
+    assert_eq!(payload["schemaVersion"], 1);
 }
 
 #[test]

@@ -2,6 +2,9 @@ use rusqlite::{params, Connection};
 
 use super::error::{StorageError, StorageResult};
 
+const READING_NOTE_EXPORT_TYPE: &str = "reading_note";
+const READING_NOTE_SCHEMA_VERSION: i64 = 1;
+
 fn validate_required(name: &str, value: &str) -> StorageResult<()> {
     if value.trim().is_empty() {
         return Err(StorageError::Validation(format!("{name} is required")));
@@ -403,6 +406,8 @@ pub struct TaskRecord {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadingNoteExport {
+    pub export_type: String,
+    pub schema_version: i64,
     pub exported_at: i64,
     pub document: DocumentRecord,
     pub summaries: Vec<SummaryRecord>,
@@ -419,6 +424,8 @@ pub struct ReadingNoteExport {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReadingNoteExportPayload {
+    export_type: String,
+    schema_version: i64,
     exported_at: i64,
     document: DocumentRecord,
     summaries: Vec<SummaryRecord>,
@@ -1222,6 +1229,8 @@ impl Storage {
 
         let document = self.get_document_by_id(document_id)?;
         let payload = ReadingNoteExportPayload {
+            export_type: READING_NOTE_EXPORT_TYPE.into(),
+            schema_version: READING_NOTE_SCHEMA_VERSION,
             exported_at: current_time_millis(),
             document,
             summaries: self.list_summaries(document_id)?,
@@ -1237,6 +1246,8 @@ impl Storage {
             .map_err(|error| StorageError::Validation(error.to_string()))?;
 
         Ok(ReadingNoteExport {
+            export_type: payload.export_type,
+            schema_version: payload.schema_version,
             exported_at: payload.exported_at,
             document: payload.document,
             summaries: payload.summaries,

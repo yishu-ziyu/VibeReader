@@ -593,7 +593,26 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）
 - [x] Whitespace 检查：`git diff --check` 通过
 
+## Phase 30：Reading Note Export Schema
+
+- [x] 新增 `tasks/bdd-tdd-reading-note-export-schema.md`
+- [x] Rust `export_reading_note` 返回 `exportType`
+- [x] Rust `export_reading_note` 返回 `schemaVersion`
+- [x] JSON payload 顶层包含 `exportType: "reading_note"`
+- [x] JSON payload 顶层包含 `schemaVersion: 1`
+
+验收：
+
+- [x] RED：`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` 先编译失败于 `ReadingNoteExport` 缺少 `export_type/schema_version`
+- [x] GREEN：`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` 通过（1 test）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）
+- [x] Whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-11：继续推进 Phase 30，补齐 Reading Note JSON 导出的显式 schema metadata。新增 `tasks/bdd-tdd-reading-note-export-schema.md`；Rust `export_reading_note` 现在在 command 返回体和 JSON payload 顶层写入 `exportType: "reading_note"` 与 `schemaVersion: 1`，为后续 JSON 重新导入和 schema migration 提供稳定判别字段。本切片不实现导入。验证：红灯先失败于 `ReadingNoteExport` 缺少 `export_type/schema_version` 字段；实现后目标 Rust 测试通过（1 test），全量 `npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test），`git diff --check` 通过。剩余风险：这里只声明导出 schema，尚未实现 JSON 重新导入。
 
 2026-06-11：继续推进 Phase 29，修复 Phase 28 遗留的导出日期来源问题。新增 `tasks/bdd-tdd-exported-at.md`；Rust `export_reading_note` 现在生成毫秒级 `exportedAt`，并同时写入 command 返回体、JSON payload 和 Markdown metadata；`ArtifactPanel` 的完整 Reading Note Markdown/JSON 下载文件名日期改为使用 `exportPreview.exportedAt`，Selected VibeCards 导出仍保持前端即时日期。验证：红灯先分别失败于前端文件名仍使用 2026-06-11 浏览器日期、Rust `ReadingNoteExport` 缺少 `exported_at` 字段；实现后 `npm run test -- src/ArtifactPanel.test.jsx` 通过（1 file / 14 tests），`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` 通过（1 test），全量 `npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test），`git diff --check` 通过。剩余风险：JSON schema 还没有显式版本号；后续导入/导出兼容性应和 `exportedAt` 一起进入 export metadata。
 

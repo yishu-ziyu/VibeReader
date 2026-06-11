@@ -1,5 +1,27 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 30：Reading Note Export Schema
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-note-export-schema.md`。
+- Rust `export_reading_note` 返回 `exportType: "reading_note"`。
+- Rust `export_reading_note` 返回 `schemaVersion: 1`。
+- JSON payload 顶层包含同一组 schema metadata。
+
+命令：
+
+- RED：`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` -> failed，`ReadingNoteExport` 缺少 `export_type/schema_version` 字段。
+- GREEN：`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` -> pass（1 test）。
+- `npm run test` -> pass（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（19 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 这里只声明导出 schema，尚未实现 JSON 重新导入。
+
 ## 2026-06-11 Phase 29：Exported At Timestamp
 
 改动：
