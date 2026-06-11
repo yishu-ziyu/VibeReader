@@ -652,7 +652,33 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（21 storage tests + 1 command test）
 - [x] Whitespace 检查：`git diff --check` 通过
 
+## Phase 33：Document Content Persistence Foundation
+
+- [x] 新增 `tasks/bdd-tdd-document-content-persistence.md`
+- [x] Rust SQLite 新增 `document_contents` 表
+- [x] Rust storage 支持 `upsert_document_content` / `load_document_content`
+- [x] Tauri command 新增 `storage_upsert_document_content` / `storage_load_document_content`
+- [x] 前端 adapter 新增 `savePersistentDocumentContent` / `loadPersistentDocumentContent`
+- [x] Markdown / Text / HTML 打开后保存正文到 Rust storage
+- [x] Recent 文本文档点击后加载 persisted content 并恢复阅读器
+- [x] Browser runtime 保持 metadata-only fallback，不把正文写进 Recent metadata
+
+验收：
+
+- [x] RED：`cargo test --test storage_core document_content` 先失败于缺少 `DocumentContentInput` 与 storage 方法
+- [x] GREEN：`cargo test --test storage_core document_content` 通过（1 test）
+- [x] RED：`npm run test -- src/services/persistentStorage.test.js` 先失败于缺少 document content adapter
+- [x] GREEN：`npm run test -- src/services/persistentStorage.test.js` 通过（1 file / 6 tests）
+- [x] RED：`npm run test -- src/WorkspaceLayout.test.jsx` 先失败于 App 未保存正文、Recent 未恢复正文
+- [x] GREEN：`npm run test -- src/WorkspaceLayout.test.jsx` 通过（1 file / 11 tests）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 256 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test）
+- [x] Whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-11：继续推进 Phase 33，把文本文档正文持久化从运行时状态推进到 Rust-backed SQLite。新增 `tasks/bdd-tdd-document-content-persistence.md`；Rust storage 增加 `document_contents` 表和 upsert/load 方法，Tauri command 暴露 `storage_upsert_document_content` / `storage_load_document_content`，前端 adapter 增加 `savePersistentDocumentContent` / `loadPersistentDocumentContent`。App 打开 Markdown / Text / HTML 后会保存 `contentText`，Recent documents 中的文本类 metadata 记录可以从 persisted content 恢复正文并进入阅读器，同时重新触发 source index。浏览器 runtime 继续保持 metadata-only fallback，不把正文塞进 Web recent metadata。验证：红灯先分别失败于 Rust 缺少 content storage、前端缺少 adapter、App 未保存/恢复正文；实现后目标测试通过（Rust 1 test、persistentStorage 1 file / 6 tests、Workspace 1 file / 11 tests），全量 `npm run test` 通过（49 files / 256 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test），`git diff --check` 通过。剩余风险：本切片不做 PDF 二进制缓存、OCR 缓存、删除级联或 schema migration UI。
 
 2026-06-11：继续推进 Phase 32，把 Phase 31 的 Reading Note JSON 导入能力接到 Notes / Export UI。新增 `tasks/bdd-tdd-reading-note-json-import-ui.md`；`ArtifactPanel` 现在有 `Import JSON` 入口，支持粘贴 JSON 或选择 `.json` 文件，导入时调用 `importPersistentReadingNoteJson`，成功后关闭导入框并通过 `onReadingNoteImported` 通知 App。App 接到导入成功后会刷新最近文档列表；如果导入的是当前文档，会重新读取当前文档的 Notes / VibeCards，让恢复的数据不用重启即可出现在面板里。验证：红灯先失败于缺少 Import JSON 按钮和 App 回调接线；实现后目标测试通过（2 files / 25 tests），全量 `npm run test` 通过（49 files / 253 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（21 storage tests + 1 command test），`git diff --check` 通过。剩余风险：本切片不做复杂冲突解决 UI，也不自动切换到被导入的非当前文档。
 

@@ -1,5 +1,35 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 33：Document Content Persistence Foundation
+
+改动：
+
+- 新增 `tasks/bdd-tdd-document-content-persistence.md`。
+- Rust SQLite 新增 `document_contents` 表。
+- Rust storage 支持 `upsert_document_content` / `load_document_content`。
+- Tauri command 新增 `storage_upsert_document_content` / `storage_load_document_content`。
+- 前端 adapter 新增 `savePersistentDocumentContent` / `loadPersistentDocumentContent`。
+- App 打开 Markdown / Text / HTML 后保存正文到 Rust storage。
+- Recent 文本文档点击后加载 persisted content 并恢复阅读器。
+- 浏览器 runtime 继续保持 metadata-only fallback，不把正文写入 Recent metadata。
+
+命令：
+
+- RED：`cargo test --test storage_core document_content` -> failed，缺少 `DocumentContentInput` 与 storage 方法。
+- GREEN：`cargo test --test storage_core document_content` -> pass（1 test）。
+- RED：`npm run test -- src/services/persistentStorage.test.js` -> failed，缺少 document content adapter。
+- GREEN：`npm run test -- src/services/persistentStorage.test.js` -> pass（1 file / 6 tests）。
+- RED：`npm run test -- src/WorkspaceLayout.test.jsx` -> failed，App 未保存正文、Recent 未恢复正文。
+- GREEN：`npm run test -- src/WorkspaceLayout.test.jsx` -> pass（1 file / 11 tests）。
+- `npm run test` -> pass（49 files / 256 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（22 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本切片不做 PDF 二进制缓存、OCR 缓存、删除级联或 schema migration UI。
+
 ## 2026-06-11 Phase 32：Reading Note JSON Import UI
 
 改动：

@@ -14,7 +14,13 @@ import MarkdownRenderer from './MarkdownRenderer';
 import { extractTextFromPDF } from './pdfService';
 import { fileToDocument, fileToDocumentWithContent, openTauriDocument, SUPPORTED_DOCUMENT_EXTENSIONS } from './services/documentService';
 import { createArtifact, deleteArtifact, listArtifactsForDocument, updateArtifact } from './services/artifactService';
-import { initializePersistentStorage, listPersistentDocuments, savePersistentDocument } from './services/persistentStorage';
+import {
+    initializePersistentStorage,
+    listPersistentDocuments,
+    loadPersistentDocumentContent,
+    savePersistentDocument,
+    savePersistentDocumentContent,
+} from './services/persistentStorage';
 import { isVisionCapableByModelName } from './modelPresets';
 import { createReadingTools, generateLensCardArtifact, retryReadingAgentTask, runReadingAgentTask } from './agent';
 import { buildIndexedRetrievalContext, indexDocumentSourceSpans } from './services/sourceIndexService';
@@ -43,6 +49,7 @@ const ThinkingTreePanel = React.lazy(() => import('./ThinkingTreePanel').then(m 
 const AttentionNavigatorPanel = React.lazy(() => import('./AttentionNavigatorPanel').then(m => ({ default: m.AttentionNavigatorPanel })));
 const ArtifactPanel = React.lazy(() => import('./ArtifactPanel').then(m => ({ default: m.ArtifactPanel })));
 const TaskStatusPanel = React.lazy(() => import('./TaskStatusPanel').then(m => ({ default: m.TaskStatusPanel })));
+const READABLE_DOCUMENT_KINDS = ['markdown', 'text', 'html'];
 
 /** Simple fallback for lazy-loaded panels */
 function PanelFallback() {
@@ -501,6 +508,15 @@ export function App() {
         savePersistentDocument(document).catch((error) => {
             console.warn('[App] Failed to persist opened document:', error);
         });
+        if (document?.id && READABLE_DOCUMENT_KINDS.includes(document.kind) && document.contentText) {
+            savePersistentDocumentContent(document.id, document.contentText, {
+                sourceType: document.kind,
+                createdAt: document.openedAt,
+                updatedAt: document.updatedAt || Date.now(),
+            }).catch((error) => {
+                console.warn('[App] Failed to persist document content:', error);
+            });
+        }
         indexDocumentSourceSpans(document).catch((error) => {
             console.warn('[App] Failed to index opened document:', error);
         });
@@ -593,7 +609,7 @@ export function App() {
     }, [addDocument, finishParsing, recordDocumentOpened, setActiveToolTab, setRightToolTab, startParsing, failParsing]);
 
     const handleReadableDocument = useCallback((document) => {
-        if (!document || !['markdown', 'text', 'html'].includes(document.kind)) {
+        if (!document || !READABLE_DOCUMENT_KINDS.includes(document.kind)) {
             antMessage.error(t('ai-chat-document-open-invalid', null, '请选择支持的文件。'));
             return;
         }
@@ -617,6 +633,37 @@ export function App() {
         setRightToolTab('artifacts');
         antMessage.success(t('ai-chat-document-opened', { name: document.name }, '文档已打开'));
     }, [addDocument, finishParsing, recordDocumentOpened, setActiveToolTab, setPdfFile, setRightToolTab]);
+
+    const handleRecentDocumentClick = useCallback(async (document) => {
+        if (!document?.isRecentOnly) {
+            setActiveDocument(document.id);
+            return;
+        }
+
+        if (!READABLE_DOCUMENT_KINDS.includes(document.kind)) {
+            antMessage.info('请重新打开本地文件以恢复阅读内容。');
+            return;
+        }
+
+        try {
+            const contentRecord = await loadPersistentDocumentContent(document.id);
+            if (!contentRecord?.contentText) {
+                antMessage.info('请重新打开本地文件以恢复阅读内容。');
+                return;
+            }
+
+            handleReadableDocument({
+                ...document,
+                isRecentOnly: false,
+                contentText: contentRecord.contentText,
+                sourceType: contentRecord.sourceType,
+                updatedAt: contentRecord.updatedAt || document.updatedAt,
+            });
+        } catch (error) {
+            console.warn('[App] Failed to restore recent document content:', error);
+            antMessage.error('恢复最近文档失败，请重新打开本地文件。');
+        }
+    }, [handleReadableDocument, setActiveDocument]);
 
     const handleDocumentFile = useCallback(async (file) => {
         if (!file) return;
@@ -1373,13 +1420,7 @@ export function App() {
                                 <button
                                     key={document.id}
                                     type="button"
-                                    onClick={() => {
-                                        if (document.isRecentOnly) {
-                                            antMessage.info('请重新打开本地文件以恢复阅读内容。');
-                                            return;
-                                        }
-                                        setActiveDocument(document.id);
-                                    }}
+                                    onClick={() => handleRecentDocumentClick(document)}
                                     title={document.path || document.name}
                                     style={{
                                         width: '100%',

@@ -6,11 +6,11 @@ use tauri::{AppHandle, Manager, State};
 use crate::core::error::StorageError;
 use crate::core::storage::{
     AnnotationInput, AnnotationRecord, AttentionInsightInput, AttentionInsightRecord,
-    ConversationInput, ConversationRecord, DocumentInput, DocumentRecord, FlashcardDeckInput,
-    FlashcardDeckRecord, ReadingNoteExport, ReadingNoteImportResult, SourceIndexStatusInput,
-    SourceIndexStatusRecord, SourceSpanInput, SourceSpanRecord, Storage, SummaryInput,
-    SummaryRecord, TaskInput, TaskRecord, ThinkingTreeInput, ThinkingTreeRecord, VibeCardInput,
-    VibeCardRecord,
+    ConversationInput, ConversationRecord, DocumentContentInput, DocumentContentRecord,
+    DocumentInput, DocumentRecord, FlashcardDeckInput, FlashcardDeckRecord, ReadingNoteExport,
+    ReadingNoteImportResult, SourceIndexStatusInput, SourceIndexStatusRecord, SourceSpanInput,
+    SourceSpanRecord, Storage, SummaryInput, SummaryRecord, TaskInput, TaskRecord,
+    ThinkingTreeInput, ThinkingTreeRecord, VibeCardInput, VibeCardRecord,
 };
 
 #[derive(Default)]
@@ -105,6 +105,24 @@ pub fn storage_list_documents(
     state: State<'_, StorageState>,
 ) -> Result<Vec<DocumentRecord>, CommandError> {
     with_storage(&state, Storage::list_documents)
+}
+
+#[tauri::command]
+pub fn storage_upsert_document_content(
+    state: State<'_, StorageState>,
+    input: DocumentContentInput,
+) -> Result<DocumentContentRecord, CommandError> {
+    with_storage(&state, |storage| storage.upsert_document_content(input))
+}
+
+#[tauri::command]
+pub fn storage_load_document_content(
+    state: State<'_, StorageState>,
+    document_id: String,
+) -> Result<Option<DocumentContentRecord>, CommandError> {
+    with_storage(&state, |storage| {
+        storage.load_document_content(&document_id)
+    })
 }
 
 #[tauri::command]

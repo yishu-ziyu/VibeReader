@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useConversationStore, useDocumentStore, usePdfStore, useUIStore, useVibeStore } from './store';
 
 const mockListPersistentDocuments = vi.hoisted(() => vi.fn(async () => []));
+const mockLoadPersistentDocumentContent = vi.hoisted(() => vi.fn(async () => null));
+const mockSavePersistentDocumentContent = vi.hoisted(() => vi.fn(async (documentId, contentText) => ({
+    documentId,
+    contentText,
+})));
 const documentServiceMock = vi.hoisted(() => ({
     fileToDocument: vi.fn(),
     fileToDocumentWithContent: vi.fn(),
@@ -79,7 +84,9 @@ vi.mock('./services/artifactService', () => ({
 vi.mock('./services/persistentStorage', () => ({
     initializePersistentStorage: vi.fn(async () => ({ initialized: true, path: '/tmp/test.sqlite3' })),
     listPersistentDocuments: mockListPersistentDocuments,
+    loadPersistentDocumentContent: mockLoadPersistentDocumentContent,
     savePersistentDocument: vi.fn(async (document) => document),
+    savePersistentDocumentContent: mockSavePersistentDocumentContent,
 }));
 
 vi.mock('./services/sourceIndexService', () => sourceIndexServiceMock);
@@ -261,6 +268,9 @@ describe('Workspace layout', () => {
     beforeEach(() => {
         localStorage.clear();
         mockListPersistentDocuments.mockResolvedValue([]);
+        mockLoadPersistentDocumentContent.mockReset();
+        mockLoadPersistentDocumentContent.mockResolvedValue(null);
+        mockSavePersistentDocumentContent.mockClear();
         documentServiceMock.fileToDocument.mockReset();
         documentServiceMock.fileToDocumentWithContent.mockReset();
         documentServiceMock.openTauriDocument.mockReset();
@@ -364,6 +374,86 @@ describe('Workspace layout', () => {
                 })
             );
         });
+    });
+
+    it('persists readable document content after it is opened into the workspace', async () => {
+        documentServiceMock.fileToDocument.mockReturnValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+        });
+        documentServiceMock.fileToDocumentWithContent.mockResolvedValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+            contentText: 'The identification strategy uses matched controls.',
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, {
+            target: {
+                files: [new File(['# Methods'], 'opened.md', { type: 'text/markdown' })],
+            },
+        });
+
+        await waitFor(() => {
+            expect(mockSavePersistentDocumentContent).toHaveBeenCalledWith(
+                'doc-opened-md',
+                'The identification strategy uses matched controls.',
+                expect.objectContaining({
+                    sourceType: 'markdown',
+                    createdAt: 100,
+                })
+            );
+        });
+    });
+
+    it('restores a recent readable document from persisted content before opening it', async () => {
+        mockListPersistentDocuments.mockResolvedValue([
+            {
+                id: 'doc-recent-md',
+                name: 'Saved.md',
+                kind: 'markdown',
+                source: 'browser-upload',
+                openedAt: 200,
+                parseStatus: 'parsed',
+            },
+        ]);
+        mockLoadPersistentDocumentContent.mockResolvedValue({
+            documentId: 'doc-recent-md',
+            contentText: '# Saved\n\nPersisted body about controls.',
+            sourceType: 'markdown',
+            createdAt: 100,
+            updatedAt: 200,
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        await screen.findByText('Saved.md');
+        fireEvent.click(screen.getByText('Saved.md'));
+
+        await waitFor(() => {
+            expect(useDocumentStore.getState().currentDocument).toEqual(expect.objectContaining({
+                id: 'doc-recent-md',
+                contentText: expect.stringContaining('Persisted body'),
+                isRecentOnly: false,
+            }));
+        });
+        expect(mockLoadPersistentDocumentContent).toHaveBeenCalledWith('doc-recent-md');
+        expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalledWith(
+            expect.objectContaining({
+                id: 'doc-recent-md',
+                contentText: expect.stringContaining('Persisted body'),
+            })
+        );
     });
 
     it('passes the current document name to the Notes export panel', async () => {

@@ -87,6 +87,26 @@ pub struct DocumentRecord {
 
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DocumentContentInput {
+    pub document_id: String,
+    pub content_text: String,
+    pub source_type: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentContentRecord {
+    pub document_id: String,
+    pub content_text: String,
+    pub source_type: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnnotationInput {
     pub id: String,
     pub document_id: String,
@@ -698,6 +718,14 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_documents_opened_at
                 ON documents(opened_at DESC);
 
+            CREATE TABLE IF NOT EXISTS document_contents (
+                document_id TEXT PRIMARY KEY,
+                content_text TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS annotations (
                 id TEXT PRIMARY KEY,
                 document_id TEXT NOT NULL,
@@ -923,6 +951,59 @@ impl Storage {
         let rows = statement.query_map([], document_from_row)?;
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::from)
+    }
+
+    pub fn upsert_document_content(
+        &self,
+        input: DocumentContentInput,
+    ) -> StorageResult<DocumentContentRecord> {
+        validate_required("document id", &input.document_id)?;
+        validate_required("source type", &input.source_type)?;
+
+        self.connection.execute(
+            "
+            INSERT INTO document_contents (
+                document_id, content_text, source_type, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(document_id) DO UPDATE SET
+                content_text = excluded.content_text,
+                source_type = excluded.source_type,
+                updated_at = excluded.updated_at
+            ",
+            params![
+                input.document_id,
+                input.content_text,
+                input.source_type,
+                input.created_at,
+                input.updated_at,
+            ],
+        )?;
+
+        self.load_document_content(&input.document_id)?
+            .ok_or_else(|| StorageError::Validation("document content was not saved".into()))
+    }
+
+    pub fn load_document_content(
+        &self,
+        document_id: &str,
+    ) -> StorageResult<Option<DocumentContentRecord>> {
+        validate_required("document id", document_id)?;
+
+        let result = self.connection.query_row(
+            "
+            SELECT document_id, content_text, source_type, created_at, updated_at
+            FROM document_contents
+            WHERE document_id = ?1
+            ",
+            [document_id],
+            document_content_from_row,
+        );
+
+        match result {
+            Ok(record) => Ok(Some(record)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(error) => Err(StorageError::from(error)),
+        }
     }
 
     pub fn create_annotation(&self, input: AnnotationInput) -> StorageResult<AnnotationRecord> {
@@ -1934,6 +2015,16 @@ fn document_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DocumentRecord
         opened_at: row.get(8)?,
         updated_at: row.get(9)?,
         parse_status: row.get(10)?,
+    })
+}
+
+fn document_content_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DocumentContentRecord> {
+    Ok(DocumentContentRecord {
+        document_id: row.get(0)?,
+        content_text: row.get(1)?,
+        source_type: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
     })
 }
 

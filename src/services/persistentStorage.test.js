@@ -15,6 +15,7 @@ import {
     listPersistentVibeCards,
     listPersistentSourceSpans,
     loadPersistentSourceIndexStatus,
+    loadPersistentDocumentContent,
     loadPersistentTask,
     loadPersistentThinkingTree,
     loadPersistentConversation,
@@ -22,6 +23,7 @@ import {
     exportPersistentReadingNote,
     importPersistentReadingNoteJson,
     savePersistentDocument,
+    savePersistentDocumentContent,
     savePersistentConversation,
     savePersistentAttentionInsights,
     savePersistentFlashcardDecks,
@@ -56,6 +58,8 @@ describe('persistentStorage', () => {
             reason: 'tauri-unavailable',
         });
         await expect(listPersistentDocuments()).resolves.toEqual([]);
+        await expect(loadPersistentDocumentContent('doc-1')).resolves.toBeNull();
+        await expect(savePersistentDocumentContent('doc-1', 'Browser text')).resolves.toBeNull();
         await expect(listPersistentConversations()).resolves.toEqual([]);
         await expect(loadPersistentConversation('session-1')).resolves.toBeNull();
         await expect(deletePersistentConversation('session-1')).resolves.toBe(false);
@@ -330,6 +334,57 @@ describe('persistentStorage', () => {
             id: 'task-1',
         });
         expect(invokeMock).toHaveBeenCalledWith('storage_list_tasks', {
+            documentId: 'doc-1',
+        });
+    });
+
+    it('persists document content through Tauri storage commands', async () => {
+        window.__TAURI_INTERNALS__ = {};
+        invokeMock
+            .mockResolvedValueOnce({
+                documentId: 'doc-1',
+                contentText: '# Persisted note',
+                sourceType: 'markdown',
+                createdAt: 100,
+                updatedAt: 100,
+            })
+            .mockResolvedValueOnce({
+                documentId: 'doc-1',
+                contentText: '# Persisted note',
+                sourceType: 'markdown',
+                createdAt: 100,
+                updatedAt: 100,
+            });
+
+        await expect(savePersistentDocumentContent('doc-1', '# Persisted note', {
+            sourceType: 'markdown',
+            createdAt: 100,
+            updatedAt: 100,
+        })).resolves.toEqual({
+            documentId: 'doc-1',
+            contentText: '# Persisted note',
+            sourceType: 'markdown',
+            createdAt: 100,
+            updatedAt: 100,
+        });
+        await expect(loadPersistentDocumentContent('doc-1')).resolves.toEqual({
+            documentId: 'doc-1',
+            contentText: '# Persisted note',
+            sourceType: 'markdown',
+            createdAt: 100,
+            updatedAt: 100,
+        });
+
+        expect(invokeMock).toHaveBeenCalledWith('storage_upsert_document_content', {
+            input: {
+                documentId: 'doc-1',
+                contentText: '# Persisted note',
+                sourceType: 'markdown',
+                createdAt: 100,
+                updatedAt: 100,
+            },
+        });
+        expect(invokeMock).toHaveBeenCalledWith('storage_load_document_content', {
             documentId: 'doc-1',
         });
     });

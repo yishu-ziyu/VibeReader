@@ -91,6 +91,17 @@ function normalizeWebDocumentRecord(document = {}) {
     };
 }
 
+function normalizeDocumentContentInput(documentId, contentText = '', metadata = {}) {
+    const now = nowMs(metadata.updatedAt);
+    return {
+        documentId: documentId || '',
+        contentText: String(contentText || ''),
+        sourceType: metadata.sourceType || metadata.kind || 'text',
+        createdAt: nowMs(metadata.createdAt || now),
+        updatedAt: now,
+    };
+}
+
 function normalizeAnnotationInput(annotation = {}) {
     return {
         id: annotation.id || `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -356,6 +367,20 @@ export async function savePersistentDocument(document) {
     }
     return invokeStorage('storage_upsert_document', {
         input: normalizeDocumentInput(document),
+    });
+}
+
+export async function savePersistentDocumentContent(documentId, contentText, metadata = {}) {
+    if (!isPersistentStorageAvailable()) return null;
+    return invokeStorage('storage_upsert_document_content', {
+        input: normalizeDocumentContentInput(documentId, contentText, metadata),
+    });
+}
+
+export async function loadPersistentDocumentContent(documentId) {
+    if (!isPersistentStorageAvailable()) return null;
+    return invokeStorage('storage_load_document_content', {
+        documentId,
     });
 }
 

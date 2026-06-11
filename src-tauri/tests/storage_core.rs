@@ -1,7 +1,7 @@
 use vibereader_lib::core::storage::{
-    AnnotationInput, AttentionInsightInput, ConversationInput, DocumentInput, FlashcardDeckInput,
-    FlashcardInput, SourceIndexStatusInput, SourceSpanInput, Storage, SummaryInput, TaskInput,
-    ThinkingTreeInput, VibeCardInput,
+    AnnotationInput, AttentionInsightInput, ConversationInput, DocumentContentInput, DocumentInput,
+    FlashcardDeckInput, FlashcardInput, SourceIndexStatusInput, SourceSpanInput, Storage,
+    SummaryInput, TaskInput, ThinkingTreeInput, VibeCardInput,
 };
 
 fn test_vibecard(id: &str, title: &str, user_note: &str, updated_at: i64) -> VibeCardInput {
@@ -99,6 +99,46 @@ fn rejects_document_without_id() {
         .expect_err("empty id should fail");
 
     assert_eq!(error.code(), "validation_error");
+}
+
+#[test]
+fn upserts_and_loads_document_content_by_document() {
+    let storage = Storage::open_memory().expect("open memory db");
+    storage.init_schema().expect("init schema");
+
+    storage
+        .upsert_document_content(DocumentContentInput {
+            document_id: "doc-1".into(),
+            content_text: "# Methods\n\nReadable persisted text.".into(),
+            source_type: "markdown".into(),
+            created_at: 100,
+            updated_at: 100,
+        })
+        .expect("insert document content");
+    storage
+        .upsert_document_content(DocumentContentInput {
+            document_id: "doc-1".into(),
+            content_text: "# Methods\n\nUpdated text.".into(),
+            source_type: "markdown".into(),
+            created_at: 100,
+            updated_at: 200,
+        })
+        .expect("update document content");
+
+    let content = storage
+        .load_document_content("doc-1")
+        .expect("load content")
+        .expect("content exists");
+
+    assert_eq!(content.document_id, "doc-1");
+    assert_eq!(content.content_text, "# Methods\n\nUpdated text.");
+    assert_eq!(content.source_type, "markdown");
+    assert_eq!(content.created_at, 100);
+    assert_eq!(content.updated_at, 200);
+    assert!(storage
+        .load_document_content("doc-missing")
+        .expect("load missing")
+        .is_none());
 }
 
 #[test]
