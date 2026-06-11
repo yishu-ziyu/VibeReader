@@ -156,6 +156,33 @@ describe('ArtifactPanel', () => {
         expect(screen.getByText(/Important source-backed finding/)).toBeTruthy();
     });
 
+    it('renders Reading Note source refs when task results are grounded', () => {
+        const artifacts = [
+            {
+                id: 'artifact-reading-note-grounded',
+                type: 'reading_note',
+                goal: 'Paper overview',
+                verificationStatus: 'grounded',
+                currentContent: {
+                    title: 'Paper overview',
+                    body: '# Paper overview\n\nImportant source-backed finding.',
+                    sourceRefs: [
+                        {
+                            documentId: 'doc-1',
+                            page: 2,
+                            paragraphId: 'page-2-para-0',
+                        },
+                    ],
+                },
+            },
+        ];
+
+        render(<ArtifactPanel artifacts={artifacts} />);
+
+        expect(screen.getByText('Reading Note')).toBeTruthy();
+        expect(screen.getByText('P2 · page-2-para-0')).toBeTruthy();
+    });
+
     it('makes saved VibeCards draggable into Chat as a drag-inject payload', () => {
         const artifacts = [
             {

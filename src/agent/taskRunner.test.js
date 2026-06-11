@@ -7,6 +7,14 @@ describe('reading agent task runner', () => {
         const runAgent = vi.fn().mockResolvedValue({
             status: 'completed',
             content: 'Overview with cited evidence.',
+            sourceRefs: [
+                {
+                    documentId: 'doc-1',
+                    page: 2,
+                    paragraphId: 'page-2-para-0',
+                    text: 'Evidence paragraph.',
+                },
+            ],
             trace: [],
         });
 
@@ -60,6 +68,14 @@ describe('reading agent task runner', () => {
                 agentStatus: 'completed',
                 content: 'Overview with cited evidence.',
                 artifactCount: 0,
+                sourceRefs: [
+                    {
+                        documentId: 'doc-1',
+                        page: 2,
+                        paragraphId: 'page-2-para-0',
+                        text: 'Evidence paragraph.',
+                    },
+                ],
             },
         }));
         expect(result).toEqual(expect.objectContaining({

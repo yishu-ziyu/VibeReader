@@ -148,6 +148,14 @@ function createLocalPaperOverviewModel() {
                 return snippet ? `- ${location}: ${snippet}` : null;
             })
             .filter(Boolean);
+        const sourceRefs = chunks
+            .map((chunk) => ({
+                documentId: chunk.documentId || metadata.id,
+                page: chunk.page || null,
+                paragraphId: chunk.paragraphId || chunk.id || null,
+                text: overviewSnippet(chunk.text, 240),
+            }))
+            .filter((sourceRef) => sourceRef.paragraphId || sourceRef.page || sourceRef.text);
 
         return {
             type: 'final',
@@ -161,6 +169,7 @@ function createLocalPaperOverviewModel() {
                 'Initial source scan:',
                 sourceLines.length > 0 ? sourceLines.join('\n') : '- No bounded source chunks were available.',
             ].filter(Boolean).join('\n'),
+            sourceRefs,
         };
     };
 }
@@ -191,6 +200,11 @@ function taskResultContent(task = {}) {
 
 function taskResultTitle(task = {}) {
     return task.title || task.type || 'Reading task result';
+}
+
+function taskResultSourceRefs(task = {}) {
+    const result = task.result && typeof task.result === 'object' ? task.result : {};
+    return Array.isArray(result.sourceRefs) ? result.sourceRefs.filter(Boolean) : [];
 }
 
 /** 系统提示 */
@@ -948,11 +962,14 @@ export function App() {
         }
 
         const title = taskResultTitle(task);
+        const sourceRefs = taskResultSourceRefs(task);
+        const firstSource = sourceRefs[0] || null;
         const content = {
             title,
             body,
             taskId: task.id,
             taskType: task.type,
+            sourceRefs,
         };
 
         try {
@@ -960,15 +977,16 @@ export function App() {
                 documentId: currentDocument.id,
                 type: 'reading_note',
                 goal: title,
-                sourceSpanIds: [],
+                sourceSpanIds: sourceRefs.map((sourceRef) => sourceRef.paragraphId).filter(Boolean),
                 source: {
+                    ...(firstSource || {}),
                     documentId: currentDocument.id,
                     taskId: task.id,
                     sourceType: 'agent-task',
                 },
                 originalContent: content,
                 currentContent: content,
-                verificationStatus: 'ungrounded',
+                verificationStatus: sourceRefs.length > 0 ? 'grounded' : 'ungrounded',
             });
             setArtifacts((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
             setRightToolTab('artifacts');

@@ -153,6 +153,14 @@ vi.mock('./TaskStatusPanel', () => ({
                         title: 'Paper overview',
                         result: {
                             content: '# Paper overview\n\nImportant source-backed finding.',
+                            sourceRefs: [
+                                {
+                                    documentId: 'doc-opened-md',
+                                    page: 2,
+                                    paragraphId: 'page-2-para-0',
+                                    text: 'Important source-backed finding.',
+                                },
+                            ],
                         },
                     })}
                 >
@@ -208,6 +216,14 @@ vi.mock('./TaskStatusPanel', () => ({
                         title: 'Paper overview',
                         result: {
                             content: '# Paper overview\n\nImportant source-backed finding.',
+                            sourceRefs: [
+                                {
+                                    documentId: 'doc-opened-md',
+                                    page: 2,
+                                    paragraphId: 'page-2-para-0',
+                                    text: 'Important source-backed finding.',
+                                },
+                            ],
                         },
                     })}
                 >
@@ -540,16 +556,35 @@ describe('Workspace layout', () => {
                     body: expect.stringContaining('Important source-backed finding.'),
                     taskId: 'task-agent-overview-doc-opened-md',
                     taskType: 'paper_overview_agent',
+                    sourceRefs: [
+                        {
+                            documentId: 'doc-opened-md',
+                            page: 2,
+                            paragraphId: 'page-2-para-0',
+                            text: 'Important source-backed finding.',
+                        },
+                    ],
                 }),
                 currentContent: expect.objectContaining({
                     body: expect.stringContaining('Important source-backed finding.'),
+                    sourceRefs: [
+                        {
+                            documentId: 'doc-opened-md',
+                            page: 2,
+                            paragraphId: 'page-2-para-0',
+                            text: 'Important source-backed finding.',
+                        },
+                    ],
                 }),
                 source: expect.objectContaining({
                     documentId: 'doc-opened-md',
                     taskId: 'task-agent-overview-doc-opened-md',
                     sourceType: 'agent-task',
+                    page: 2,
+                    paragraphId: 'page-2-para-0',
                 }),
-                verificationStatus: 'ungrounded',
+                sourceSpanIds: ['page-2-para-0'],
+                verificationStatus: 'grounded',
             }));
         });
         expect(await screen.findByTestId('mock-artifact-panel')).toBeTruthy();

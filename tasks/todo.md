@@ -505,7 +505,29 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（18 storage tests + 1 command test）
 - [x] diff whitespace 检查：`git diff --check` 通过
 
+## Phase 25：Task Result Source Refs
+
+- [x] 新增 `tasks/bdd-tdd-task-result-source-refs.md`
+- [x] `runReadingAgent` 保留 final response 的 `sourceRefs`
+- [x] `runReadingAgentTask` 将 agent `sourceRefs` 写入 task result
+- [x] 本地 `paper_overview_agent` 输出 bounded chunk source refs
+- [x] 保存 task result 到 Notes 时，`reading_note` artifact 保留 `currentContent.sourceRefs`
+- [x] 有来源的 Reading Note 标记为 `grounded` 并写入 `sourceSpanIds`
+- [x] Notes 面板显示 Reading Note 来源标签
+
+验收：
+
+- [x] RED：`npm run test -- src/agent/runtime.test.js` 先失败于 runtime 未保留 final response source refs
+- [x] RED：`npm run test -- src/agent/taskRunner.test.js src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` 先失败于 task result 和 reading note artifact 未保留 source refs
+- [x] GREEN：`npm run test -- src/agent/runtime.test.js src/agent/taskRunner.test.js src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` 通过（4 files / 32 tests）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（18 storage tests + 1 command test）
+- [x] diff whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-11：继续推进 Phase 25，把 Agent task result 保存到 Notes 的链路从纯文本推进为 source-grounded。新增 `tasks/bdd-tdd-task-result-source-refs.md`；`runReadingAgent` 现在保留 final response 的 `sourceRefs`，`runReadingAgentTask` 将这些 refs 写入 succeeded task result；本地 `paper_overview_agent` 从 bounded chunks 生成 source refs；App 保存 task result 到 Notes 时会写入 `currentContent.sourceRefs`、`sourceSpanIds` 和首个 source，并在有来源时标记为 `grounded`；`ArtifactPanel` 对 Reading Note 复用来源标签展示。验证：runtime 红灯先失败于缺少 `result.sourceRefs`，task/App 红灯先失败于 saved note 仍是 ungrounded 且无 source refs；实现后目标测试通过（4 files / 32 tests），全量 `npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（18 storage tests + 1 command test），`git diff --check` 通过。剩余风险：Reading Note 仍是 task result 级 artifact，还没有合并成完整导出模板或做 markdown source-ref 链接化。
 
 2026-06-11：继续推进 Phase 24，让 completed Agent task 产物能沉淀到 Notes。新增 `tasks/bdd-tdd-task-result-to-note.md`；`TaskStatusPanel` 对有结果正文的 succeeded task 显示 `Save to Notes`，空结果不显示保存入口；`App` 将当前文档 task result 保存为 `reading_note` artifact，并自动切到 Notes/Artifacts；`ArtifactPanel` 新增 `reading_note` 类型展示标题和正文。验证：红灯先失败于缺少保存按钮、Reading Note 渲染和 App `createArtifact` 调用；实现后目标测试通过（3 files / 31 tests），目标组合测试通过（4 files / 37 tests），全量 `npm run test` 通过（49 files / 246 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（18 storage tests + 1 command test），`git diff --check` 通过。剩余风险：保存的是 task result 纯文本，还没有合并 source refs 或完整 Reading Note 模板。
 

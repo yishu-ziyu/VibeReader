@@ -1,5 +1,30 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 25：Task Result Source Refs
+
+改动：
+
+- 新增 `tasks/bdd-tdd-task-result-source-refs.md`。
+- `runReadingAgent` 保留 final model response 中的 `sourceRefs`。
+- `runReadingAgentTask` 将 agent `sourceRefs` 写入 succeeded task `result`。
+- 本地 `paper_overview_agent` 输出基于 bounded chunks 的 source refs。
+- App 保存 task result 到 Notes 时，把 source refs 写入 `reading_note` artifact，并在有来源时标记为 `grounded`。
+- `ArtifactPanel` 对 grounded Reading Note 显示来源标签。
+
+命令：
+
+- RED：`npm run test -- src/agent/runtime.test.js` -> failed，runtime 未保留 final response source refs。
+- RED：`npm run test -- src/agent/taskRunner.test.js src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` -> failed，task result 和 reading note artifact 未保留 source refs。
+- GREEN：`npm run test -- src/agent/runtime.test.js src/agent/taskRunner.test.js src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（4 files / 32 tests）。
+- `npm run test` -> pass（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- Reading Note 仍是 task result 级 artifact，还没有合并成完整导出模板或做 markdown source-ref 链接化。
+
 ## 2026-06-11 Phase 24：Task Result To Note
 
 改动：

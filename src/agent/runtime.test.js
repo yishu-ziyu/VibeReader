@@ -48,6 +48,41 @@ describe('reading agent runtime', () => {
         expect(tools.extractText.run).toHaveBeenCalledWith({ page: 1 });
     });
 
+    it('preserves source refs from a final model response', async () => {
+        const model = vi.fn().mockResolvedValue({
+            type: 'final',
+            content: 'Overview with cited evidence.',
+            sourceRefs: [
+                {
+                    documentId: 'doc-1',
+                    page: 2,
+                    paragraphId: 'page-2-para-0',
+                    text: 'Evidence paragraph.',
+                },
+            ],
+        });
+
+        const result = await runReadingAgent({
+            goal: 'Create overview.',
+            model,
+            tools: {},
+            maxIterations: 2,
+            timeoutMs: 1000,
+        });
+
+        expect(result).toEqual(expect.objectContaining({
+            status: 'completed',
+            sourceRefs: [
+                {
+                    documentId: 'doc-1',
+                    page: 2,
+                    paragraphId: 'page-2-para-0',
+                    text: 'Evidence paragraph.',
+                },
+            ],
+        }));
+    });
+
     it('stops at the configured max iteration limit', async () => {
         const model = vi.fn().mockResolvedValue({
             type: 'tool_call',

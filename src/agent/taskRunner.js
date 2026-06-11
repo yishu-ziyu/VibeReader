@@ -14,10 +14,14 @@ function generatedTaskId(task = {}, now) {
 
 function agentResultSummary(agentResult = {}) {
     const artifacts = Array.isArray(agentResult.artifacts) ? agentResult.artifacts : [];
+    const sourceRefs = Array.isArray(agentResult.sourceRefs)
+        ? agentResult.sourceRefs.map((sourceRef) => ({ ...sourceRef }))
+        : [];
     return {
         agentStatus: agentResult.status || 'unknown',
         content: agentResult.content || '',
         artifactCount: artifacts.length + (agentResult.artifact ? 1 : 0),
+        ...(sourceRefs.length > 0 ? { sourceRefs } : {}),
     };
 }
 

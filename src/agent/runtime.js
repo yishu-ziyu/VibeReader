@@ -38,11 +38,13 @@ function createToolTrace(toolName, args, result, iteration) {
 }
 
 function finalResult(response, trace, iterations) {
+    const sourceRefs = Array.isArray(response.sourceRefs) ? response.sourceRefs : [];
     return Object.freeze({
         status: 'completed',
         content: response.content || '',
         artifact: response.artifact || null,
         artifacts: Object.freeze([...(response.artifacts || [])]),
+        sourceRefs: Object.freeze(sourceRefs.map((sourceRef) => Object.freeze({ ...sourceRef }))),
         trace: Object.freeze(trace),
         iterations,
     });
