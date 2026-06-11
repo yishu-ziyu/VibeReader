@@ -909,6 +909,15 @@ fn builds_markdown_reading_note_export_without_secrets() {
         })
         .expect("save document");
     storage
+        .upsert_document_content(DocumentContentInput {
+            document_id: "doc-export".into(),
+            content_text: "Persisted readable export content.".into(),
+            source_type: "markdown".into(),
+            created_at: 101,
+            updated_at: 102,
+        })
+        .expect("save document content");
+    storage
         .upsert_summary(SummaryInput {
             id: "summary-export".into(),
             document_id: "doc-export".into(),
@@ -999,6 +1008,11 @@ fn builds_markdown_reading_note_export_without_secrets() {
     assert!(export.json.contains("\"exportedAt\""));
     assert_eq!(payload["exportType"], "reading_note");
     assert_eq!(payload["schemaVersion"], 1);
+    assert_eq!(
+        payload["documentContent"]["contentText"],
+        "Persisted readable export content."
+    );
+    assert_eq!(payload["documentContent"]["sourceType"], "markdown");
 }
 
 #[test]
@@ -1021,6 +1035,15 @@ fn imports_reading_note_export_json_into_storage() {
             parse_status: "parsed".into(),
         })
         .expect("save document");
+    source
+        .upsert_document_content(DocumentContentInput {
+            document_id: "doc-import".into(),
+            content_text: "Imported readable body.".into(),
+            source_type: "markdown".into(),
+            created_at: 101,
+            updated_at: 102,
+        })
+        .expect("save document content");
     source
         .upsert_summary(SummaryInput {
             id: "summary-import".into(),
@@ -1187,6 +1210,14 @@ fn imports_reading_note_export_json_into_storage() {
             .expect("conversation")
             .title,
         "Imported chat"
+    );
+    assert_eq!(
+        target
+            .load_document_content("doc-import")
+            .expect("load imported content")
+            .expect("imported content")
+            .content_text,
+        "Imported readable body."
     );
 }
 

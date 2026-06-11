@@ -107,7 +107,15 @@ describe('persistentStorage', () => {
             .mockResolvedValueOnce([{ id: 'attention-1' }])
             .mockResolvedValueOnce({ id: 'summary-1', keyPointsJson: '["point"]' })
             .mockResolvedValueOnce({ id: 'summary-1', keyPointsJson: '["point"]' })
-            .mockResolvedValueOnce({ markdown: '# Reading Note', json: '{"document":{}}' })
+            .mockResolvedValueOnce({
+                markdown: '# Reading Note',
+                json: '{"document":{},"documentContent":{"contentText":"Persisted body"}}',
+                documentContent: {
+                    documentId: 'doc-1',
+                    contentText: 'Persisted body',
+                    sourceType: 'markdown',
+                },
+            })
             .mockResolvedValueOnce({ document: { id: 'doc-1' }, summaryCount: 1 })
             .mockResolvedValueOnce([{ id: 'deck-1', cards: [{ id: 'card-1' }] }])
             .mockResolvedValueOnce([{ id: 'deck-1', cards: [{ id: 'card-1' }] }])
@@ -176,7 +184,12 @@ describe('persistentStorage', () => {
         );
         await expect(exportPersistentReadingNote('doc-1')).resolves.toEqual({
             markdown: '# Reading Note',
-            json: '{"document":{}}',
+            json: '{"document":{},"documentContent":{"contentText":"Persisted body"}}',
+            documentContent: {
+                documentId: 'doc-1',
+                contentText: 'Persisted body',
+                sourceType: 'markdown',
+            },
         });
         await expect(importPersistentReadingNoteJson('{"exportType":"reading_note"}')).resolves.toEqual({
             document: { id: 'doc-1' },

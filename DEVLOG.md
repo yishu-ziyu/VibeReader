@@ -1,5 +1,30 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 34：Reading Note Document Content Export
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-note-document-content.md`。
+- Reading Note JSON payload 新增向后兼容的可选 `documentContent` 字段。
+- `export_reading_note` 导出当前文档 persisted content。
+- `import_reading_note_json` 导入 `documentContent` 时恢复 `document_contents`。
+- 旧 schema v1 JSON 缺少 `documentContent` 时仍可导入。
+- 前端 `exportPersistentReadingNote` 保持 `documentContent` 字段透传。
+
+命令：
+
+- RED：`cargo test --test storage_core reading_note` -> failed，JSON 缺少 `documentContent`，导入后 `load_document_content` 为空。
+- GREEN：`cargo test --test storage_core reading_note` -> pass（4 tests）。
+- GREEN：`npm run test -- src/services/persistentStorage.test.js` -> pass（1 file / 6 tests）。
+- `npm run test` -> pass（49 files / 256 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（22 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本切片不把全文正文渲染进 Markdown 导出，不处理 PDF 二进制、OCR 缓存或 source spans 的完整导出。
+
 ## 2026-06-11 Phase 33：Document Content Persistence Foundation
 
 改动：

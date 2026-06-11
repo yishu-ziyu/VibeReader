@@ -676,7 +676,28 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test）
 - [x] Whitespace 检查：`git diff --check` 通过
 
+## Phase 34：Reading Note Document Content Export
+
+- [x] 新增 `tasks/bdd-tdd-reading-note-document-content.md`
+- [x] Reading Note JSON payload 新增可选 `documentContent`
+- [x] `export_reading_note` 导出当前文档 persisted content
+- [x] `import_reading_note_json` 导入 `documentContent` 时恢复 `document_contents`
+- [x] 旧 schema v1 JSON 缺少 `documentContent` 时仍可导入
+- [x] 前端 `exportPersistentReadingNote` 保持 `documentContent` 字段透传
+
+验收：
+
+- [x] RED：`cargo test --test storage_core reading_note` 先失败于 JSON 缺少 `documentContent`，导入后 `load_document_content` 为空
+- [x] GREEN：`cargo test --test storage_core reading_note` 通过（4 tests）
+- [x] GREEN：`npm run test -- src/services/persistentStorage.test.js` 通过（1 file / 6 tests）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 256 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test）
+- [x] Whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-11：继续推进 Phase 34，补齐 Phase 33 后 Reading Note JSON 备份/恢复正文的缺口。新增 `tasks/bdd-tdd-reading-note-document-content.md`；`ReadingNoteExportPayload` 现在包含向后兼容的可选 `documentContent` 字段，`export_reading_note` 会读取 `document_contents`，`import_reading_note_json` 会先清理目标文档旧正文，再在 payload 带正文时写回。旧 schema v1 JSON 缺少 `documentContent` 仍可导入。前端 `exportPersistentReadingNote` 保持 command 返回体中的 `documentContent` 透传。验证：红灯先失败于 JSON 缺少 `documentContent`、导入后 `load_document_content` 为空；实现后 `cargo test --test storage_core reading_note` 通过（4 tests），`npm run test -- src/services/persistentStorage.test.js` 通过（1 file / 6 tests），全量 `npm run test` 通过（49 files / 256 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test），`git diff --check` 通过。剩余风险：本切片不把全文正文渲染进 Markdown 导出，不处理 PDF 二进制、OCR 缓存或 source spans 的完整导出。
 
 2026-06-11：继续推进 Phase 33，把文本文档正文持久化从运行时状态推进到 Rust-backed SQLite。新增 `tasks/bdd-tdd-document-content-persistence.md`；Rust storage 增加 `document_contents` 表和 upsert/load 方法，Tauri command 暴露 `storage_upsert_document_content` / `storage_load_document_content`，前端 adapter 增加 `savePersistentDocumentContent` / `loadPersistentDocumentContent`。App 打开 Markdown / Text / HTML 后会保存 `contentText`，Recent documents 中的文本类 metadata 记录可以从 persisted content 恢复正文并进入阅读器，同时重新触发 source index。浏览器 runtime 继续保持 metadata-only fallback，不把正文塞进 Web recent metadata。验证：红灯先分别失败于 Rust 缺少 content storage、前端缺少 adapter、App 未保存/恢复正文；实现后目标测试通过（Rust 1 test、persistentStorage 1 file / 6 tests、Workspace 1 file / 11 tests），全量 `npm run test` 通过（49 files / 256 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test），`git diff --check` 通过。剩余风险：本切片不做 PDF 二进制缓存、OCR 缓存、删除级联或 schema migration UI。
 

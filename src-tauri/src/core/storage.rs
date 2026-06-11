@@ -95,7 +95,7 @@ pub struct DocumentContentInput {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentContentRecord {
     pub document_id: String,
@@ -430,6 +430,7 @@ pub struct ReadingNoteExport {
     pub schema_version: i64,
     pub exported_at: i64,
     pub document: DocumentRecord,
+    pub document_content: Option<DocumentContentRecord>,
     pub summaries: Vec<SummaryRecord>,
     pub annotations: Vec<AnnotationRecord>,
     pub vibecards: Vec<VibeCardRecord>,
@@ -448,6 +449,8 @@ struct ReadingNoteExportPayload {
     schema_version: i64,
     exported_at: i64,
     document: DocumentRecord,
+    #[serde(default)]
+    document_content: Option<DocumentContentRecord>,
     summaries: Vec<SummaryRecord>,
     annotations: Vec<AnnotationRecord>,
     vibecards: Vec<VibeCardRecord>,
@@ -482,6 +485,16 @@ fn document_input_from_record(record: &DocumentRecord) -> DocumentInput {
         opened_at: record.opened_at,
         updated_at: record.updated_at,
         parse_status: record.parse_status.clone(),
+    }
+}
+
+fn document_content_input_from_record(record: &DocumentContentRecord) -> DocumentContentInput {
+    DocumentContentInput {
+        document_id: record.document_id.clone(),
+        content_text: record.content_text.clone(),
+        source_type: record.source_type.clone(),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
     }
 }
 
@@ -604,6 +617,13 @@ fn validate_payload_document_ids(payload: &ReadingNoteExportPayload) -> StorageR
     let document_id = &payload.document.id;
     validate_required("document id", document_id)?;
 
+    if let Some(document_content) = &payload.document_content {
+        if &document_content.document_id != document_id {
+            return Err(StorageError::Validation(
+                "document content document id does not match import document".into(),
+            ));
+        }
+    }
     for summary in &payload.summaries {
         if &summary.document_id != document_id {
             return Err(StorageError::Validation(
@@ -1528,6 +1548,7 @@ impl Storage {
             schema_version: READING_NOTE_SCHEMA_VERSION,
             exported_at: current_time_millis(),
             document,
+            document_content: self.load_document_content(document_id)?,
             summaries: self.list_summaries(document_id)?,
             annotations: self.list_annotations(document_id)?,
             vibecards: self.list_vibecards(document_id)?,
@@ -1545,6 +1566,7 @@ impl Storage {
             schema_version: payload.schema_version,
             exported_at: payload.exported_at,
             document: payload.document,
+            document_content: payload.document_content,
             summaries: payload.summaries,
             annotations: payload.annotations,
             vibecards: payload.vibecards,
@@ -1611,7 +1633,14 @@ impl Storage {
             "DELETE FROM conversations WHERE document_id = ?1",
             [&document_id],
         )?;
+        self.connection.execute(
+            "DELETE FROM document_contents WHERE document_id = ?1",
+            [&document_id],
+        )?;
 
+        if let Some(document_content) = &payload.document_content {
+            self.upsert_document_content(document_content_input_from_record(document_content))?;
+        }
         for summary in &payload.summaries {
             self.upsert_summary(summary_input_from_record(summary))?;
         }
