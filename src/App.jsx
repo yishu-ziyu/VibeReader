@@ -22,7 +22,14 @@ import {
     savePersistentDocumentContent,
 } from './services/persistentStorage';
 import { isVisionCapableByModelName } from './modelPresets';
-import { createReadingTools, generateLensCardArtifact, retryReadingAgentTask, runReadingAgentTask } from './agent';
+import {
+    buildReadingAgentTask,
+    createReadingTools,
+    generateLensCardArtifact,
+    getReadingAgentSkill,
+    retryReadingAgentTask,
+    runReadingAgentTask,
+} from './agent';
 import { buildIndexedRetrievalContext, indexDocumentSourceSpans } from './services/sourceIndexService';
 import {
     saveConversation, loadConversation, listConversations, deleteConversation,
@@ -182,21 +189,13 @@ function createLocalPaperOverviewModel() {
 }
 
 function createPaperOverviewAgentOptions(document) {
+    const skill = getReadingAgentSkill('paper_overview_agent');
     return {
-        goal: 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
+        goal: skill?.goal || 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
         model: createLocalPaperOverviewModel(),
         tools: createReadingTools({ document }),
-        maxIterations: 4,
+        maxIterations: skill?.maxIterations || 4,
         timeoutMs: 30000,
-    };
-}
-
-function createPaperOverviewRetryPlan(document, goal) {
-    return {
-        taskType: 'paper_overview_agent',
-        documentId: document.id,
-        goal,
-        maxIterations: 4,
     };
 }
 
@@ -528,14 +527,7 @@ export function App() {
 
         const agentOptions = createPaperOverviewAgentOptions(currentDocument);
         runReadingAgentTask({
-            task: {
-                documentId: currentDocument.id,
-                type: 'paper_overview_agent',
-                title: 'Paper overview',
-                payload: {
-                    agentOptions: createPaperOverviewRetryPlan(currentDocument, agentOptions.goal),
-                },
-            },
+            task: buildReadingAgentTask(taskType, currentDocument, { goal: agentOptions.goal }),
             agentOptions,
         }).catch((error) => {
             console.warn('[App] Failed to start paper overview agent:', error);

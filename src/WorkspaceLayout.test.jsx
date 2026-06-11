@@ -25,11 +25,36 @@ const artifactServiceMock = vi.hoisted(() => ({
     deleteArtifact: vi.fn(async () => true),
 }));
 const agentMock = vi.hoisted(() => ({
+    buildReadingAgentTask: vi.fn((type, document, overrides = {}) => ({
+        documentId: document?.id || null,
+        type,
+        title: 'Paper overview',
+        payload: {
+            agentOptions: {
+                taskType: type,
+                documentId: document?.id || null,
+                goal: overrides.goal || 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
+                maxIterations: 4,
+                skillPath: 'docs/reading-agent-skills/paper-overview.md',
+                requiredTools: [
+                    'get_current_document',
+                    'get_document_chunks',
+                ],
+                outputArtifactType: 'reading_note',
+            },
+        },
+    })),
     createReadingTools: vi.fn(() => ({
         get_current_document: { run: vi.fn() },
         get_document_chunks: { run: vi.fn() },
     })),
     generateLensCardArtifact: vi.fn(),
+    getReadingAgentSkill: vi.fn(() => ({
+        type: 'paper_overview_agent',
+        title: 'Paper overview',
+        goal: 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
+        maxIterations: 4,
+    })),
     retryReadingAgentTask: vi.fn(async () => ({ status: 'succeeded' })),
     runReadingAgentTask: vi.fn(async () => ({ status: 'succeeded' })),
 }));
@@ -699,6 +724,17 @@ describe('Workspace layout', () => {
                     documentId: 'doc-opened-md',
                     type: 'paper_overview_agent',
                     title: 'Paper overview',
+                    payload: {
+                        agentOptions: expect.objectContaining({
+                            taskType: 'paper_overview_agent',
+                            documentId: 'doc-opened-md',
+                            skillPath: 'docs/reading-agent-skills/paper-overview.md',
+                            requiredTools: [
+                                'get_current_document',
+                                'get_document_chunks',
+                            ],
+                        }),
+                    },
                 }),
                 agentOptions: expect.objectContaining({
                     goal: expect.stringContaining('paper overview'),

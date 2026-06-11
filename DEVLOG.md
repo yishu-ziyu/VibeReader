@@ -1,5 +1,31 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 35：Reading Agent Skill Registry
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-agent-skill-registry.md`。
+- 新增 `src/agent/skills.js`，把首批阅读任务定义为稳定 skill registry。
+- 注册 `paper_overview_agent`、`attention_agent`、`card_generation_agent`、`note_export_agent` 四个 task skill。
+- 每个 skill 明确 `skillPath`、`requiredTools`、`outputArtifactType`、`goal` 和 `maxIterations`。
+- `App` 启动 `paper_overview_agent` 时通过 registry 构造可序列化 task payload，runtime options 仍只在执行时注入 model 和 tools。
+- 新增 `docs/reading-agent-skills/` 下 4 份 skill contract 文档。
+
+命令：
+
+- RED：`npm run test -- src/agent/skills.test.js` -> failed，缺少 `src/agent/skills.js`。
+- RED：`npm run test -- src/WorkspaceLayout.test.jsx` -> failed，paper overview task payload 缺少 `skillPath` 和 `requiredTools`。
+- GREEN：`npm run test -- src/agent/skills.test.js src/WorkspaceLayout.test.jsx` -> pass（2 files / 14 tests）。
+- `npm run test` -> pass（50 files / 259 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（22 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本切片只注册 skill/task contract；当前 UI 仍只启动已有本地可运行的 `paper_overview_agent`。
+- `attention_agent`、`card_generation_agent`、`note_export_agent` 还没有接 planner、权限确认 UI 或真实运行入口。
+
 ## 2026-06-11 Phase 34：Reading Note Document Content Export
 
 改动：

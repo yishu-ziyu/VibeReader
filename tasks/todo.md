@@ -695,7 +695,28 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test）
 - [x] Whitespace 检查：`git diff --check` 通过
 
+## Phase 35：Reading Agent Skill Registry
+
+- [x] 新增 `tasks/bdd-tdd-reading-agent-skill-registry.md`
+- [x] 新增 `src/agent/skills.js`
+- [x] 注册首批 reading task skills：`paper_overview_agent` / `attention_agent` / `card_generation_agent` / `note_export_agent`
+- [x] 每个 skill 明确 `skillPath`、`requiredTools`、`outputArtifactType`、`goal` 和 `maxIterations`
+- [x] `App` 启动 `paper_overview_agent` 时通过 registry 构造可序列化 task payload
+- [x] 新增 `docs/reading-agent-skills/` 下 4 份 skill contract 文档
+
+验收：
+
+- [x] RED：`npm run test -- src/agent/skills.test.js` 先失败于缺少 `src/agent/skills.js`
+- [x] RED：`npm run test -- src/WorkspaceLayout.test.jsx` 先失败于 paper overview task payload 缺少 `skillPath` 和 `requiredTools`
+- [x] GREEN：`npm run test -- src/agent/skills.test.js src/WorkspaceLayout.test.jsx` 通过（2 files / 14 tests）
+- [x] 全量前端测试：`npm run test` 通过（50 files / 259 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test）
+- [x] Whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-11：继续推进 Phase 35，把 Agent 架构收敛成可扩展的 Reading Agent Skill Registry。新增 `tasks/bdd-tdd-reading-agent-skill-registry.md`；`src/agent/skills.js` 注册 `paper_overview_agent`、`attention_agent`、`card_generation_agent`、`note_export_agent` 四个稳定 task skill，每个 skill 明确 `skillPath`、`requiredTools`、`outputArtifactType`、`goal` 和 `maxIterations`。`App` 启动 paper overview 时通过 registry 构造可序列化 task payload，runtime options 仍只在执行时注入 model 和 tools，避免把 closure 写入持久 task。新增 `docs/reading-agent-skills/` 下四份 skill contract 文档。验证：红灯先失败于缺少 `src/agent/skills.js`、paper overview task payload 缺少 `skillPath` 和 `requiredTools`；实现后 `npm run test -- src/agent/skills.test.js src/WorkspaceLayout.test.jsx` 通过（2 files / 14 tests），全量 `npm run test` 通过（50 files / 259 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test），`git diff --check` 通过。剩余风险：本切片只注册 skill/task contract，当前 UI 仍只启动已有本地可运行的 `paper_overview_agent`；其它三个 skill 还没有 planner、权限确认 UI 或真实运行入口。
 
 2026-06-11：继续推进 Phase 34，补齐 Phase 33 后 Reading Note JSON 备份/恢复正文的缺口。新增 `tasks/bdd-tdd-reading-note-document-content.md`；`ReadingNoteExportPayload` 现在包含向后兼容的可选 `documentContent` 字段，`export_reading_note` 会读取 `document_contents`，`import_reading_note_json` 会先清理目标文档旧正文，再在 payload 带正文时写回。旧 schema v1 JSON 缺少 `documentContent` 仍可导入。前端 `exportPersistentReadingNote` 保持 command 返回体中的 `documentContent` 透传。验证：红灯先失败于 JSON 缺少 `documentContent`、导入后 `load_document_content` 为空；实现后 `cargo test --test storage_core reading_note` 通过（4 tests），`npm run test -- src/services/persistentStorage.test.js` 通过（1 file / 6 tests），全量 `npm run test` 通过（49 files / 256 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test），`git diff --check` 通过。剩余风险：本切片不把全文正文渲染进 Markdown 导出，不处理 PDF 二进制、OCR 缓存或 source spans 的完整导出。
 
