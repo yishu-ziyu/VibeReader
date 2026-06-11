@@ -187,8 +187,14 @@ function filenameSlug(value) {
         .replace(/^-+|-+$/g, '') || 'document';
 }
 
-function exportFilename(baseName, extension, suffix = '') {
-    const date = new Date().toISOString().slice(0, 10);
+function exportDateLabel(timestamp) {
+    const numericTimestamp = Number(timestamp);
+    const date = Number.isFinite(numericTimestamp) ? new Date(numericTimestamp) : new Date();
+    return date.toISOString().slice(0, 10);
+}
+
+function exportFilename(baseName, extension, suffix = '', timestamp) {
+    const date = exportDateLabel(timestamp);
     const suffixPart = suffix ? `-${filenameSlug(suffix)}` : '';
     return `vibereader-${filenameSlug(baseName)}${suffixPart}-${date}.${extension}`;
 }
@@ -430,7 +436,7 @@ export function ArtifactPanel({
     const handleDownloadMarkdown = useCallback(() => {
         if (!exportPreview?.markdown) return;
         downloadTextFile(
-            exportFilename(exportBaseName, 'md'),
+            exportFilename(exportBaseName, 'md', '', exportPreview.exportedAt),
             exportPreview.markdown,
             'text/markdown;charset=utf-8'
         );
@@ -439,7 +445,7 @@ export function ArtifactPanel({
     const handleDownloadJson = useCallback(() => {
         if (!exportPreview?.json) return;
         downloadTextFile(
-            exportFilename(exportBaseName, 'json'),
+            exportFilename(exportBaseName, 'json', '', exportPreview.exportedAt),
             exportPreview.json,
             'application/json;charset=utf-8'
         );

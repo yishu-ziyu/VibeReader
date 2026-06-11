@@ -573,7 +573,29 @@
 - [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）
 
+## Phase 29：Exported At Timestamp
+
+- [x] 新增 `tasks/bdd-tdd-exported-at.md`
+- [x] Rust `export_reading_note` 返回 `exportedAt`
+- [x] JSON payload 包含 `exportedAt`
+- [x] Markdown metadata 显示 `Exported At`
+- [x] 完整 Reading Note Markdown / JSON 文件名日期使用 `exportedAt`
+- [x] Selected VibeCards 导出继续保持前端即时日期
+
+验收：
+
+- [x] RED：`npm run test -- src/ArtifactPanel.test.jsx` 先失败于文件名仍使用浏览器当前日期
+- [x] RED：`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` 先编译失败于 `ReadingNoteExport` 缺少 `exported_at`
+- [x] GREEN：`npm run test -- src/ArtifactPanel.test.jsx` 通过（1 file / 14 tests）
+- [x] GREEN：`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` 通过（1 test）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）
+- [x] Whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-11：继续推进 Phase 29，修复 Phase 28 遗留的导出日期来源问题。新增 `tasks/bdd-tdd-exported-at.md`；Rust `export_reading_note` 现在生成毫秒级 `exportedAt`，并同时写入 command 返回体、JSON payload 和 Markdown metadata；`ArtifactPanel` 的完整 Reading Note Markdown/JSON 下载文件名日期改为使用 `exportPreview.exportedAt`，Selected VibeCards 导出仍保持前端即时日期。验证：红灯先分别失败于前端文件名仍使用 2026-06-11 浏览器日期、Rust `ReadingNoteExport` 缺少 `exported_at` 字段；实现后 `npm run test -- src/ArtifactPanel.test.jsx` 通过（1 file / 14 tests），`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` 通过（1 test），全量 `npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test），`git diff --check` 通过。剩余风险：JSON schema 还没有显式版本号；后续导入/导出兼容性应和 `exportedAt` 一起进入 export metadata。
 
 2026-06-11：继续推进 Phase 28，补齐 PRD Notes / Export P0 的“导出文件名包含文档名和日期”。新增 `tasks/bdd-tdd-export-filenames.md`；`ArtifactPanel` 的完整 Reading Note Markdown/JSON 下载、Selected VibeCards Markdown、Selected Obsidian Markdown 下载现在优先使用清理后的 `documentName`，并追加导出类型和日期；缺少文档名时继续 fallback 到 `documentId`；App 已把 `currentDocument.name` 传给 Notes 面板。验证：红灯先失败于文件名仍为 `vibereader-doc-1-...`；实现后 `npm run test -- src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` 通过（2 files / 22 tests），全量 `npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）。剩余风险：文件名使用本地浏览器时区日期，尚未接 Rust export payload 的 opened/exported timestamp。
 

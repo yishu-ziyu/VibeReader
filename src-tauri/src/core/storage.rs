@@ -43,6 +43,13 @@ fn source_span_score(tokens: &[String], span: &SourceSpanRecord) -> usize {
         .sum()
 }
 
+fn current_time_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or_default()
+}
+
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentInput {
@@ -396,6 +403,7 @@ pub struct TaskRecord {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadingNoteExport {
+    pub exported_at: i64,
     pub document: DocumentRecord,
     pub summaries: Vec<SummaryRecord>,
     pub annotations: Vec<AnnotationRecord>,
@@ -411,6 +419,7 @@ pub struct ReadingNoteExport {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReadingNoteExportPayload {
+    exported_at: i64,
     document: DocumentRecord,
     summaries: Vec<SummaryRecord>,
     annotations: Vec<AnnotationRecord>,
@@ -1213,6 +1222,7 @@ impl Storage {
 
         let document = self.get_document_by_id(document_id)?;
         let payload = ReadingNoteExportPayload {
+            exported_at: current_time_millis(),
             document,
             summaries: self.list_summaries(document_id)?,
             annotations: self.list_annotations(document_id)?,
@@ -1227,6 +1237,7 @@ impl Storage {
             .map_err(|error| StorageError::Validation(error.to_string()))?;
 
         Ok(ReadingNoteExport {
+            exported_at: payload.exported_at,
             document: payload.document,
             summaries: payload.summaries,
             annotations: payload.annotations,
@@ -1611,7 +1622,8 @@ fn render_reading_note_markdown(payload: &ReadingNoteExportPayload) -> String {
     output.push_str(&format!("- Title: {}\n", payload.document.name));
     output.push_str(&format!("- Source: {}\n", payload.document.source));
     output.push_str(&format!("- Document ID: {}\n", payload.document.id));
-    output.push_str(&format!("- Opened At: {}\n\n", payload.document.opened_at));
+    output.push_str(&format!("- Opened At: {}\n", payload.document.opened_at));
+    output.push_str(&format!("- Exported At: {}\n\n", payload.exported_at));
 
     output.push_str("## One-line Summary\n\n");
     if let Some(summary) = payload.summaries.first() {

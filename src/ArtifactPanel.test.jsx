@@ -469,6 +469,7 @@ describe('ArtifactPanel', () => {
 
     it('previews Markdown and JSON exports for the current document', async () => {
         persistentMock.exportPersistentReadingNote.mockResolvedValue({
+            exportedAt: Date.parse('2026-06-10T08:00:00.000Z'),
             markdown: '# Reading Note\n\n## Metadata\n- Title: Export Paper.pdf',
             json: '{"document":{"id":"doc-1"}}',
         });
@@ -481,10 +482,9 @@ describe('ArtifactPanel', () => {
         fireEvent.click(screen.getByRole('button', { name: /Markdown/ }));
         fireEvent.click(screen.getByRole('button', { name: /JSON/ }));
 
-        const date = new Date().toISOString().slice(0, 10);
         expect(appendedDownloads(appendChildSpy)).toEqual([
-            `vibereader-export-paper-${date}.md`,
-            `vibereader-export-paper-${date}.json`,
+            'vibereader-export-paper-2026-06-10.md',
+            'vibereader-export-paper-2026-06-10.json',
         ]);
         expect(createObjectURLSpy).toHaveBeenCalledTimes(2);
         expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:export');

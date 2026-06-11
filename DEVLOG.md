@@ -1,5 +1,30 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 29：Exported At Timestamp
+
+改动：
+
+- 新增 `tasks/bdd-tdd-exported-at.md`。
+- Rust `export_reading_note` 生成毫秒级 `exportedAt`。
+- command 返回体、JSON payload 和 Markdown metadata 使用同一个导出时间戳。
+- 完整 Reading Note Markdown / JSON 下载文件名日期使用 `exportPreview.exportedAt`。
+- Selected VibeCards 导出继续保持前端即时日期。
+
+命令：
+
+- RED：`npm run test -- src/ArtifactPanel.test.jsx` -> failed，完整 Reading Note 文件名仍使用浏览器当前日期。
+- RED：`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` -> failed，`ReadingNoteExport` 缺少 `exported_at` 字段。
+- GREEN：`npm run test -- src/ArtifactPanel.test.jsx` -> pass（1 file / 14 tests）。
+- GREEN：`cargo test --test storage_core builds_markdown_reading_note_export_without_secrets` -> pass（1 test）。
+- `npm run test` -> pass（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（19 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- JSON schema 还没有显式版本号；后续导入/导出兼容性应和 `exportedAt` 一起进入 export metadata。
+
 ## 2026-06-11 Phase 28：Export Filenames
 
 改动：

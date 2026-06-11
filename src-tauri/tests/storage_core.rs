@@ -937,10 +937,12 @@ fn builds_markdown_reading_note_export_without_secrets() {
         .export_reading_note("doc-export")
         .expect("build reading note export");
 
+    assert!(export.exported_at > 0);
     assert_eq!(export.document.id, "doc-export");
     assert_eq!(export.annotations.len(), 1);
     assert!(export.markdown.contains("# Reading Note"));
     assert!(export.markdown.contains("Export Paper.pdf"));
+    assert!(export.markdown.contains("- Exported At: "));
     assert!(export
         .markdown
         .contains("The paper studies export behavior."));
@@ -950,6 +952,7 @@ fn builds_markdown_reading_note_export_without_secrets() {
     assert!(!export.markdown.to_lowercase().contains("api key"));
     assert!(!export.markdown.to_lowercase().contains("authorization"));
     assert!(export.json.contains("\"doc-export\""));
+    assert!(export.json.contains("\"exportedAt\""));
 }
 
 #[test]
