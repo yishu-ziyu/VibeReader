@@ -4,6 +4,9 @@ dist/
 
 # Build and runtime outputs
 coverage/
+output/
+playwright-report/
+test-results/
 src-tauri/target/
 *.log
 npm-debug.log*

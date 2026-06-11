@@ -70,6 +70,28 @@ describe('validateRunnableModelConfig', () => {
         });
     });
 
+    it('preserves auth metadata needed by provider-specific request headers', () => {
+        expect(validateRunnableModelConfig({
+            baseUrl: 'https://example.test/v1',
+            apiKey: 'provider-key',
+            modelName: 'example-model',
+            apiFormat: 'openai',
+            authType: 'api-key',
+            requiresApiKey: true,
+        })).toEqual({
+            ok: true,
+            config: {
+                baseUrl: 'https://example.test/v1',
+                apiKey: 'provider-key',
+                model: 'example-model',
+                modelName: 'example-model',
+                apiFormat: 'openai',
+                apiType: 'openai-compatible',
+                authType: 'api-key',
+            },
+        });
+    });
+
     it('bypasses API key validation when requiresApiKey is false', () => {
         expect(validateRunnableModelConfig({
             baseUrl: 'https://api.moonshot.cn/v1',

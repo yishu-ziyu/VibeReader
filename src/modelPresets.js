@@ -166,9 +166,9 @@ const PROVIDER_PRESETS = [
   {
     id: 'mimo',
     name: 'MiMo Token Plan',
-    apiType: 'openai-compatible',
+    apiType: 'anthropic-compatible',
     region: 'china',
-    baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
+    baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
     defaultModel: 'mimo-v2.5-pro',
     models: [
       { id: 'mimo-v2.5-pro', name: 'MiMo v2.5 Pro', vision: false },
@@ -178,8 +178,7 @@ const PROVIDER_PRESETS = [
     requiresApiKey: true,
     codingPlan: true,
     tokenPlan: true,
-    authType: 'api-key',
-    notes: '使用 api-key 头部认证（非 Bearer），OpenAI 兼容协议',
+    notes: 'Token Plan 使用 Anthropic 兼容端点 (/anthropic)，模型固定为 mimo-v2.5-pro',
   },
   {
     id: 'stepfun',

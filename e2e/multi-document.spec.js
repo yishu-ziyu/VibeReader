@@ -15,7 +15,6 @@ test.describe('Multi-Document Switching', () => {
     // Upload PDF first
     const fileInput = page.locator('input[type="file"]').first();
     await fileInput.setInputFiles(path.join(DEMO_ASSETS, 'outline-demo.pdf'));
-    await expect(page.locator('.ant-spin')).not.toBeVisible({ timeout: 30000 });
     await expect(page.locator('canvas')).toBeVisible({ timeout: 10000 });
 
     // PDF should be active

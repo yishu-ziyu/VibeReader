@@ -6,6 +6,10 @@
 
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
+function redactSensitiveTokens(text = '') {
+    return String(text).replace(/\b(?:sk|rk|ak|api)[-_][A-Za-z0-9_-]{6,}\b/gi, '[redacted]');
+}
+
 /**
  * 通过 Tauri 原生 HTTP 发送流式 POST 请求并解析 SSE
  * @param {string} url - 目标 URL（完整 URL，不再经过 Vite proxy）
@@ -22,6 +26,7 @@ export async function tauriChatStream(url, options = {}) {
         method: 'POST',
         headers: headers || { 'Content-Type': 'application/json' },
         body,
+        signal,
     });
 
     if (!response.ok) {
@@ -31,6 +36,7 @@ export async function tauriChatStream(url, options = {}) {
             const errData = await response.json();
             backendDetail =
                 errData.error?.message || errData.message || errData.detail || '';
+            backendDetail = redactSensitiveTokens(backendDetail);
             if (backendDetail) errorMsg += ` - ${backendDetail}`;
         } catch (_) {
             /* ignore */

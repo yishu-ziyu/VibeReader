@@ -198,6 +198,15 @@ function detectAndParseSSE(dataStr) {
     }
 }
 
+function isAbortLikeError(error, signal) {
+    return Boolean(
+        error?.name === 'AbortError' ||
+        error?.message === 'Request cancelled' ||
+        error === 'Request cancelled' ||
+        signal?.aborted
+    );
+}
+
 // ==================== 统一服务类 ====================
 
 class AIService {
@@ -430,6 +439,7 @@ class AIService {
                 const tauriBody = await tauriChatStream(endpoint, {
                     headers,
                     body: JSON.stringify(body),
+                    signal,
                 });
                 reader = tauriBody.getReader();
             } else {
@@ -493,7 +503,7 @@ class AIService {
             }
             onChunk({ done: true, fullMessage, fullThinking, hasThinking });
         } catch (error) {
-            if (error?.name === 'AbortError') {
+            if (isAbortLikeError(error, signal)) {
                 onChunk({
                     done: true,
                     fullMessage: typeof fullMessage === 'string' ? fullMessage : '',
@@ -506,7 +516,7 @@ class AIService {
             }
             console.error('[AIService] Error:', error);
             enhanceErrorWithMultimodalHint(error, error?.message);
-            const classifiedError = error.aiError || classifyAiError(null, error.message, error);
+            const classifiedError = error.aiError || classifyAiError(error.status ?? null, error.message, error);
             onChunk({
                 done: true,
                 fullMessage: '',

@@ -1,0 +1,1900 @@
+use rusqlite::{params, Connection};
+
+use super::error::{StorageError, StorageResult};
+
+fn validate_required(name: &str, value: &str) -> StorageResult<()> {
+    if value.trim().is_empty() {
+        return Err(StorageError::Validation(format!("{name} is required")));
+    }
+    Ok(())
+}
+
+fn validate_task_status(value: &str) -> StorageResult<()> {
+    match value {
+        "pending" | "running" | "succeeded" | "failed" | "cancelled" => Ok(()),
+        _ => Err(StorageError::Validation(format!(
+            "unsupported task status: {value}"
+        ))),
+    }
+}
+
+fn normalize_index_text(value: &str) -> String {
+    value
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn tokenize_query(value: &str) -> Vec<String> {
+    value
+        .to_lowercase()
+        .split(|character: char| !character.is_alphanumeric())
+        .map(str::trim)
+        .filter(|token| token.len() >= 3)
+        .map(str::to_string)
+        .collect()
+}
+
+fn source_span_score(tokens: &[String], span: &SourceSpanRecord) -> usize {
+    tokens
+        .iter()
+        .map(|token| span.text.to_lowercase().matches(token).count())
+        .sum()
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentInput {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub source: String,
+    pub path: Option<String>,
+    pub mime_type: String,
+    pub size: i64,
+    pub fingerprint: Option<String>,
+    pub opened_at: i64,
+    pub updated_at: i64,
+    pub parse_status: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentRecord {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub source: String,
+    pub path: Option<String>,
+    pub mime_type: String,
+    pub size: i64,
+    pub fingerprint: Option<String>,
+    pub opened_at: i64,
+    pub updated_at: i64,
+    pub parse_status: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationInput {
+    pub id: String,
+    pub document_id: String,
+    pub page: i64,
+    pub paragraph_id: Option<String>,
+    pub selected_text: String,
+    pub note: String,
+    pub color: String,
+    pub rect_json: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationRecord {
+    pub id: String,
+    pub document_id: String,
+    pub page: i64,
+    pub paragraph_id: Option<String>,
+    pub selected_text: String,
+    pub note: String,
+    pub color: String,
+    pub rect_json: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VibeCardInput {
+    pub id: String,
+    pub document_id: String,
+    #[serde(rename = "type")]
+    pub card_type: String,
+    pub title: String,
+    pub source_text: String,
+    pub ai_content: String,
+    pub user_note: String,
+    pub page: Option<i64>,
+    pub paragraph_id: Option<String>,
+    pub tags_json: String,
+    pub source_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub verification_status: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VibeCardRecord {
+    pub id: String,
+    pub document_id: String,
+    #[serde(rename = "type")]
+    pub card_type: String,
+    pub title: String,
+    pub source_text: String,
+    pub ai_content: String,
+    pub user_note: String,
+    pub page: Option<i64>,
+    pub paragraph_id: Option<String>,
+    pub tags_json: String,
+    pub source_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub verification_status: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlashcardInput {
+    pub id: String,
+    pub deck_id: String,
+    pub document_id: String,
+    pub front: String,
+    pub back: String,
+    pub known: bool,
+    pub unknown: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlashcardRecord {
+    pub id: String,
+    pub deck_id: String,
+    pub document_id: String,
+    pub front: String,
+    pub back: String,
+    pub known: bool,
+    pub unknown: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlashcardDeckInput {
+    pub id: String,
+    pub document_id: String,
+    pub title: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub cards: Vec<FlashcardInput>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlashcardDeckRecord {
+    pub id: String,
+    pub document_id: String,
+    pub title: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub cards: Vec<FlashcardRecord>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationInput {
+    pub session_id: String,
+    pub document_id: Option<String>,
+    pub title: String,
+    pub messages_json: String,
+    pub message_count: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationRecord {
+    pub session_id: String,
+    pub document_id: Option<String>,
+    pub title: String,
+    pub messages_json: String,
+    pub message_count: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThinkingTreeInput {
+    pub document_id: String,
+    pub tree_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThinkingTreeRecord {
+    pub document_id: String,
+    pub tree_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttentionInsightInput {
+    pub id: String,
+    pub document_id: String,
+    #[serde(rename = "type")]
+    pub insight_type: String,
+    pub description: String,
+    pub page: i64,
+    pub paragraph_index: i64,
+    pub paragraph_id: String,
+    pub payload_json: String,
+    pub read_status: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttentionInsightRecord {
+    pub id: String,
+    pub document_id: String,
+    #[serde(rename = "type")]
+    pub insight_type: String,
+    pub description: String,
+    pub page: i64,
+    pub paragraph_index: i64,
+    pub paragraph_id: String,
+    pub payload_json: String,
+    pub read_status: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SummaryInput {
+    pub id: String,
+    pub document_id: String,
+    pub summary_kind: String,
+    pub section_id: Option<String>,
+    pub section_title: String,
+    pub summary: String,
+    pub key_points_json: String,
+    pub raw_response: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SummaryRecord {
+    pub id: String,
+    pub document_id: String,
+    pub summary_kind: String,
+    pub section_id: Option<String>,
+    pub section_title: String,
+    pub summary: String,
+    pub key_points_json: String,
+    pub raw_response: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceSpanInput {
+    pub id: String,
+    pub document_id: String,
+    pub page: i64,
+    pub paragraph_id: String,
+    pub chunk_id: String,
+    pub text: String,
+    pub order_index: i64,
+    pub source_type: String,
+    pub metadata_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceSpanRecord {
+    pub id: String,
+    pub document_id: String,
+    pub page: i64,
+    pub paragraph_id: String,
+    pub chunk_id: String,
+    pub text: String,
+    pub order_index: i64,
+    pub source_type: String,
+    pub metadata_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceIndexStatusInput {
+    pub document_id: String,
+    pub index_signature: String,
+    pub span_count: i64,
+    pub indexed_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceIndexStatusRecord {
+    pub document_id: String,
+    pub index_signature: String,
+    pub span_count: i64,
+    pub indexed_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskInput {
+    pub id: String,
+    pub document_id: Option<String>,
+    #[serde(rename = "type")]
+    pub task_type: String,
+    pub status: String,
+    pub title: String,
+    pub progress: i64,
+    pub payload_json: String,
+    pub result_json: String,
+    pub error_message: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub started_at: Option<i64>,
+    pub completed_at: Option<i64>,
+    pub cancelled_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskRecord {
+    pub id: String,
+    pub document_id: Option<String>,
+    #[serde(rename = "type")]
+    pub task_type: String,
+    pub status: String,
+    pub title: String,
+    pub progress: i64,
+    pub payload_json: String,
+    pub result_json: String,
+    pub error_message: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub started_at: Option<i64>,
+    pub completed_at: Option<i64>,
+    pub cancelled_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadingNoteExport {
+    pub document: DocumentRecord,
+    pub summaries: Vec<SummaryRecord>,
+    pub annotations: Vec<AnnotationRecord>,
+    pub vibecards: Vec<VibeCardRecord>,
+    pub flashcard_decks: Vec<FlashcardDeckRecord>,
+    pub attention_insights: Vec<AttentionInsightRecord>,
+    pub thinking_tree: Option<ThinkingTreeRecord>,
+    pub conversations: Vec<ConversationRecord>,
+    pub markdown: String,
+    pub json: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReadingNoteExportPayload {
+    document: DocumentRecord,
+    summaries: Vec<SummaryRecord>,
+    annotations: Vec<AnnotationRecord>,
+    vibecards: Vec<VibeCardRecord>,
+    flashcard_decks: Vec<FlashcardDeckRecord>,
+    attention_insights: Vec<AttentionInsightRecord>,
+    thinking_tree: Option<ThinkingTreeRecord>,
+    conversations: Vec<ConversationRecord>,
+}
+
+pub struct Storage {
+    connection: Connection,
+}
+
+impl Storage {
+    pub fn open(path: impl AsRef<std::path::Path>) -> StorageResult<Self> {
+        Ok(Self {
+            connection: Connection::open(path)?,
+        })
+    }
+
+    pub fn open_memory() -> StorageResult<Self> {
+        Ok(Self {
+            connection: Connection::open_in_memory()?,
+        })
+    }
+
+    pub fn init_schema(&self) -> StorageResult<()> {
+        self.connection.execute_batch(
+            "
+            PRAGMA foreign_keys = ON;
+
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY,
+                applied_at INTEGER NOT NULL
+            );
+
+            INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+            VALUES (1, strftime('%s','now') * 1000);
+
+            CREATE TABLE IF NOT EXISTS documents (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                source TEXT NOT NULL,
+                path TEXT,
+                mime_type TEXT NOT NULL,
+                size INTEGER NOT NULL,
+                fingerprint TEXT,
+                opened_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                parse_status TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_documents_opened_at
+                ON documents(opened_at DESC);
+
+            CREATE TABLE IF NOT EXISTS annotations (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                page INTEGER NOT NULL,
+                paragraph_id TEXT,
+                selected_text TEXT NOT NULL,
+                note TEXT NOT NULL,
+                color TEXT NOT NULL,
+                rect_json TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_annotations_document_created
+                ON annotations(document_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS vibecards (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                source_text TEXT NOT NULL,
+                ai_content TEXT NOT NULL,
+                user_note TEXT NOT NULL,
+                page INTEGER,
+                paragraph_id TEXT,
+                tags_json TEXT NOT NULL,
+                source_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                verification_status TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_vibecards_document_created
+                ON vibecards(document_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS flashcard_decks (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_flashcard_decks_document_updated
+                ON flashcard_decks(document_id, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS flashcards (
+                id TEXT PRIMARY KEY,
+                deck_id TEXT NOT NULL,
+                document_id TEXT NOT NULL,
+                front TEXT NOT NULL,
+                back TEXT NOT NULL,
+                known INTEGER NOT NULL,
+                unknown INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_flashcards_deck_created
+                ON flashcards(deck_id, created_at ASC);
+
+            CREATE TABLE IF NOT EXISTS conversations (
+                session_id TEXT PRIMARY KEY,
+                document_id TEXT,
+                title TEXT NOT NULL,
+                messages_json TEXT NOT NULL,
+                message_count INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_conversations_updated_at
+                ON conversations(updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS thinking_trees (
+                document_id TEXT PRIMARY KEY,
+                tree_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS attention_insights (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                page INTEGER NOT NULL,
+                paragraph_index INTEGER NOT NULL,
+                paragraph_id TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                read_status TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_attention_insights_document_page
+                ON attention_insights(document_id, page, paragraph_index);
+
+            CREATE TABLE IF NOT EXISTS summaries (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                summary_kind TEXT NOT NULL,
+                section_id TEXT NOT NULL,
+                section_title TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                key_points_json TEXT NOT NULL,
+                raw_response TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                UNIQUE(document_id, summary_kind, section_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_summaries_document_kind
+                ON summaries(document_id, summary_kind);
+
+            CREATE TABLE IF NOT EXISTS source_spans (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                page INTEGER NOT NULL,
+                paragraph_id TEXT NOT NULL,
+                chunk_id TEXT NOT NULL,
+                text TEXT NOT NULL,
+                normalized_text TEXT NOT NULL,
+                order_index INTEGER NOT NULL,
+                source_type TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_source_spans_document_order
+                ON source_spans(document_id, order_index ASC);
+
+            CREATE INDEX IF NOT EXISTS idx_source_spans_document_page
+                ON source_spans(document_id, page, paragraph_id);
+
+            CREATE TABLE IF NOT EXISTS source_index_status (
+                document_id TEXT PRIMARY KEY,
+                index_signature TEXT NOT NULL,
+                span_count INTEGER NOT NULL,
+                indexed_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS task_records (
+                id TEXT PRIMARY KEY,
+                document_id TEXT,
+                type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                title TEXT NOT NULL,
+                progress INTEGER NOT NULL,
+                payload_json TEXT NOT NULL,
+                result_json TEXT NOT NULL,
+                error_message TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                started_at INTEGER,
+                completed_at INTEGER,
+                cancelled_at INTEGER
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_task_records_document_updated
+                ON task_records(document_id, updated_at DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_task_records_status_updated
+                ON task_records(status, updated_at DESC);
+            ",
+        )?;
+        Ok(())
+    }
+
+    pub fn upsert_document(&self, input: DocumentInput) -> StorageResult<DocumentRecord> {
+        validate_required("document id", &input.id)?;
+        validate_required("document name", &input.name)?;
+        validate_required("document kind", &input.kind)?;
+
+        self.connection.execute(
+            "
+            INSERT INTO documents (
+                id, name, kind, source, path, mime_type, size, fingerprint,
+                opened_at, updated_at, parse_status
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                kind = excluded.kind,
+                source = excluded.source,
+                path = excluded.path,
+                mime_type = excluded.mime_type,
+                size = excluded.size,
+                fingerprint = excluded.fingerprint,
+                opened_at = excluded.opened_at,
+                updated_at = excluded.updated_at,
+                parse_status = excluded.parse_status
+            ",
+            params![
+                input.id,
+                input.name,
+                input.kind,
+                input.source,
+                input.path,
+                input.mime_type,
+                input.size,
+                input.fingerprint,
+                input.opened_at,
+                input.updated_at,
+                input.parse_status,
+            ],
+        )?;
+
+        self.get_document_by_id(&input.id)
+    }
+
+    pub fn list_documents(&self) -> StorageResult<Vec<DocumentRecord>> {
+        let mut statement = self.connection.prepare(
+            "
+            SELECT id, name, kind, source, path, mime_type, size, fingerprint,
+                   opened_at, updated_at, parse_status
+            FROM documents
+            ORDER BY opened_at DESC, updated_at DESC
+            ",
+        )?;
+        let rows = statement.query_map([], document_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    pub fn create_annotation(&self, input: AnnotationInput) -> StorageResult<AnnotationRecord> {
+        validate_required("annotation id", &input.id)?;
+        validate_required("document id", &input.document_id)?;
+        validate_required("selected text", &input.selected_text)?;
+
+        self.connection.execute(
+            "
+            INSERT INTO annotations (
+                id, document_id, page, paragraph_id, selected_text, note,
+                color, rect_json, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            ",
+            params![
+                input.id,
+                input.document_id,
+                input.page,
+                input.paragraph_id,
+                input.selected_text,
+                input.note,
+                input.color,
+                input.rect_json,
+                input.created_at,
+                input.updated_at,
+            ],
+        )?;
+
+        self.get_annotation_by_id(&input.id)
+    }
+
+    pub fn list_annotations(&self, document_id: &str) -> StorageResult<Vec<AnnotationRecord>> {
+        validate_required("document id", document_id)?;
+
+        let mut statement = self.connection.prepare(
+            "
+            SELECT id, document_id, page, paragraph_id, selected_text, note,
+                   color, rect_json, created_at, updated_at
+            FROM annotations
+            WHERE document_id = ?1
+            ORDER BY created_at DESC
+            ",
+        )?;
+        let rows = statement.query_map([document_id], annotation_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    pub fn create_vibecard(&self, input: VibeCardInput) -> StorageResult<VibeCardRecord> {
+        validate_required("card id", &input.id)?;
+        validate_required("document id", &input.document_id)?;
+        validate_required("card type", &input.card_type)?;
+
+        self.connection.execute(
+            "
+            INSERT INTO vibecards (
+                id, document_id, type, title, source_text, ai_content, user_note,
+                page, paragraph_id, tags_json, source_json, created_at, updated_at,
+                verification_status
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+            ON CONFLICT(id) DO UPDATE SET
+                document_id = excluded.document_id,
+                type = excluded.type,
+                title = excluded.title,
+                source_text = excluded.source_text,
+                ai_content = excluded.ai_content,
+                user_note = excluded.user_note,
+                page = excluded.page,
+                paragraph_id = excluded.paragraph_id,
+                tags_json = excluded.tags_json,
+                source_json = excluded.source_json,
+                updated_at = excluded.updated_at,
+                verification_status = excluded.verification_status
+            ",
+            params![
+                input.id,
+                input.document_id,
+                input.card_type,
+                input.title,
+                input.source_text,
+                input.ai_content,
+                input.user_note,
+                input.page,
+                input.paragraph_id,
+                input.tags_json,
+                input.source_json,
+                input.created_at,
+                input.updated_at,
+                input.verification_status,
+            ],
+        )?;
+
+        self.get_vibecard_by_id(&input.id)
+    }
+
+    pub fn delete_vibecard(&self, id: &str) -> StorageResult<bool> {
+        validate_required("card id", id)?;
+
+        let affected = self
+            .connection
+            .execute("DELETE FROM vibecards WHERE id = ?1", [id])?;
+        Ok(affected > 0)
+    }
+
+    pub fn list_vibecards(&self, document_id: &str) -> StorageResult<Vec<VibeCardRecord>> {
+        validate_required("document id", document_id)?;
+
+        let mut statement = self.connection.prepare(
+            "
+            SELECT id, document_id, type, title, source_text, ai_content, user_note,
+                   page, paragraph_id, tags_json, source_json, created_at, updated_at,
+                   verification_status
+            FROM vibecards
+            WHERE document_id = ?1
+            ORDER BY created_at DESC
+            ",
+        )?;
+        let rows = statement.query_map([document_id], vibecard_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    pub fn replace_flashcard_decks(
+        &self,
+        document_id: &str,
+        decks: Vec<FlashcardDeckInput>,
+    ) -> StorageResult<Vec<FlashcardDeckRecord>> {
+        validate_required("document id", document_id)?;
+
+        self.connection.execute(
+            "DELETE FROM flashcards WHERE document_id = ?1",
+            [document_id],
+        )?;
+        self.connection.execute(
+            "DELETE FROM flashcard_decks WHERE document_id = ?1",
+            [document_id],
+        )?;
+
+        for deck in decks {
+            validate_required("deck id", &deck.id)?;
+            validate_required("document id", &deck.document_id)?;
+            validate_required("deck title", &deck.title)?;
+
+            if deck.document_id != document_id {
+                return Err(StorageError::Validation(
+                    "deck document id does not match target document".into(),
+                ));
+            }
+
+            self.connection.execute(
+                "
+                INSERT INTO flashcard_decks (
+                    id, document_id, title, created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5)
+                ",
+                params![
+                    &deck.id,
+                    &deck.document_id,
+                    deck.title,
+                    deck.created_at,
+                    deck.updated_at,
+                ],
+            )?;
+
+            for card in deck.cards {
+                validate_required("flashcard id", &card.id)?;
+                validate_required("deck id", &card.deck_id)?;
+                validate_required("document id", &card.document_id)?;
+                validate_required("flashcard front", &card.front)?;
+
+                if card.document_id != document_id {
+                    return Err(StorageError::Validation(
+                        "flashcard document id does not match target document".into(),
+                    ));
+                }
+                if card.deck_id != deck.id {
+                    return Err(StorageError::Validation(
+                        "flashcard deck id does not match parent deck".into(),
+                    ));
+                }
+
+                self.connection.execute(
+                    "
+                    INSERT INTO flashcards (
+                        id, deck_id, document_id, front, back, known, unknown,
+                        created_at, updated_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                    ",
+                    params![
+                        card.id,
+                        card.deck_id,
+                        card.document_id,
+                        card.front,
+                        card.back,
+                        if card.known { 1 } else { 0 },
+                        if card.unknown { 1 } else { 0 },
+                        card.created_at,
+                        card.updated_at,
+                    ],
+                )?;
+            }
+        }
+
+        self.list_flashcard_decks(document_id)
+    }
+
+    pub fn list_flashcard_decks(
+        &self,
+        document_id: &str,
+    ) -> StorageResult<Vec<FlashcardDeckRecord>> {
+        validate_required("document id", document_id)?;
+
+        let mut statement = self.connection.prepare(
+            "
+            SELECT id, document_id, title, created_at, updated_at
+            FROM flashcard_decks
+            WHERE document_id = ?1
+            ORDER BY updated_at DESC, created_at DESC
+            ",
+        )?;
+        let deck_rows = statement.query_map([document_id], flashcard_deck_from_row)?;
+        let mut decks = deck_rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)?;
+
+        for deck in &mut decks {
+            deck.cards = self.list_flashcards_for_deck(&deck.id)?;
+        }
+
+        Ok(decks)
+    }
+
+    pub fn upsert_conversation(
+        &self,
+        input: ConversationInput,
+    ) -> StorageResult<ConversationRecord> {
+        validate_required("session id", &input.session_id)?;
+
+        self.connection.execute(
+            "
+            INSERT INTO conversations (
+                session_id, document_id, title, messages_json, message_count,
+                created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ON CONFLICT(session_id) DO UPDATE SET
+                document_id = excluded.document_id,
+                title = excluded.title,
+                messages_json = excluded.messages_json,
+                message_count = excluded.message_count,
+                updated_at = excluded.updated_at
+            ",
+            params![
+                &input.session_id,
+                input.document_id,
+                input.title,
+                input.messages_json,
+                input.message_count,
+                input.created_at,
+                input.updated_at,
+            ],
+        )?;
+
+        self.load_conversation(&input.session_id)?
+            .ok_or_else(|| StorageError::Validation("conversation was not saved".into()))
+    }
+
+    pub fn load_conversation(&self, session_id: &str) -> StorageResult<Option<ConversationRecord>> {
+        validate_required("session id", session_id)?;
+
+        let result = self.connection.query_row(
+            "
+            SELECT session_id, document_id, title, messages_json, message_count,
+                   created_at, updated_at
+            FROM conversations
+            WHERE session_id = ?1
+            ",
+            [session_id],
+            conversation_from_row,
+        );
+
+        match result {
+            Ok(record) => Ok(Some(record)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(error) => Err(StorageError::from(error)),
+        }
+    }
+
+    pub fn list_conversations(&self) -> StorageResult<Vec<ConversationRecord>> {
+        let mut statement = self.connection.prepare(
+            "
+            SELECT session_id, document_id, title, messages_json, message_count,
+                   created_at, updated_at
+            FROM conversations
+            ORDER BY updated_at DESC, created_at DESC
+            ",
+        )?;
+        let rows = statement.query_map([], conversation_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    pub fn delete_conversation(&self, session_id: &str) -> StorageResult<bool> {
+        validate_required("session id", session_id)?;
+
+        let deleted = self.connection.execute(
+            "DELETE FROM conversations WHERE session_id = ?1",
+            [session_id],
+        )?;
+        Ok(deleted > 0)
+    }
+
+    pub fn upsert_thinking_tree(
+        &self,
+        input: ThinkingTreeInput,
+    ) -> StorageResult<ThinkingTreeRecord> {
+        validate_required("document id", &input.document_id)?;
+        validate_required("tree json", &input.tree_json)?;
+
+        self.connection.execute(
+            "
+            INSERT INTO thinking_trees (
+                document_id, tree_json, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4)
+            ON CONFLICT(document_id) DO UPDATE SET
+                tree_json = excluded.tree_json,
+                updated_at = excluded.updated_at
+            ",
+            params![
+                &input.document_id,
+                input.tree_json,
+                input.created_at,
+                input.updated_at,
+            ],
+        )?;
+
+        self.load_thinking_tree(&input.document_id)?
+            .ok_or_else(|| StorageError::Validation("thinking tree was not saved".into()))
+    }
+
+    pub fn load_thinking_tree(
+        &self,
+        document_id: &str,
+    ) -> StorageResult<Option<ThinkingTreeRecord>> {
+        validate_required("document id", document_id)?;
+
+        let result = self.connection.query_row(
+            "
+            SELECT document_id, tree_json, created_at, updated_at
+            FROM thinking_trees
+            WHERE document_id = ?1
+            ",
+            [document_id],
+            thinking_tree_from_row,
+        );
+
+        match result {
+            Ok(record) => Ok(Some(record)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(error) => Err(StorageError::from(error)),
+        }
+    }
+
+    pub fn replace_attention_insights(
+        &self,
+        document_id: &str,
+        insights: Vec<AttentionInsightInput>,
+    ) -> StorageResult<Vec<AttentionInsightRecord>> {
+        validate_required("document id", document_id)?;
+
+        self.connection.execute(
+            "DELETE FROM attention_insights WHERE document_id = ?1",
+            [document_id],
+        )?;
+
+        for insight in insights {
+            validate_required("insight id", &insight.id)?;
+            validate_required("document id", &insight.document_id)?;
+            validate_required("insight type", &insight.insight_type)?;
+            validate_required("paragraph id", &insight.paragraph_id)?;
+
+            if insight.document_id != document_id {
+                return Err(StorageError::Validation(
+                    "insight document id does not match target document".into(),
+                ));
+            }
+
+            self.connection.execute(
+                "
+                INSERT INTO attention_insights (
+                    id, document_id, type, description, page, paragraph_index,
+                    paragraph_id, payload_json, read_status, created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                ",
+                params![
+                    insight.id,
+                    insight.document_id,
+                    insight.insight_type,
+                    insight.description,
+                    insight.page,
+                    insight.paragraph_index,
+                    insight.paragraph_id,
+                    insight.payload_json,
+                    insight.read_status,
+                    insight.created_at,
+                    insight.updated_at,
+                ],
+            )?;
+        }
+
+        self.list_attention_insights(document_id)
+    }
+
+    pub fn list_attention_insights(
+        &self,
+        document_id: &str,
+    ) -> StorageResult<Vec<AttentionInsightRecord>> {
+        validate_required("document id", document_id)?;
+
+        let mut statement = self.connection.prepare(
+            "
+            SELECT id, document_id, type, description, page, paragraph_index,
+                   paragraph_id, payload_json, read_status, created_at, updated_at
+            FROM attention_insights
+            WHERE document_id = ?1
+            ORDER BY page ASC, paragraph_index ASC, created_at ASC
+            ",
+        )?;
+        let rows = statement.query_map([document_id], attention_insight_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    pub fn upsert_summary(&self, input: SummaryInput) -> StorageResult<SummaryRecord> {
+        validate_required("summary id", &input.id)?;
+        validate_required("document id", &input.document_id)?;
+        validate_required("summary kind", &input.summary_kind)?;
+
+        let section_id = input.section_id.unwrap_or_default();
+        self.connection.execute(
+            "
+            INSERT INTO summaries (
+                id, document_id, summary_kind, section_id, section_title, summary,
+                key_points_json, raw_response, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            ON CONFLICT(document_id, summary_kind, section_id) DO UPDATE SET
+                id = excluded.id,
+                section_title = excluded.section_title,
+                summary = excluded.summary,
+                key_points_json = excluded.key_points_json,
+                raw_response = excluded.raw_response,
+                updated_at = excluded.updated_at
+            ",
+            params![
+                &input.id,
+                &input.document_id,
+                &input.summary_kind,
+                &section_id,
+                input.section_title,
+                input.summary,
+                input.key_points_json,
+                input.raw_response,
+                input.created_at,
+                input.updated_at,
+            ],
+        )?;
+
+        self.load_summary(&input.document_id, &input.summary_kind, Some(&section_id))?
+            .ok_or_else(|| StorageError::Validation("summary was not saved".into()))
+    }
+
+    pub fn load_summary(
+        &self,
+        document_id: &str,
+        summary_kind: &str,
+        section_id: Option<&str>,
+    ) -> StorageResult<Option<SummaryRecord>> {
+        validate_required("document id", document_id)?;
+        validate_required("summary kind", summary_kind)?;
+        let section_id = section_id.unwrap_or_default();
+
+        let result = self.connection.query_row(
+            "
+            SELECT id, document_id, summary_kind, section_id, section_title, summary,
+                   key_points_json, raw_response, created_at, updated_at
+            FROM summaries
+            WHERE document_id = ?1 AND summary_kind = ?2 AND section_id = ?3
+            ",
+            params![document_id, summary_kind, section_id],
+            summary_from_row,
+        );
+
+        match result {
+            Ok(record) => Ok(Some(record)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(error) => Err(StorageError::from(error)),
+        }
+    }
+
+    pub fn list_summaries(&self, document_id: &str) -> StorageResult<Vec<SummaryRecord>> {
+        validate_required("document id", document_id)?;
+
+        let mut statement = self.connection.prepare(
+            "
+            SELECT id, document_id, summary_kind, section_id, section_title, summary,
+                   key_points_json, raw_response, created_at, updated_at
+            FROM summaries
+            WHERE document_id = ?1
+            ORDER BY summary_kind ASC, section_id ASC, updated_at DESC
+            ",
+        )?;
+        let rows = statement.query_map([document_id], summary_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    pub fn export_reading_note(&self, document_id: &str) -> StorageResult<ReadingNoteExport> {
+        validate_required("document id", document_id)?;
+
+        let document = self.get_document_by_id(document_id)?;
+        let payload = ReadingNoteExportPayload {
+            document,
+            summaries: self.list_summaries(document_id)?,
+            annotations: self.list_annotations(document_id)?,
+            vibecards: self.list_vibecards(document_id)?,
+            flashcard_decks: self.list_flashcard_decks(document_id)?,
+            attention_insights: self.list_attention_insights(document_id)?,
+            thinking_tree: self.load_thinking_tree(document_id)?,
+            conversations: self.list_conversations_for_document(document_id)?,
+        };
+        let markdown = render_reading_note_markdown(&payload);
+        let json = serde_json::to_string_pretty(&payload)
+            .map_err(|error| StorageError::Validation(error.to_string()))?;
+
+        Ok(ReadingNoteExport {
+            document: payload.document,
+            summaries: payload.summaries,
+            annotations: payload.annotations,
+            vibecards: payload.vibecards,
+            flashcard_decks: payload.flashcard_decks,
+            attention_insights: payload.attention_insights,
+            thinking_tree: payload.thinking_tree,
+            conversations: payload.conversations,
+            markdown,
+            json,
+        })
+    }
+
+    pub fn replace_source_spans(
+        &self,
+        document_id: &str,
+        spans: Vec<SourceSpanInput>,
+    ) -> StorageResult<Vec<SourceSpanRecord>> {
+        validate_required("document id", document_id)?;
+
+        self.connection.execute(
+            "DELETE FROM source_spans WHERE document_id = ?1",
+            [document_id],
+        )?;
+
+        for span in spans {
+            validate_required("source span id", &span.id)?;
+            validate_required("document id", &span.document_id)?;
+            validate_required("paragraph id", &span.paragraph_id)?;
+            validate_required("chunk id", &span.chunk_id)?;
+            validate_required("source text", &span.text)?;
+
+            if span.document_id != document_id {
+                return Err(StorageError::Validation(
+                    "source span document id does not match target document".into(),
+                ));
+            }
+
+            self.connection.execute(
+                "
+                INSERT INTO source_spans (
+                    id, document_id, page, paragraph_id, chunk_id, text,
+                    normalized_text, order_index, source_type, metadata_json,
+                    created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                ",
+                params![
+                    span.id,
+                    span.document_id,
+                    span.page,
+                    span.paragraph_id,
+                    span.chunk_id,
+                    span.text,
+                    normalize_index_text(&span.text),
+                    span.order_index,
+                    span.source_type,
+                    span.metadata_json,
+                    span.created_at,
+                    span.updated_at,
+                ],
+            )?;
+        }
+
+        self.list_source_spans(document_id)
+    }
+
+    pub fn list_source_spans(&self, document_id: &str) -> StorageResult<Vec<SourceSpanRecord>> {
+        validate_required("document id", document_id)?;
+
+        let mut statement = self.connection.prepare(
+            "
+            SELECT id, document_id, page, paragraph_id, chunk_id, text, order_index,
+                   source_type, metadata_json, created_at, updated_at
+            FROM source_spans
+            WHERE document_id = ?1
+            ORDER BY order_index ASC, page ASC
+            ",
+        )?;
+        let rows = statement.query_map([document_id], source_span_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    pub fn search_source_spans(
+        &self,
+        document_id: &str,
+        query: &str,
+        limit: i64,
+    ) -> StorageResult<Vec<SourceSpanRecord>> {
+        validate_required("document id", document_id)?;
+        let tokens = tokenize_query(query);
+        if tokens.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let limit = limit.clamp(1, 20) as usize;
+        let mut scored = self
+            .list_source_spans(document_id)?
+            .into_iter()
+            .map(|span| {
+                let score = source_span_score(&tokens, &span);
+                (span, score)
+            })
+            .filter(|(_, score)| *score > 0)
+            .collect::<Vec<_>>();
+
+        scored.sort_by(|(left_span, left_score), (right_span, right_score)| {
+            right_score
+                .cmp(left_score)
+                .then_with(|| left_span.order_index.cmp(&right_span.order_index))
+        });
+
+        Ok(scored
+            .into_iter()
+            .take(limit)
+            .map(|(span, _)| span)
+            .collect())
+    }
+
+    pub fn upsert_source_index_status(
+        &self,
+        input: SourceIndexStatusInput,
+    ) -> StorageResult<SourceIndexStatusRecord> {
+        validate_required("document id", &input.document_id)?;
+        validate_required("index signature", &input.index_signature)?;
+
+        self.connection.execute(
+            "
+            INSERT INTO source_index_status (
+                document_id, index_signature, span_count, indexed_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(document_id) DO UPDATE SET
+                index_signature = excluded.index_signature,
+                span_count = excluded.span_count,
+                indexed_at = excluded.indexed_at,
+                updated_at = excluded.updated_at
+            ",
+            params![
+                &input.document_id,
+                &input.index_signature,
+                input.span_count,
+                input.indexed_at,
+                input.updated_at,
+            ],
+        )?;
+
+        self.load_source_index_status(&input.document_id)?
+            .ok_or_else(|| StorageError::Validation("source index status was not saved".into()))
+    }
+
+    pub fn load_source_index_status(
+        &self,
+        document_id: &str,
+    ) -> StorageResult<Option<SourceIndexStatusRecord>> {
+        validate_required("document id", document_id)?;
+
+        let result = self.connection.query_row(
+            "
+            SELECT document_id, index_signature, span_count, indexed_at, updated_at
+            FROM source_index_status
+            WHERE document_id = ?1
+            ",
+            [document_id],
+            source_index_status_from_row,
+        );
+
+        match result {
+            Ok(record) => Ok(Some(record)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(error) => Err(StorageError::from(error)),
+        }
+    }
+
+    pub fn upsert_task(&self, input: TaskInput) -> StorageResult<TaskRecord> {
+        validate_required("task id", &input.id)?;
+        validate_required("task type", &input.task_type)?;
+        validate_required("task status", &input.status)?;
+        validate_task_status(&input.status)?;
+
+        let progress = input.progress.clamp(0, 100);
+        self.connection.execute(
+            "
+            INSERT INTO task_records (
+                id, document_id, type, status, title, progress, payload_json,
+                result_json, error_message, created_at, updated_at, started_at,
+                completed_at, cancelled_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+            ON CONFLICT(id) DO UPDATE SET
+                document_id = excluded.document_id,
+                type = excluded.type,
+                status = excluded.status,
+                title = excluded.title,
+                progress = excluded.progress,
+                payload_json = excluded.payload_json,
+                result_json = excluded.result_json,
+                error_message = excluded.error_message,
+                updated_at = excluded.updated_at,
+                started_at = excluded.started_at,
+                completed_at = excluded.completed_at,
+                cancelled_at = excluded.cancelled_at
+            ",
+            params![
+                &input.id,
+                input.document_id,
+                &input.task_type,
+                &input.status,
+                input.title,
+                progress,
+                input.payload_json,
+                input.result_json,
+                input.error_message,
+                input.created_at,
+                input.updated_at,
+                input.started_at,
+                input.completed_at,
+                input.cancelled_at,
+            ],
+        )?;
+
+        self.load_task(&input.id)?
+            .ok_or_else(|| StorageError::Validation("task record was not saved".into()))
+    }
+
+    pub fn load_task(&self, id: &str) -> StorageResult<Option<TaskRecord>> {
+        validate_required("task id", id)?;
+
+        let result = self.connection.query_row(
+            "
+            SELECT id, document_id, type, status, title, progress, payload_json,
+                   result_json, error_message, created_at, updated_at, started_at,
+                   completed_at, cancelled_at
+            FROM task_records
+            WHERE id = ?1
+            ",
+            [id],
+            task_from_row,
+        );
+
+        match result {
+            Ok(record) => Ok(Some(record)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(error) => Err(StorageError::from(error)),
+        }
+    }
+
+    pub fn list_tasks(&self, document_id: Option<&str>) -> StorageResult<Vec<TaskRecord>> {
+        let mut statement = if document_id.is_some() {
+            self.connection.prepare(
+                "
+                SELECT id, document_id, type, status, title, progress, payload_json,
+                       result_json, error_message, created_at, updated_at, started_at,
+                       completed_at, cancelled_at
+                FROM task_records
+                WHERE document_id = ?1
+                ORDER BY updated_at DESC, created_at DESC
+                ",
+            )?
+        } else {
+            self.connection.prepare(
+                "
+                SELECT id, document_id, type, status, title, progress, payload_json,
+                       result_json, error_message, created_at, updated_at, started_at,
+                       completed_at, cancelled_at
+                FROM task_records
+                ORDER BY updated_at DESC, created_at DESC
+                ",
+            )?
+        };
+
+        if let Some(document_id) = document_id {
+            validate_required("document id", document_id)?;
+            let rows = statement.query_map([document_id], task_from_row)?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(StorageError::from)
+        } else {
+            let rows = statement.query_map([], task_from_row)?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(StorageError::from)
+        }
+    }
+
+    fn get_document_by_id(&self, id: &str) -> StorageResult<DocumentRecord> {
+        self.connection
+            .query_row(
+                "
+                SELECT id, name, kind, source, path, mime_type, size, fingerprint,
+                       opened_at, updated_at, parse_status
+                FROM documents
+                WHERE id = ?1
+                ",
+                [id],
+                document_from_row,
+            )
+            .map_err(StorageError::from)
+    }
+
+    fn get_annotation_by_id(&self, id: &str) -> StorageResult<AnnotationRecord> {
+        self.connection
+            .query_row(
+                "
+                SELECT id, document_id, page, paragraph_id, selected_text, note,
+                       color, rect_json, created_at, updated_at
+                FROM annotations
+                WHERE id = ?1
+                ",
+                [id],
+                annotation_from_row,
+            )
+            .map_err(StorageError::from)
+    }
+
+    fn get_vibecard_by_id(&self, id: &str) -> StorageResult<VibeCardRecord> {
+        self.connection
+            .query_row(
+                "
+                SELECT id, document_id, type, title, source_text, ai_content, user_note,
+                       page, paragraph_id, tags_json, source_json, created_at, updated_at,
+                       verification_status
+                FROM vibecards
+                WHERE id = ?1
+                ",
+                [id],
+                vibecard_from_row,
+            )
+            .map_err(StorageError::from)
+    }
+
+    fn list_flashcards_for_deck(&self, deck_id: &str) -> StorageResult<Vec<FlashcardRecord>> {
+        let mut statement = self.connection.prepare(
+            "
+            SELECT id, deck_id, document_id, front, back, known, unknown, created_at, updated_at
+            FROM flashcards
+            WHERE deck_id = ?1
+            ORDER BY created_at ASC, updated_at ASC
+            ",
+        )?;
+        let rows = statement.query_map([deck_id], flashcard_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    fn list_conversations_for_document(
+        &self,
+        document_id: &str,
+    ) -> StorageResult<Vec<ConversationRecord>> {
+        let mut statement = self.connection.prepare(
+            "
+            SELECT session_id, document_id, title, messages_json, message_count,
+                   created_at, updated_at
+            FROM conversations
+            WHERE document_id = ?1
+            ORDER BY updated_at DESC, created_at DESC
+            ",
+        )?;
+        let rows = statement.query_map([document_id], conversation_from_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+}
+
+fn document_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DocumentRecord> {
+    Ok(DocumentRecord {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        kind: row.get(2)?,
+        source: row.get(3)?,
+        path: row.get(4)?,
+        mime_type: row.get(5)?,
+        size: row.get(6)?,
+        fingerprint: row.get(7)?,
+        opened_at: row.get(8)?,
+        updated_at: row.get(9)?,
+        parse_status: row.get(10)?,
+    })
+}
+
+fn render_reading_note_markdown(payload: &ReadingNoteExportPayload) -> String {
+    let mut output = String::new();
+    output.push_str("# Reading Note\n\n");
+    output.push_str("## Metadata\n");
+    output.push_str(&format!("- Title: {}\n", payload.document.name));
+    output.push_str(&format!("- Source: {}\n", payload.document.source));
+    output.push_str(&format!("- Document ID: {}\n", payload.document.id));
+    output.push_str(&format!("- Opened At: {}\n\n", payload.document.opened_at));
+
+    output.push_str("## One-line Summary\n\n");
+    if let Some(summary) = payload.summaries.first() {
+        output.push_str(&summary.summary);
+        output.push_str("\n\n");
+    } else {
+        output.push_str("_No summary saved yet._\n\n");
+    }
+
+    output.push_str("## Structure\n\n");
+    if payload.thinking_tree.is_some() {
+        output.push_str("- Thinking Tree saved for this document.\n\n");
+    } else {
+        output.push_str("_No Thinking Tree saved yet._\n\n");
+    }
+
+    output.push_str("## Section Summaries\n\n");
+    if payload.summaries.is_empty() {
+        output.push_str("_No section summaries saved yet._\n\n");
+    } else {
+        for summary in &payload.summaries {
+            let title = if summary.section_title.is_empty() {
+                summary.summary_kind.as_str()
+            } else {
+                summary.section_title.as_str()
+            };
+            output.push_str(&format!("### {}\n\n{}\n\n", title, summary.summary));
+            let key_points = parse_json_string_list(&summary.key_points_json);
+            for point in key_points {
+                output.push_str(&format!("- {}\n", point));
+            }
+            output.push('\n');
+        }
+    }
+
+    output.push_str("## Important Insights\n\n");
+    if payload.attention_insights.is_empty() {
+        output.push_str("_No attention insights saved yet._\n\n");
+    } else {
+        for insight in &payload.attention_insights {
+            output.push_str(&format!(
+                "- [{}] P{}: {}\n",
+                insight.insight_type, insight.page, insight.description
+            ));
+        }
+        output.push('\n');
+    }
+
+    output.push_str("## VibeCards\n\n");
+    if payload.vibecards.is_empty() {
+        output.push_str("_No VibeCards saved yet._\n\n");
+    } else {
+        for card in &payload.vibecards {
+            let page = card
+                .page
+                .map(|page| format!("P{}", page))
+                .unwrap_or_else(|| "No source page".into());
+            output.push_str(&format!(
+                "- {} ({}, {})\n",
+                card.title, card.card_type, page
+            ));
+            if !card.source_text.is_empty() {
+                output.push_str(&format!("  - Source: {}\n", card.source_text));
+            }
+            if !card.user_note.is_empty() {
+                output.push_str(&format!("  - Note: {}\n", card.user_note));
+            }
+        }
+        output.push('\n');
+    }
+
+    output.push_str("## Flashcards\n\n");
+    if payload.flashcard_decks.is_empty() {
+        output.push_str("_No flashcards saved yet._\n\n");
+    } else {
+        for deck in &payload.flashcard_decks {
+            output.push_str(&format!("### {}\n\n", deck.title));
+            for card in &deck.cards {
+                output.push_str(&format!("- Q: {}\n  A: {}\n", card.front, card.back));
+            }
+            output.push('\n');
+        }
+    }
+
+    output.push_str("## AI Q&A\n\n");
+    if payload.conversations.is_empty() {
+        output.push_str("_No document-bound AI conversations saved yet._\n\n");
+    } else {
+        for conversation in &payload.conversations {
+            output.push_str(&format!(
+                "- {} ({} messages)\n",
+                conversation.title, conversation.message_count
+            ));
+        }
+        output.push('\n');
+    }
+
+    output.push_str("## My Notes\n\n");
+    if payload.annotations.is_empty() {
+        output.push_str("_No highlights or notes saved yet._\n\n");
+    } else {
+        for annotation in &payload.annotations {
+            output.push_str(&format!(
+                "- P{}: {}",
+                annotation.page, annotation.selected_text
+            ));
+            if !annotation.note.is_empty() {
+                output.push_str(&format!(" — {}", annotation.note));
+            }
+            output.push('\n');
+        }
+        output.push('\n');
+    }
+
+    output.push_str("## Follow-up\n\n- \n");
+    output
+}
+
+fn parse_json_string_list(value: &str) -> Vec<String> {
+    serde_json::from_str::<Vec<String>>(value).unwrap_or_default()
+}
+
+fn annotation_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AnnotationRecord> {
+    Ok(AnnotationRecord {
+        id: row.get(0)?,
+        document_id: row.get(1)?,
+        page: row.get(2)?,
+        paragraph_id: row.get(3)?,
+        selected_text: row.get(4)?,
+        note: row.get(5)?,
+        color: row.get(6)?,
+        rect_json: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
+    })
+}
+
+fn vibecard_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<VibeCardRecord> {
+    Ok(VibeCardRecord {
+        id: row.get(0)?,
+        document_id: row.get(1)?,
+        card_type: row.get(2)?,
+        title: row.get(3)?,
+        source_text: row.get(4)?,
+        ai_content: row.get(5)?,
+        user_note: row.get(6)?,
+        page: row.get(7)?,
+        paragraph_id: row.get(8)?,
+        tags_json: row.get(9)?,
+        source_json: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+        verification_status: row.get(13)?,
+    })
+}
+
+fn flashcard_deck_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<FlashcardDeckRecord> {
+    Ok(FlashcardDeckRecord {
+        id: row.get(0)?,
+        document_id: row.get(1)?,
+        title: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+        cards: vec![],
+    })
+}
+
+fn flashcard_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<FlashcardRecord> {
+    let known: i64 = row.get(5)?;
+    let unknown: i64 = row.get(6)?;
+
+    Ok(FlashcardRecord {
+        id: row.get(0)?,
+        deck_id: row.get(1)?,
+        document_id: row.get(2)?,
+        front: row.get(3)?,
+        back: row.get(4)?,
+        known: known != 0,
+        unknown: unknown != 0,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+    })
+}
+
+fn conversation_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ConversationRecord> {
+    Ok(ConversationRecord {
+        session_id: row.get(0)?,
+        document_id: row.get(1)?,
+        title: row.get(2)?,
+        messages_json: row.get(3)?,
+        message_count: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
+    })
+}
+
+fn thinking_tree_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ThinkingTreeRecord> {
+    Ok(ThinkingTreeRecord {
+        document_id: row.get(0)?,
+        tree_json: row.get(1)?,
+        created_at: row.get(2)?,
+        updated_at: row.get(3)?,
+    })
+}
+
+fn attention_insight_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AttentionInsightRecord> {
+    Ok(AttentionInsightRecord {
+        id: row.get(0)?,
+        document_id: row.get(1)?,
+        insight_type: row.get(2)?,
+        description: row.get(3)?,
+        page: row.get(4)?,
+        paragraph_index: row.get(5)?,
+        paragraph_id: row.get(6)?,
+        payload_json: row.get(7)?,
+        read_status: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+    })
+}
+
+fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SummaryRecord> {
+    let section_id: String = row.get(3)?;
+    Ok(SummaryRecord {
+        id: row.get(0)?,
+        document_id: row.get(1)?,
+        summary_kind: row.get(2)?,
+        section_id: if section_id.is_empty() {
+            None
+        } else {
+            Some(section_id)
+        },
+        section_title: row.get(4)?,
+        summary: row.get(5)?,
+        key_points_json: row.get(6)?,
+        raw_response: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
+    })
+}
+
+fn source_span_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceSpanRecord> {
+    Ok(SourceSpanRecord {
+        id: row.get(0)?,
+        document_id: row.get(1)?,
+        page: row.get(2)?,
+        paragraph_id: row.get(3)?,
+        chunk_id: row.get(4)?,
+        text: row.get(5)?,
+        order_index: row.get(6)?,
+        source_type: row.get(7)?,
+        metadata_json: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+    })
+}
+
+fn source_index_status_from_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<SourceIndexStatusRecord> {
+    Ok(SourceIndexStatusRecord {
+        document_id: row.get(0)?,
+        index_signature: row.get(1)?,
+        span_count: row.get(2)?,
+        indexed_at: row.get(3)?,
+        updated_at: row.get(4)?,
+    })
+}
+
+fn task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskRecord> {
+    Ok(TaskRecord {
+        id: row.get(0)?,
+        document_id: row.get(1)?,
+        task_type: row.get(2)?,
+        status: row.get(3)?,
+        title: row.get(4)?,
+        progress: row.get(5)?,
+        payload_json: row.get(6)?,
+        result_json: row.get(7)?,
+        error_message: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        started_at: row.get(11)?,
+        completed_at: row.get(12)?,
+        cancelled_at: row.get(13)?,
+    })
+}

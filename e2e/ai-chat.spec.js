@@ -1,7 +1,15 @@
 const { test, expect } = require('@playwright/test');
 const path = require('path');
+const { seedModelConfigInPage } = require('../scripts/modelConfigSeed.cjs');
 
 const DEMO_ASSETS = path.join(__dirname, '..', 'demo-assets');
+
+async function openChatTab(page) {
+  const chatTab = page.locator('.workspace-ai-tabs .ant-tabs-tab[data-node-key="chat"]:visible');
+  await chatTab.locator('.ant-tabs-tab-btn').click({ force: true });
+  await expect(chatTab).toHaveClass(/ant-tabs-tab-active/, { timeout: 5000 });
+  await expect(page.locator('.workspace-input')).toBeVisible({ timeout: 5000 });
+}
 
 /**
  * P0: AI text injection from document
@@ -12,18 +20,7 @@ test.describe('AI Text Injection', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    // Set a valid no-key config so injection can proceed
-    await page.evaluate(() => {
-      localStorage.setItem('ai-chat.modelConfigs', JSON.stringify([{
-        id: 'preset-kimi-free-trial',
-        baseUrl: 'https://api.moonshot.cn/v1',
-        modelName: 'moonshot-v1-8k',
-        apiFormat: 'openai',
-        apiKey: '',
-        requiresApiKey: false
-      }]));
-      localStorage.setItem('ai-chat.selectedConfigId', 'preset-kimi-free-trial');
-    });
+    await seedModelConfigInPage(page);
     await page.reload();
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
@@ -80,18 +77,7 @@ test.describe('AI Text Injection', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    // Set a valid no-key config so injection can proceed
-    await page.evaluate(() => {
-      localStorage.setItem('ai-chat.modelConfigs', JSON.stringify([{
-        id: 'preset-kimi-free-trial',
-        baseUrl: 'https://api.moonshot.cn/v1',
-        modelName: 'moonshot-v1-8k',
-        apiFormat: 'openai',
-        apiKey: '',
-        requiresApiKey: false
-      }]));
-      localStorage.setItem('ai-chat.selectedConfigId', 'preset-kimi-free-trial');
-    });
+    await seedModelConfigInPage(page);
     await page.reload();
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
@@ -144,22 +130,19 @@ test.describe('No API Key Prompt', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    // Set a config that requires API key but has empty key
-    await page.evaluate(() => {
-      localStorage.setItem('ai-chat.modelConfigs', JSON.stringify([{
-        id: 'test-no-key',
-        baseUrl: 'https://api.minimaxi.com/anthropic',
-        modelName: 'test-model',
-        apiFormat: 'anthropic',
-        apiKey: '',
-        requiresApiKey: true
-      }]));
-      localStorage.setItem('ai-chat.selectedConfigId', 'test-no-key');
+    await seedModelConfigInPage(page, {
+      id: 'test-no-key',
+      baseUrl: 'https://api.minimaxi.com/anthropic',
+      modelName: 'test-model',
+      apiFormat: 'anthropic',
+      apiKey: '',
+      requiresApiKey: true,
     });
 
     // Reload to apply the config
     await page.reload();
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
+    await openChatTab(page);
 
     // Click on the Slate editor to focus it
     const editor = page.locator('[data-slate-editor]').first();
@@ -185,6 +168,7 @@ test.describe('Stop Generating Button', () => {
   test('should show stop button during generation', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
+    await openChatTab(page);
 
     // The stop button is only visible when loading is true
     // Since we can't trigger real generation without API key, we verify the button exists in DOM

@@ -10,16 +10,20 @@ describe('PdfAnnotationToolbar', () => {
         const onInject = vi.fn();
         const onHighlight = vi.fn();
         const onSaveNote = vi.fn();
+        const onGenerateLensCard = vi.fn();
+        const selection = { text: 'Selected PDF passage', x: 40, y: 30, spanId: 'span-1' };
 
         render(
             <PdfAnnotationToolbar
-                selection={{ text: 'Selected PDF passage', x: 40, y: 30 }}
+                selection={selection}
                 onInject={onInject}
                 onHighlight={onHighlight}
                 onSaveNote={onSaveNote}
+                onGenerateLensCard={onGenerateLensCard}
             />
         );
 
+        fireEvent.click(screen.getByRole('button', { name: /生成卡片|lens/i }));
         fireEvent.click(screen.getByRole('button', { name: /注入|inject/i }));
         fireEvent.click(screen.getByRole('button', { name: /高亮/i }));
         fireEvent.change(screen.getByPlaceholderText(/笔记/i), {
@@ -27,6 +31,7 @@ describe('PdfAnnotationToolbar', () => {
         });
         fireEvent.click(screen.getByRole('button', { name: /保存笔记/i }));
 
+        expect(onGenerateLensCard).toHaveBeenCalledWith(selection);
         expect(onInject).toHaveBeenCalledWith('Selected PDF passage');
         expect(onHighlight).toHaveBeenCalledWith('Selected PDF passage');
         expect(onSaveNote).toHaveBeenCalledWith('Selected PDF passage', 'My note');

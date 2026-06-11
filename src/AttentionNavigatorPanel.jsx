@@ -1,9 +1,15 @@
-import React, { useCallback, useState } from 'react';
-import { Button, Empty, Spin, Tag, List } from 'antd';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Button, Empty, Spin, Tag, List, Segmented, message as antMessage } from 'antd';
 import { CompassOutlined, AimOutlined } from '@ant-design/icons';
 import { usePdfStore } from './store';
 import { analyzeKeyInsights, INSIGHT_TYPES } from './attentionNavigator';
 import { t } from './i18n';
+import { createArtifact } from './services/artifactService';
+import {
+  listPersistentAttentionInsights,
+  savePersistentAttentionInsights,
+  savePersistentTask,
+} from './services/persistentStorage';
 
 function extractParagraphsFromText(pdfText) {
   const PAGE_MARKER_RE = /---\s*第\s*(\d+)\s*页\s*---/;
@@ -30,11 +36,79 @@ function extractParagraphsFromText(pdfText) {
   );
 }
 
-export function AttentionNavigatorPanel({ onNavigateToParagraph, onInsightsChange, style = {} }) {
+function attentionTaskId(documentId) {
+  return `task-attention-analysis-${documentId}`;
+}
+
+async function recordAttentionTask(documentId, patch = {}) {
+  if (!documentId) return null;
+
+  try {
+    return await savePersistentTask({
+      id: attentionTaskId(documentId),
+      documentId,
+      type: 'attention_analysis',
+      title: 'Analyze key locations',
+      payload: { documentId },
+      ...patch,
+    });
+  } catch (error) {
+    console.warn('[AttentionNavigator] Failed to record attention task:', error);
+    return null;
+  }
+}
+
+export function AttentionNavigatorPanel({
+  documentId,
+  onNavigateToParagraph,
+  onInsightsChange,
+  onArtifactCreated,
+  onAskAI,
+  style = {},
+}) {
   const { pdfText, pdfParsing } = usePdfStore();
   const [insights, setInsights] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+
+  const persistInsights = useCallback((nextInsights) => {
+    setInsights(nextInsights);
+    if (onInsightsChange) onInsightsChange(nextInsights);
+    if (documentId) {
+      savePersistentAttentionInsights(documentId, nextInsights).catch((error) => {
+        console.warn('[AttentionNavigator] Failed to persist insights:', error);
+      });
+    }
+  }, [documentId, onInsightsChange]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setInsights([]);
+    setTypeFilter('all');
+    if (onInsightsChange) onInsightsChange([]);
+
+    if (!documentId || !pdfText) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    listPersistentAttentionInsights(documentId)
+      .then((items) => {
+        if (cancelled || !items.length) return;
+        setInsights(items);
+        if (onInsightsChange) onInsightsChange(items);
+      })
+      .catch((error) => {
+        console.warn('[AttentionNavigator] Failed to load persisted insights:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, pdfText, onInsightsChange]);
 
   const handleAnalyze = useCallback(async () => {
     if (!pdfText || analyzing) return;
@@ -44,23 +118,132 @@ export function AttentionNavigatorPanel({ onNavigateToParagraph, onInsightsChang
     setAnalyzing(true);
     setProgress('');
     setInsights([]);
+    const startedAt = Date.now();
+    await recordAttentionTask(documentId, {
+      status: 'running',
+      progress: 10,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+      startedAt,
+    });
 
     try {
       const results = await analyzeKeyInsights(pdfText, paragraphs, (msg) => setProgress(msg));
-      setInsights(results);
-      if (onInsightsChange) onInsightsChange(results);
+      persistInsights(results);
+      await recordAttentionTask(documentId, {
+        status: 'succeeded',
+        progress: 100,
+        result: {
+          insightCount: results.length,
+        },
+        createdAt: startedAt,
+        updatedAt: Date.now(),
+        startedAt,
+        completedAt: Date.now(),
+      });
     } catch (error) {
+      await recordAttentionTask(documentId, {
+        status: 'failed',
+        progress: 100,
+        errorMessage: error?.message || String(error),
+        createdAt: startedAt,
+        updatedAt: Date.now(),
+        startedAt,
+        completedAt: Date.now(),
+      });
       console.error('[AttentionNavigator] Analysis failed:', error);
     } finally {
       setAnalyzing(false);
     }
-  }, [pdfText, analyzing]);
+  }, [documentId, pdfText, analyzing, persistInsights]);
 
   const handleInsightClick = useCallback((insight) => {
     if (onNavigateToParagraph && insight.paragraphId) {
       onNavigateToParagraph(insight.paragraphId);
     }
   }, [onNavigateToParagraph]);
+
+  const handleToggleRead = useCallback((event, insight) => {
+    event.stopPropagation();
+    const nextStatus = insight.readStatus === 'read' ? 'unread' : 'read';
+    const nextInsights = insights.map((item) =>
+      item.id === insight.id
+        ? { ...item, readStatus: nextStatus, updatedAt: Date.now() }
+        : item
+    );
+    persistInsights(nextInsights);
+  }, [insights, persistInsights]);
+
+  const handleSaveInsightCard = useCallback(async (event, insight) => {
+    event.stopPropagation();
+    if (!documentId) {
+      antMessage.warning('请先打开文档');
+      return;
+    }
+
+    const typeMeta = INSIGHT_TYPES[insight.type?.toUpperCase()] || {};
+    const typeLabel = typeMeta.label || insight.type || 'Insight';
+    const source = {
+      documentId,
+      sourceType: 'attention-insight',
+      page: insight.location?.page ?? null,
+      paragraphId: insight.paragraphId || '',
+      text: insight.description || '',
+    };
+    const content = {
+      insightId: insight.id,
+      insightType: insight.type,
+      typeLabel,
+      description: insight.description || '',
+      source,
+    };
+
+    try {
+      const saved = await createArtifact({
+        documentId,
+        type: 'evidence_card',
+        goal: `${typeLabel}：${insight.description || ''}`,
+        sourceSpanIds: insight.paragraphId ? [insight.paragraphId] : [],
+        source,
+        originalContent: content,
+        currentContent: content,
+        verificationStatus: insight.paragraphId ? 'grounded' : 'ungrounded',
+      });
+      if (onArtifactCreated) onArtifactCreated(saved);
+      antMessage.success('已保存为阅读卡片');
+    } catch (error) {
+      console.error('[AttentionNavigator] Failed to save insight card:', error);
+      antMessage.error('保存卡片失败');
+    }
+  }, [documentId, onArtifactCreated]);
+
+  const handleAskAboutInsight = useCallback((event, insight) => {
+    event.stopPropagation();
+    if (!onAskAI) return;
+
+    const typeMeta = INSIGHT_TYPES[insight.type?.toUpperCase()] || {};
+    const typeLabel = typeMeta.label || insight.type || 'Insight';
+    onAskAI([
+      '请基于当前文档解释这个关键位置：',
+      `类型：${typeLabel}`,
+      `位置：P${insight.location?.page ?? '?'} · ${insight.paragraphId || '未绑定段落'}`,
+      `内容：${insight.description || ''}`,
+    ].join('\n'));
+  }, [onAskAI]);
+
+  const typeOptions = [
+    { label: '全部', value: 'all' },
+    ...Array.from(new Set(insights.map((insight) => insight.type).filter(Boolean))).map((type) => {
+      const typeMeta = INSIGHT_TYPES[type?.toUpperCase()] || {};
+      return {
+        label: typeMeta.label || type,
+        value: type,
+      };
+    }),
+  ];
+  const visibleInsights = typeFilter === 'all'
+    ? insights
+    : insights.filter((insight) => insight.type === typeFilter);
 
   if (pdfParsing) {
     return (
@@ -111,17 +294,29 @@ export function AttentionNavigatorPanel({ onNavigateToParagraph, onInsightsChang
 
       {insights.length > 0 && (
         <div className="attention-navigator-content">
+          {typeOptions.length > 2 && (
+            <div className="attention-navigator-filters">
+              <Segmented
+                size="small"
+                aria-label="Insight type filter"
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={typeOptions}
+              />
+            </div>
+          )}
           <List
             size="small"
-            dataSource={insights}
+            dataSource={visibleInsights}
             renderItem={(insight) => {
               const typeMeta = INSIGHT_TYPES[insight.type?.toUpperCase()] || {
                 label: insight.type,
                 color: '#999',
               };
+              const read = insight.readStatus === 'read';
               return (
                 <List.Item
-                  className="attention-navigator-item"
+                  className={`attention-navigator-item${read ? ' attention-navigator-item-read' : ''}`}
                   onClick={() => handleInsightClick(insight)}
                 >
                   <div className="attention-navigator-item-inner">
@@ -137,6 +332,35 @@ export function AttentionNavigatorPanel({ onNavigateToParagraph, onInsightsChang
                       </div>
                       <div className="attention-navigator-item-meta">
                         P{insight.location?.page} · {insight.paragraphId}
+                      </div>
+                      <div className="attention-navigator-item-actions">
+                        <Button
+                          size="small"
+                          type="text"
+                          className="attention-navigator-read-toggle"
+                          aria-label={`${read ? '标记未读' : '标记已读'}：${insight.description}`}
+                          onClick={(event) => handleToggleRead(event, insight)}
+                        >
+                          {read ? '标记未读' : '标记已读'}
+                        </Button>
+                        <Button
+                          size="small"
+                          type="text"
+                          className="attention-navigator-card-button"
+                          aria-label={`保存卡片：${insight.description}`}
+                          onClick={(event) => handleSaveInsightCard(event, insight)}
+                        >
+                          保存卡片
+                        </Button>
+                        <Button
+                          size="small"
+                          type="text"
+                          className="attention-navigator-ask-button"
+                          aria-label={`问 AI：${insight.description}`}
+                          onClick={(event) => handleAskAboutInsight(event, insight)}
+                        >
+                          问 AI
+                        </Button>
                       </div>
                     </div>
                   </div>

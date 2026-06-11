@@ -3,6 +3,14 @@
  * 替代 Zotero.Prefs 和 Zotero.VibeDB.AIChats
  */
 
+import {
+    deletePersistentConversation,
+    isPersistentStorageAvailable,
+    listPersistentConversations,
+    loadPersistentConversation,
+    savePersistentConversation,
+} from './services/persistentStorage';
+
 const LS_PREFIX = 'ai-chat.';
 const DB_NAME = 'ai-chat-db';
 const DB_VERSION = 1;
@@ -71,6 +79,11 @@ function extractTitleFromMessages(messages) {
  * @param {Array} messages
  */
 export async function saveConversation(sessionId, messages) {
+    if (isPersistentStorageAvailable()) {
+        await savePersistentConversation(sessionId, messages);
+        return true;
+    }
+
     const db = await getDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('conversations', 'readwrite');
@@ -92,6 +105,17 @@ export async function saveConversation(sessionId, messages) {
  * @returns {Array|null}
  */
 export async function loadConversation(sessionId) {
+    if (isPersistentStorageAvailable()) {
+        const record = await loadPersistentConversation(sessionId);
+        if (!record?.messagesJson) return null;
+        try {
+            return JSON.parse(record.messagesJson);
+        } catch (error) {
+            console.error('[Storage] Failed to parse persistent conversation:', sessionId, error);
+            return null;
+        }
+    }
+
     const db = await getDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('conversations', 'readonly');
@@ -110,6 +134,10 @@ export async function loadConversation(sessionId) {
  * @param {string} sessionId
  */
 export async function deleteConversation(sessionId) {
+    if (isPersistentStorageAvailable()) {
+        return deletePersistentConversation(sessionId);
+    }
+
     const db = await getDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('conversations', 'readwrite');
@@ -125,6 +153,10 @@ export async function deleteConversation(sessionId) {
  * @returns {Array<{sessionId, updatedAt, messageCount}>}
  */
 export async function listConversations() {
+    if (isPersistentStorageAvailable()) {
+        return listPersistentConversations();
+    }
+
     const db = await getDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('conversations', 'readonly');

@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     testTimeout: 30000,
+    fileParallelism: false,
+    maxWorkers: 1,
     exclude: [
       '**/node_modules/**',
       '**/e2e/**',

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { cleanup, render, act, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { useDocumentStore, usePdfStore, useVibeStore } from '../store';
 import { PdfViewer } from '../PdfViewer';
 
@@ -108,6 +108,12 @@ describe('Multi-document State Isolation (Phase 8 BDD Behavior 5)', () => {
         cleanup();
     });
 
+    afterAll(() => {
+        vi.doUnmock('pdfjs-dist');
+        vi.doUnmock('./annotationService');
+        vi.resetModules();
+    });
+
     it('isolates states correctly when switching between a PDF and a Markdown document', async () => {
         // 1. Render the test sync wrapper
         render(<DocumentSyncTestComponent />);
@@ -185,5 +191,34 @@ describe('Multi-document State Isolation (Phase 8 BDD Behavior 5)', () => {
         // The document change should immediately trigger state resets
         // (Verified via code logic; checking that it handles the new document ID cleanly without errors)
         expect(screen.getByText('PDF')).toBeTruthy();
+    });
+
+    it('uses fit-width zoom by default so PDF pages adapt to the reader pane', async () => {
+        act(() => {
+            usePdfStore.getState().setPdfFile(new Uint8Array([1, 2, 3]));
+            usePdfStore.getState().setPdfData('Some PDF text', 10);
+        });
+
+        render(<PdfViewer documentId="pdf-document-fit-width" />);
+
+        expect(screen.getByText('Fit')).toBeTruthy();
+    });
+
+    it('isolates the transparent text layer so fit-width rendering does not create horizontal overflow feedback', async () => {
+        act(() => {
+            usePdfStore.getState().setPdfFile(new Uint8Array([1, 2, 3]));
+            usePdfStore.getState().setPdfData('Some PDF text', 10);
+        });
+
+        render(<PdfViewer documentId="pdf-document-text-layer-clip" />);
+
+        const canvas = document.querySelector('canvas');
+        const textLayer = canvas?.nextElementSibling;
+        const pageShell = canvas?.parentElement;
+
+        expect(textLayer?.style.overflow).toBe('hidden');
+        expect(textLayer?.style.contain).toBe('layout paint size');
+        expect(pageShell?.style.overflow).toBe('hidden');
+        expect(pageShell?.style.contain).toBe('layout paint size');
     });
 });

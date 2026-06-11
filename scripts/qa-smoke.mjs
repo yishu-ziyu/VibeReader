@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 
 import { existsSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+
+const require = createRequire(import.meta.url);
+const {
+  assertSafeModelSeedTarget,
+  buildSeedModelConfig,
+  seedModelConfigInPage,
+} = require('./modelConfigSeed.cjs');
 
 const DEFAULT_URL = 'http://127.0.0.1:3217/';
 const targetUrl = process.env.QA_SMOKE_URL || DEFAULT_URL;
@@ -16,6 +24,11 @@ const localKeyEnvNames = [
   'DEEPSEEK_API_KEY',
   'MOONSHOT_API_KEY',
   'KIMI_API_KEY',
+  'STEPFUN_API_KEY',
+  'STEP_API_KEY',
+  'MIMO_API_KEY',
+  'MIMO_TOKEN_PLAN_KEY',
+  'MINIMAX_TOKEN_PLAN_KEY',
   'MINIMAX_API_KEY',
   'QWEN_API_KEY',
   'DOUBAO_API_KEY',
@@ -64,6 +77,7 @@ function assertDemoAssetOnDisk() {
 }
 
 async function runSmoke() {
+  assertSafeModelSeedTarget(targetUrl, process.env);
   reportLiveAiStatus();
   assertDemoAssetOnDisk();
 
@@ -77,8 +91,11 @@ async function runSmoke() {
       throw new Error(`App did not load successfully at ${targetUrl}: HTTP ${response?.status() ?? 'unknown'}`);
     }
 
+    const seededConfig = await seedModelConfigInPage(page, buildSeedModelConfig(process.env));
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await page.locator('body').waitFor({ state: 'visible', timeout: 10_000 });
     await page.getByText('VibeReader Dev').first().waitFor({ timeout: 10_000 });
+    await page.getByText(/模型服务|配置模型服务|Model service/).first().waitFor({ timeout: 10_000 });
 
     const assetUrl = new URL(`demo-assets/${demoAssetName}`, targetUrl).toString();
     const assetResponse = await page.request.get(assetUrl);
@@ -86,6 +103,7 @@ async function runSmoke() {
       throw new Error(`Demo asset path failed: ${assetUrl} returned HTTP ${assetResponse.status()}`);
     }
 
+    console.log(`QA_SMOKE_MODEL_CONFIG ${seededConfig.id} ${seededConfig.modelName}`);
     console.log(`QA_SMOKE_OK ${targetUrl}`);
   } finally {
     await browser.close();

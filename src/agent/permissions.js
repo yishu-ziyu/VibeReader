@@ -1,4 +1,9 @@
 export const READING_TOOL_NAMES = Object.freeze([
+    'get_current_document',
+    'get_document_chunks',
+    'get_page_text',
+    'search_document',
+    'list_attention_insights',
     'extractText',
     'navigatePage',
     'listAnnotations',
@@ -7,13 +12,25 @@ export const READING_TOOL_NAMES = Object.freeze([
 export const DEFAULT_READING_PERMISSIONS = Object.freeze({
     allowedTools: READING_TOOL_NAMES,
     canReadDocument: true,
+    canSearchDocument: true,
+    canListAttentionInsights: true,
     canNavigate: true,
     canListAnnotations: true,
     canWriteAnnotations: false,
+    canWriteVibeCards: false,
+    canExportNotes: false,
     canUseWeb: false,
 });
 
 const TOOL_PERMISSION_FLAGS = Object.freeze({
+    get_current_document: 'canReadDocument',
+    get_document_chunks: 'canReadDocument',
+    get_page_text: 'canReadDocument',
+    search_document: 'canSearchDocument',
+    list_attention_insights: 'canListAttentionInsights',
+    create_vibecard: 'canWriteVibeCards',
+    create_annotation: 'canWriteAnnotations',
+    export_note: 'canExportNotes',
     extractText: 'canReadDocument',
     navigatePage: 'canNavigate',
     listAnnotations: 'canListAnnotations',

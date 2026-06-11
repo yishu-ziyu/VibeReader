@@ -23,11 +23,10 @@ test.describe('Homepage Layout', () => {
     // Divider should be visible
     await expect(page.locator('.workspace-divider')).toBeVisible();
 
-    // Chat tab should be active by default (tab label contains chat icon + localized text)
+    // Notes tab should be active by default so saved reading artifacts are first-class.
     const activeTab = page.locator('.workspace-ai-tabs .ant-tabs-tab-active');
     await expect(activeTab).toBeVisible();
-    // The active tab should have data-node-key="chat"
-    await expect(activeTab).toHaveAttribute('data-node-key', 'chat');
+    await expect(activeTab).toHaveAttribute('data-node-key', 'artifacts');
   });
 
   test('should show empty state when no document is loaded', async ({ page }) => {

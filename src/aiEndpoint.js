@@ -20,6 +20,11 @@ export function resolveAiEndpointForRuntime(endpoint, origin = globalThis.locati
         return `${parsed.pathname.replace(/^\/anthropic/, '/api/minimax')}${parsed.search}`;
     }
 
+    // MiMo Token Plan dev proxy routing
+    if (parsed.origin === 'https://token-plan-cn.xiaomimimo.com' && parsed.pathname.startsWith('/anthropic/')) {
+        return `${parsed.pathname.replace(/^\/anthropic/, '/api/mimo')}${parsed.search}`;
+    }
+
     // Kimi/Moonshot dev proxy routing
     if (parsed.origin === 'https://api.moonshot.cn' && parsed.pathname.startsWith('/v1/')) {
         return `${parsed.pathname.replace(/^\/v1/, '/api/kimi')}${parsed.search}`;
@@ -38,4 +43,3 @@ export function shouldUseDevProxy(endpoint, origin = globalThis.location?.origin
     }
     return resolveAiEndpointForRuntime(endpoint, origin) !== endpoint;
 }
-

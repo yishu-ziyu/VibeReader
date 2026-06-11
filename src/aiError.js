@@ -8,6 +8,7 @@ export const AI_ERROR_CODES = {
   UNAUTHORIZED: 'UNAUTHORIZED',
   FORBIDDEN: 'FORBIDDEN',
   RATE_LIMIT: 'RATE_LIMIT',
+  PROVIDER_UNAVAILABLE: 'PROVIDER_UNAVAILABLE',
   TIMEOUT: 'TIMEOUT',
   CORS: 'CORS',
   NETWORK: 'NETWORK',
@@ -35,6 +36,11 @@ const ERROR_MESSAGES = {
       title: '请求过于频繁',
       message: '已达到速率限制，请稍后再试。',
       action: '稍后再试',
+    },
+    [AI_ERROR_CODES.PROVIDER_UNAVAILABLE]: {
+      title: '模型服务不可用',
+      message: '模型服务暂时不可用或服务器繁忙，请稍后重试，或切换到其他模型服务。',
+      action: '稍后重试或切换模型',
     },
     [AI_ERROR_CODES.TIMEOUT]: {
       title: '请求超时',
@@ -77,6 +83,11 @@ const ERROR_MESSAGES = {
       title: 'Rate Limit Exceeded',
       message: 'Too many requests. Please wait a moment before trying again.',
       action: 'Try Again Later',
+    },
+    [AI_ERROR_CODES.PROVIDER_UNAVAILABLE]: {
+      title: 'Model Service Unavailable',
+      message: 'The model provider is temporarily unavailable or overloaded. Please retry later or switch providers.',
+      action: 'Retry Later or Switch Provider',
     },
     [AI_ERROR_CODES.TIMEOUT]: {
       title: 'Request Timeout',
@@ -148,7 +159,16 @@ export function classifyAiError(statusCode, message, originalError = null) {
     };
   }
 
-  // 4. 网络超时
+  // 4. Provider unavailable / gateway errors
+  if (statusCode === 502 || statusCode === 503 || statusCode === 504) {
+    return {
+      code: AI_ERROR_CODES.PROVIDER_UNAVAILABLE,
+      ...table[AI_ERROR_CODES.PROVIDER_UNAVAILABLE],
+      originalError,
+    };
+  }
+
+  // 5. 网络超时
   if (
     message?.includes('timeout') ||
     message?.includes('timed out') ||
@@ -163,7 +183,7 @@ export function classifyAiError(statusCode, message, originalError = null) {
     };
   }
 
-  // 5. CORS 错误
+  // 6. CORS 错误
   if (
     message?.includes('CORS') ||
     message?.includes('cross-origin') ||
@@ -177,7 +197,7 @@ export function classifyAiError(statusCode, message, originalError = null) {
     };
   }
 
-  // 6. 网络错误
+  // 7. 网络错误
   if (
     message?.includes('network') ||
     message?.includes('Network') ||
@@ -195,7 +215,7 @@ export function classifyAiError(statusCode, message, originalError = null) {
     };
   }
 
-  // 7. 未知错误
+  // 8. 未知错误
   return {
     code: AI_ERROR_CODES.UNKNOWN,
     ...table[AI_ERROR_CODES.UNKNOWN],

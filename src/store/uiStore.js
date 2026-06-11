@@ -18,7 +18,7 @@ export const useUIStore = create(
       fontScale: resolveInitialFontScale(),
       showFontSlider: false,
       activeToolTab: 'chat', // 'chat' | 'pdf' | 'summary' | 'flashcard' | 'mindmap'
-      rightToolTab: 'chat', // 'chat' | 'summary' | 'flashcard' | 'mindmap'
+      rightToolTab: 'artifacts', // 'chat' | 'summary' | 'flashcard' | 'navigator' | 'artifacts'
       workspaceSplitRatio: 0.58,
 
       // Actions - setters

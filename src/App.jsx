@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useCallback, useState, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Bubble } from '@ant-design/x';
-import { Button, Flex, message as antMessage, Spin, Modal, Slider, Tabs } from 'antd';
-import { FontSizeOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, FolderOpenOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CommentOutlined, FileTextOutlined, BookOutlined, BranchesOutlined, ThunderboltOutlined, CompassOutlined } from '@ant-design/icons';
+import { Button, Flex, message as antMessage, Spin, Modal, Segmented, Slider, Tabs } from 'antd';
+import { FontSizeOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, FolderOpenOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CommentOutlined, FileTextOutlined, BookOutlined, ThunderboltOutlined, CompassOutlined, SettingOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import ChatInput from './ChatInput';
 import aiService from './aiService';
 import { MULTIMODAL_UNSUPPORTED_CODE } from './multimodalApiError';
@@ -13,7 +13,11 @@ import { t, formatCustomModelLabel } from './i18n';
 import MarkdownRenderer from './MarkdownRenderer';
 import { extractTextFromPDF } from './pdfService';
 import { fileToDocument, fileToDocumentWithContent, openTauriDocument, SUPPORTED_DOCUMENT_EXTENSIONS } from './services/documentService';
+import { createArtifact, deleteArtifact, listArtifactsForDocument, updateArtifact } from './services/artifactService';
+import { initializePersistentStorage, listPersistentDocuments, savePersistentDocument } from './services/persistentStorage';
 import { isVisionCapableByModelName } from './modelPresets';
+import { createReadingTools, generateLensCardArtifact, retryReadingAgentTask, runReadingAgentTask } from './agent';
+import { buildIndexedRetrievalContext, indexDocumentSourceSpans } from './services/sourceIndexService';
 import {
     saveConversation, loadConversation, listConversations, deleteConversation,
     getFontScale, setFontScale, getModelConfigs, getSelectedConfigId
@@ -37,6 +41,8 @@ const SummaryPanel = React.lazy(() => import('./SummaryPanel').then(m => ({ defa
 const FlashcardDeck = React.lazy(() => import('./FlashcardDeck').then(m => ({ default: m.FlashcardDeck })));
 const ThinkingTreePanel = React.lazy(() => import('./ThinkingTreePanel').then(m => ({ default: m.ThinkingTreePanel })));
 const AttentionNavigatorPanel = React.lazy(() => import('./AttentionNavigatorPanel').then(m => ({ default: m.AttentionNavigatorPanel })));
+const ArtifactPanel = React.lazy(() => import('./ArtifactPanel').then(m => ({ default: m.ArtifactPanel })));
+const TaskStatusPanel = React.lazy(() => import('./TaskStatusPanel').then(m => ({ default: m.TaskStatusPanel })));
 
 /** Simple fallback for lazy-loaded panels */
 function PanelFallback() {
@@ -50,6 +56,141 @@ function PanelFallback() {
 /** 附图仅 data URL */
 function chatImageDataUrl(img) {
     return img && typeof img.base64 === 'string' && img.base64 ? img.base64 : '';
+}
+
+function isExplicitDocumentContext(text = '') {
+    return /^\s*(Based on the following|基于以下)/i.test(String(text));
+}
+
+function messageTextWithRetrievalContext(text, retrievalContext) {
+    if (!retrievalContext?.prompt) return text;
+    return `${String(text || '').trim()}\n\n${retrievalContext.prompt}`;
+}
+
+function sourceRefSnippet(sourceRef = {}, maxLength = 96) {
+    const normalized = String(sourceRef.text || sourceRef.sourceText || sourceRef.selectedText || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (normalized.length <= maxLength) return normalized;
+    return `${normalized.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function messagePlainText(content = '') {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+        return content
+            .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+            .map((part) => part.text)
+            .join('\n');
+    }
+    return '';
+}
+
+function answerCardTitle(question = '') {
+    const normalized = String(question || '').replace(/\s+/g, ' ').trim() || '未绑定问题';
+    return `AI 回答：${normalized.length > 60 ? `${normalized.slice(0, 57)}...` : normalized}`;
+}
+
+function findSectionForPage(sections = [], page = 1) {
+    if (!Array.isArray(sections) || sections.length === 0) return null;
+    const pageNumber = Number(page) || 1;
+    return sections.find((section, index) => {
+        const nextSection = sections[index + 1];
+        const pageStart = Number(section.pageStart) || 1;
+        const inferredEnd = nextSection?.pageStart ? Number(nextSection.pageStart) - 1 : Infinity;
+        const pageEnd = Number(section.pageEnd) || inferredEnd;
+        return pageNumber >= pageStart && pageNumber <= pageEnd;
+    }) || null;
+}
+
+function lastToolResult(trace = [], toolName) {
+    return [...trace].reverse().find((entry) => (
+        entry?.type === 'tool' && entry.toolName === toolName
+    ))?.result || null;
+}
+
+function overviewSnippet(text = '', maxLength = 180) {
+    const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return '';
+    if (normalized.length <= maxLength) return normalized;
+    return `${normalized.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function createLocalPaperOverviewModel() {
+    return async ({ iteration, trace }) => {
+        if (iteration === 1) {
+            return {
+                type: 'tool_call',
+                toolName: 'get_current_document',
+                args: {},
+            };
+        }
+
+        if (iteration === 2) {
+            return {
+                type: 'tool_call',
+                toolName: 'get_document_chunks',
+                args: {
+                    query: 'abstract introduction method results conclusion',
+                    limit: 4,
+                    maxChars: 900,
+                },
+            };
+        }
+
+        const metadata = lastToolResult(trace, 'get_current_document') || {};
+        const chunkResult = lastToolResult(trace, 'get_document_chunks') || {};
+        const chunks = Array.isArray(chunkResult.chunks) ? chunkResult.chunks : [];
+        const sourceLines = chunks
+            .map((chunk, index) => {
+                const location = chunk.page ? `p.${chunk.page}` : chunk.paragraphId || `chunk-${index + 1}`;
+                const snippet = overviewSnippet(chunk.text);
+                return snippet ? `- ${location}: ${snippet}` : null;
+            })
+            .filter(Boolean);
+
+        return {
+            type: 'final',
+            content: [
+                '# Paper overview',
+                '',
+                `Document: ${metadata.name || 'Untitled'}`,
+                `Type: ${metadata.kind || 'unknown'}`,
+                metadata.pageCount ? `Pages: ${metadata.pageCount}` : '',
+                '',
+                'Initial source scan:',
+                sourceLines.length > 0 ? sourceLines.join('\n') : '- No bounded source chunks were available.',
+            ].filter(Boolean).join('\n'),
+        };
+    };
+}
+
+function createPaperOverviewAgentOptions(document) {
+    return {
+        goal: 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
+        model: createLocalPaperOverviewModel(),
+        tools: createReadingTools({ document }),
+        maxIterations: 4,
+        timeoutMs: 30000,
+    };
+}
+
+function createPaperOverviewRetryPlan(document, goal) {
+    return {
+        taskType: 'paper_overview_agent',
+        documentId: document.id,
+        goal,
+        maxIterations: 4,
+    };
+}
+
+function taskResultContent(task = {}) {
+    const result = task.result && typeof task.result === 'object' ? task.result : {};
+    return String(result.content || result.summary || result.text || '').trim();
+}
+
+function taskResultTitle(task = {}) {
+    return task.title || task.type || 'Reading task result';
 }
 
 /** 系统提示 */
@@ -96,7 +237,34 @@ const roles = {
     },
 };
 
-function App() {
+function AssistantSourceRefs({ sourceRefs = [], onNavigate }) {
+    if (!Array.isArray(sourceRefs) || sourceRefs.length === 0) return null;
+
+    return (
+        <div className="assistant-source-refs">
+            <span className="assistant-source-refs-label">Sources</span>
+            {sourceRefs.map((sourceRef, index) => {
+                const label = sourceRef.label || `P${sourceRef.page || 1}`;
+                const snippet = sourceRefSnippet(sourceRef);
+                const title = snippet ? `${label}: ${snippet}` : label;
+                return (
+                    <button
+                        key={sourceRef.id || sourceRef.chunkId || `${sourceRef.documentId}-${sourceRef.page}-${index}`}
+                        type="button"
+                        className="assistant-source-ref-button"
+                        aria-label={snippet ? `Open source ${label}: ${snippet}` : `Open source ${label}`}
+                        title={title}
+                        onClick={() => onNavigate?.(sourceRef)}
+                    >
+                        {label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+export function App() {
     // Zustand stores
     const { messages, loading, sessions, currentSessionId, historyLoaded, setMessages, setLoading, setSessions, setCurrentSessionId, setHistoryLoaded } = useConversationStore();
     const { selectedModel, visionCapable, selectModel } = useModelStore();
@@ -114,7 +282,8 @@ function App() {
         setRightToolTab,
         setWorkspaceSplitRatio,
     } = useUIStore();
-    const { addDocument, currentDocument } = useDocumentStore();
+    const { documents, addDocument, setActiveDocument, setDocuments, currentDocument } = useDocumentStore();
+    const { vibeData } = useVibeStore();
 
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
@@ -124,11 +293,59 @@ function App() {
     const [dragInjectActive, setDragInjectActive] = useState(false);
     const [pendingDragInjection, setPendingDragInjection] = useState(null);
     const [selectedParagraphId, setSelectedParagraphId] = useState(null);
+    const [activeReaderPage, setActiveReaderPage] = useState(1);
+    const [chatContextMode, setChatContextMode] = useState('relevant');
     const [insights, setInsights] = useState([]);
+    const [artifacts, setArtifacts] = useState([]);
+    const [modelConfigOpenSignal, setModelConfigOpenSignal] = useState(0);
+    const activeSection = findSectionForPage(vibeData?.sections || currentDocument?.vibeData?.sections, activeReaderPage);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        initializePersistentStorage()
+            .then(async () => {
+                const persistentDocuments = await listPersistentDocuments();
+                if (cancelled) return;
+                setDocuments(persistentDocuments.map((document) => ({
+                    ...document,
+                    isRecentOnly: true,
+                })));
+            })
+            .catch((error) => {
+                console.warn('[App] Persistent storage initialization skipped:', error);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [setDocuments]);
 
     useEffect(() => {
         currentSessionIdRef.current = currentSessionId;
     }, [currentSessionId]);
+
+    useEffect(() => {
+        if (rightToolTab === 'mindmap') {
+            setRightToolTab('artifacts');
+        }
+    }, [rightToolTab, setRightToolTab]);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!currentDocument?.id) {
+            setArtifacts([]);
+            return;
+        }
+
+        listArtifactsForDocument(currentDocument.id).then((items) => {
+            if (!cancelled) setArtifacts(items);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [currentDocument?.id]);
 
     // 初始化：加载会话列表
     useEffect(() => {
@@ -176,6 +393,7 @@ function App() {
     useEffect(() => {
         setInsights([]);
         setSelectedParagraphId(null);
+        setActiveReaderPage(1);
         if (!currentDocument) {
             clearPdf();
             useVibeStore.getState().clearVibeData();
@@ -216,7 +434,7 @@ function App() {
             const service = getCurrentService();
             if (service) {
                 service.clearHistory();
-                service.setPaperContext(text);
+                service.setPaperContext('');
             }
         } else {
             // Markdown, Text, HTML
@@ -240,7 +458,7 @@ function App() {
             const service = getCurrentService();
             if (service) {
                 service.clearHistory();
-                service.setPaperContext(text);
+                service.setPaperContext('');
             }
         }
     }, [currentDocument, setPdfFile, finishParsing, clearPdf, getCurrentService]);
@@ -264,6 +482,60 @@ function App() {
     const handleModelChange = (model) => {
         selectModel(model);
     };
+
+    const recordDocumentOpened = useCallback((document) => {
+        savePersistentDocument(document).catch((error) => {
+            console.warn('[App] Failed to persist opened document:', error);
+        });
+        indexDocumentSourceSpans(document).catch((error) => {
+            console.warn('[App] Failed to index opened document:', error);
+        });
+    }, []);
+
+    const handleStartAgentTask = useCallback((taskType) => {
+        if (!currentDocument?.id) return;
+        if (taskType !== 'paper_overview_agent') return;
+
+        const agentOptions = createPaperOverviewAgentOptions(currentDocument);
+        runReadingAgentTask({
+            task: {
+                documentId: currentDocument.id,
+                type: 'paper_overview_agent',
+                title: 'Paper overview',
+                payload: {
+                    agentOptions: createPaperOverviewRetryPlan(currentDocument, agentOptions.goal),
+                },
+            },
+            agentOptions,
+        }).catch((error) => {
+            console.warn('[App] Failed to start paper overview agent:', error);
+        });
+    }, [currentDocument]);
+
+    const handleRetryTask = useCallback((task) => {
+        if (!currentDocument?.id || task?.documentId !== currentDocument.id) return;
+        if (task.type === 'source_index') {
+            indexDocumentSourceSpans(currentDocument).catch((error) => {
+                console.warn('[App] Failed to retry source indexing:', error);
+            });
+            return;
+        }
+
+        if (task.type === 'paper_overview_agent') {
+            retryReadingAgentTask(task, {
+                agentOptions: createPaperOverviewAgentOptions(currentDocument),
+            }).catch((error) => {
+                console.warn('[App] Failed to retry paper overview agent:', error);
+            });
+            return;
+        }
+
+        if (String(task.type || '').endsWith('_agent')) {
+            retryReadingAgentTask(task).catch((error) => {
+                console.warn('[App] Failed to retry agent task:', error);
+            });
+        }
+    }, [currentDocument]);
 
     // PDF 上传处理
     const handlePdfUpload = useCallback(async (file, preparedDocument = null) => {
@@ -294,16 +566,17 @@ function App() {
             };
 
             addDocument(docWithContent);
+            recordDocumentOpened(docWithContent);
             finishParsing(text, pages);
             setActiveToolTab('pdf');
-            setRightToolTab('chat');
+            setRightToolTab('artifacts');
             antMessage.success(t('ai-chat-pdf-parsed', { pages }));
         } catch (error) {
             console.error('[App] PDF parsing failed:', error);
             antMessage.error(t('ai-chat-pdf-parse-failed'));
             failParsing();
         }
-    }, [addDocument, finishParsing, setActiveToolTab, setRightToolTab, startParsing, failParsing]);
+    }, [addDocument, finishParsing, recordDocumentOpened, setActiveToolTab, setRightToolTab, startParsing, failParsing]);
 
     const handleReadableDocument = useCallback((document) => {
         if (!document || !['markdown', 'text', 'html'].includes(document.kind)) {
@@ -323,12 +596,13 @@ function App() {
         };
 
         addDocument(docWithContent);
+        recordDocumentOpened(docWithContent);
         setPdfFile(null);
         finishParsing(document.contentText || '', 1);
         setActiveToolTab('pdf');
-        setRightToolTab('chat');
+        setRightToolTab('artifacts');
         antMessage.success(t('ai-chat-document-opened', { name: document.name }, '文档已打开'));
-    }, [addDocument, finishParsing, setActiveToolTab, setPdfFile, setRightToolTab]);
+    }, [addDocument, finishParsing, recordDocumentOpened, setActiveToolTab, setPdfFile, setRightToolTab]);
 
     const handleDocumentFile = useCallback(async (file) => {
         if (!file) return;
@@ -396,9 +670,19 @@ function App() {
             return;
         }
 
-        setLoading(true);
-        const abortController = new AbortController();
-        abortControllerRef.current = abortController;
+        const sendImages = (images || []).filter((img) => chatImageDataUrl(img));
+        const retrievalContext = currentDocument && sendImages.length === 0 && !isExplicitDocumentContext(text)
+            ? await buildIndexedRetrievalContext({
+                document: currentDocument,
+                query: text,
+                mode: chatContextMode,
+                page: activeReaderPage,
+                section: activeSection,
+                paragraphId: selectedParagraphId,
+            })
+            : null;
+        const outboundText = messageTextWithRetrievalContext(text, retrievalContext);
+        const retrievalSourceRefs = retrievalContext?.sourceRefs || [];
 
         // 论文上下文已准备好，添加用户消息
         const userMessage = {
@@ -411,10 +695,9 @@ function App() {
         };
 
         // 构建消息内容：支持文本和图片的多模态格式
-        let messageContent = text;
-        const sendImages = (images || []).filter((img) => chatImageDataUrl(img));
+        let messageContent = outboundText;
         if (sendImages.length > 0) {
-            messageContent = [{ type: 'text', text }];
+            messageContent = [{ type: 'text', text: outboundText }];
             sendImages.forEach((img) => {
                 messageContent.push({
                     type: 'image_url',
@@ -429,9 +712,14 @@ function App() {
             id: aiMessageId,
             role: 'assistant',
             content: '',
+            sourceRefs: retrievalSourceRefs,
             typing: true,
             timestamp: Date.now()
         };
+
+        setLoading(true);
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
         setMessages(prev => [...prev, userMessage, aiMessage]);
 
@@ -475,6 +763,7 @@ function App() {
                                 content: finalContent,
                                 thinking: fullThinking,
                                 hasThinking,
+                                sourceRefs: retrievalSourceRefs,
                                 typing: false,
                                 timestamp: Date.now()
                             };
@@ -500,7 +789,7 @@ function App() {
                     setMessages(prev => {
                         const updated = prev.map(msg =>
                             msg.id === aiMessageId
-                                ? { ...msg, typing: false, timestamp: Date.now() }
+                                ? { ...msg, sourceRefs: retrievalSourceRefs, typing: false, timestamp: Date.now() }
                                 : msg
                         );
                         persistMessages(updated);
@@ -519,7 +808,7 @@ function App() {
                 setMessages(prev => {
                     const updated = prev.map(msg =>
                         msg.id === aiMessageId
-                            ? { ...msg, content: fallbackError, typing: false, timestamp: Date.now() }
+                            ? { ...msg, content: fallbackError, sourceRefs: retrievalSourceRefs, typing: false, timestamp: Date.now() }
                             : msg
                     );
                     persistMessages(updated);
@@ -533,7 +822,7 @@ function App() {
         };
 
         performChat();
-    }, [getCurrentService, selectedModel, persistMessages]);
+    }, [activeReaderPage, activeSection, chatContextMode, currentDocument, getCurrentService, selectedModel, persistMessages, selectedParagraphId]);
 
     const handleStopGenerating = useCallback(() => {
         abortControllerRef.current?.abort();
@@ -543,14 +832,238 @@ function App() {
     const handleInjectPdfText = useCallback((text) => {
         if (!text) return;
         const prefix = t('ai-chat-pdf-context-prefix', null, 'Based on the following paper content:\n');
+        setRightToolTab('chat');
         handleSubmit(prefix + text, []);
-    }, [handleSubmit]);
+    }, [handleSubmit, setRightToolTab]);
 
     const handleInjectDocumentText = useCallback((text) => {
         if (!text) return;
         const prefix = t('ai-chat-document-context-prefix', null, 'Based on the following document content:\n');
+        setRightToolTab('chat');
         handleSubmit(prefix + text, []);
-    }, [handleSubmit]);
+    }, [handleSubmit, setRightToolTab]);
+
+    const handleGenerateLensCard = useCallback(async (selection) => {
+        if (!selection?.text?.trim()) return;
+        if (!currentDocument?.id || currentDocument.kind !== 'pdf') {
+            antMessage.warning('请先打开 PDF 文档');
+            return;
+        }
+
+        const validation = validateRunnableModelConfig(selectedModel?.config);
+        if (!validation.ok) {
+            antMessage.error(validation.message);
+            return;
+        }
+
+        const service = getCurrentService(validation.config);
+        if (!service) {
+            antMessage.error(t('vibe-ai-chat-prompt-configure-custom-first'));
+            return;
+        }
+
+        const hideLoading = antMessage.loading('正在生成阅读卡片...', 0);
+        try {
+            const generateText = async (prompt) => {
+                let finalText = '';
+                let finalError = '';
+                await service.chatStream(
+                    prompt,
+                    ({ done, fullMessage, error }) => {
+                        if (!done) return;
+                        finalText = fullMessage || '';
+                        finalError = error || '';
+                    },
+                    { includeHistory: false, systemPrompt: SYSTEM_PROMPT }
+                );
+                if (finalError) throw new Error(finalError);
+                return finalText;
+            };
+
+            const artifact = await generateLensCardArtifact({
+                selection: {
+                    ...selection,
+                    documentId: currentDocument.id,
+                    sourceType: 'pdf-selection',
+                },
+                document: currentDocument,
+                modelId: selectedModel?.label || validation.config.model,
+                generateText,
+            });
+            const saved = await createArtifact(artifact);
+            setArtifacts((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+            setRightToolTab('artifacts');
+            antMessage.success('已生成阅读卡片');
+        } catch (error) {
+            console.error('[App] Failed to generate Lens Card:', error);
+            antMessage.error(error?.message || '生成阅读卡片失败');
+        } finally {
+            hideLoading();
+        }
+    }, [currentDocument, getCurrentService, selectedModel, setRightToolTab]);
+
+    const handleArtifactCreated = useCallback((artifact) => {
+        if (!artifact?.id) return;
+        setArtifacts((items) => [artifact, ...items.filter((item) => item.id !== artifact.id)]);
+        setRightToolTab('artifacts');
+    }, [setRightToolTab]);
+
+    const handleArtifactUpdated = useCallback(async (artifact, patch) => {
+        if (!artifact?.id) return;
+        try {
+            const updated = await updateArtifact(artifact.id, {
+                ...patch,
+                documentId: artifact.documentId || currentDocument?.id,
+            });
+            if (!updated) {
+                antMessage.warning('没有找到要更新的卡片');
+                return;
+            }
+            setArtifacts((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+            antMessage.success('卡片已更新');
+        } catch (error) {
+            console.error('[App] Failed to update artifact:', error);
+            antMessage.error(error?.message || '更新卡片失败');
+        }
+    }, [currentDocument?.id]);
+
+    const handleArtifactDeleted = useCallback(async (artifact) => {
+        if (!artifact?.id) return;
+        try {
+            await deleteArtifact(artifact.id);
+            setArtifacts((items) => items.filter((item) => item.id !== artifact.id));
+            antMessage.success('卡片已删除');
+        } catch (error) {
+            console.error('[App] Failed to delete artifact:', error);
+            antMessage.error(error?.message || '删除卡片失败');
+        }
+    }, []);
+
+    const handleSaveTaskResult = useCallback(async (task) => {
+        if (!currentDocument?.id || task?.documentId !== currentDocument.id) return;
+        const body = taskResultContent(task);
+        if (!body) {
+            antMessage.warning('任务没有可保存的结果');
+            return;
+        }
+
+        const title = taskResultTitle(task);
+        const content = {
+            title,
+            body,
+            taskId: task.id,
+            taskType: task.type,
+        };
+
+        try {
+            const saved = await createArtifact({
+                documentId: currentDocument.id,
+                type: 'reading_note',
+                goal: title,
+                sourceSpanIds: [],
+                source: {
+                    documentId: currentDocument.id,
+                    taskId: task.id,
+                    sourceType: 'agent-task',
+                },
+                originalContent: content,
+                currentContent: content,
+                verificationStatus: 'ungrounded',
+            });
+            setArtifacts((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+            setRightToolTab('artifacts');
+            antMessage.success('已保存到 Notes');
+        } catch (error) {
+            console.error('[App] Failed to save task result:', error);
+            antMessage.error(error?.message || '保存任务结果失败');
+        }
+    }, [currentDocument?.id, setRightToolTab]);
+
+    const handleSaveAssistantAnswerCard = useCallback(async (assistantMessage) => {
+        if (!assistantMessage?.content?.trim()) return;
+        const documentId = currentDocument?.id || assistantMessage.sourceRefs?.[0]?.documentId;
+        if (!documentId) {
+            antMessage.warning('请先打开文档');
+            return;
+        }
+
+        const assistantIndex = messages.findIndex((message) => message.id === assistantMessage.id);
+        const previousUserMessage = assistantIndex >= 0
+            ? messages.slice(0, assistantIndex).reverse().find((message) => message.role === 'user')
+            : null;
+        const question = messagePlainText(previousUserMessage?.content || '');
+        const sourceRefs = Array.isArray(assistantMessage.sourceRefs) ? assistantMessage.sourceRefs : [];
+        const firstSource = sourceRefs[0] || null;
+        const content = {
+            question,
+            answer: assistantMessage.content,
+            sourceRefs,
+        };
+
+        try {
+            const saved = await createArtifact({
+                documentId,
+                type: 'explain_card',
+                goal: answerCardTitle(question),
+                sourceSpanIds: sourceRefs.map((sourceRef) => sourceRef.paragraphId).filter(Boolean),
+                ...(firstSource ? { source: { ...firstSource, sourceType: 'assistant-answer' } } : {}),
+                originalContent: content,
+                currentContent: content,
+                verificationStatus: sourceRefs.length > 0 ? 'grounded' : 'ungrounded',
+            });
+            setArtifacts((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+            setRightToolTab('artifacts');
+            antMessage.success('已保存为阅读卡片');
+        } catch (error) {
+            console.error('[App] Failed to save assistant answer card:', error);
+            antMessage.error(error?.message || '保存回答卡片失败');
+        }
+    }, [currentDocument?.id, messages, setRightToolTab]);
+
+    const handleNavigateArtifactSource = useCallback((artifact) => {
+        const content = artifact?.currentContent || artifact?.originalContent || {};
+        const firstSourceRef = Array.isArray(content.sourceRefs) ? content.sourceRefs.find(Boolean) : null;
+        const source = artifact?.source || content.source || artifact?.originalContent?.source || firstSourceRef;
+        if (!source) {
+            antMessage.warning('这张卡片没有可回跳的来源');
+            return;
+        }
+
+        if (source.paragraphId) {
+            window.dispatchEvent(new CustomEvent('vibereader:navigate-paragraph', {
+                detail: {
+                    paragraphId: source.paragraphId,
+                    page: source.page,
+                    documentId: source.documentId || artifact?.documentId,
+                    text: source.text || source.sourceText || source.selectedText || content.selectionText || '',
+                },
+            }));
+            return;
+        }
+
+        window.dispatchEvent(new CustomEvent('vibereader:navigate-source-span', {
+            detail: source,
+        }));
+    }, []);
+
+    const handleNavigateSourceRef = useCallback((sourceRef) => {
+        if (!sourceRef) return;
+        if (sourceRef.paragraphId) {
+            window.dispatchEvent(new CustomEvent('vibereader:navigate-paragraph', {
+                detail: {
+                    paragraphId: sourceRef.paragraphId,
+                    page: sourceRef.page,
+                    documentId: sourceRef.documentId,
+                    text: sourceRef.text || sourceRef.sourceText || sourceRef.selectedText || '',
+                },
+            }));
+            return;
+        }
+
+        window.dispatchEvent(new CustomEvent('vibereader:navigate-source-span', {
+            detail: sourceRef,
+        }));
+    }, []);
 
     // 从 Summary / MindMap 向 AI 提问
     const handleAskAI = useCallback((question) => {
@@ -565,18 +1078,16 @@ function App() {
         }));
     }, []);
 
-    // Listen for paragraph selections from PdfViewer to sync with ThinkingTreePanel
+    // Listen for paragraph selections from PdfViewer to sync with the left Skim Map.
     useEffect(() => {
         const handleSelectParagraph = (event) => {
             const paragraphId = event.detail?.paragraphId;
             if (!paragraphId) return;
             setSelectedParagraphId(paragraphId);
-            // Auto-switch to mindmap tab so the tree is visible
-            setRightToolTab('mindmap');
         };
         window.addEventListener('vibereader:select-paragraph', handleSelectParagraph);
         return () => window.removeEventListener('vibereader:select-paragraph', handleSelectParagraph);
-    }, [setRightToolTab]);
+    }, []);
 
     const handleAiPaneDragEnter = useCallback((event) => {
         if (!hasDragInjectData(event.dataTransfer)) return;
@@ -614,6 +1125,16 @@ function App() {
     const handleChatInputDragInjectHandled = useCallback(() => {
         setDragInjectActive(false);
     }, []);
+
+    const modelConfigValidation = validateRunnableModelConfig(selectedModel?.config);
+    const modelConfigReady = modelConfigValidation.ok;
+    const modelConfigButtonLabel = modelConfigReady
+        ? t('ai-chat-model-service-current', { model: formatCustomModelLabel(modelConfigValidation.config.model) })
+        : t('ai-chat-model-service-configure');
+    const handleOpenModelConfig = useCallback(() => {
+        setRightToolTab('chat');
+        setModelConfigOpenSignal((value) => value + 1);
+    }, [setRightToolTab]);
 
     // 新建会话
     const handleNewSession = useCallback(() => {
@@ -808,6 +1329,50 @@ function App() {
                         />
                     </div>
 
+                    {documents.length > 0 && (
+                        <div style={{ padding: '0 12px 12px' }}>
+                            <div style={{ fontSize: 12, color: '#999', marginBottom: 8, fontWeight: 500 }}>
+                                Recent documents
+                            </div>
+                            {documents.slice(0, 5).map((document) => (
+                                <button
+                                    key={document.id}
+                                    type="button"
+                                    onClick={() => {
+                                        if (document.isRecentOnly) {
+                                            antMessage.info('请重新打开本地文件以恢复阅读内容。');
+                                            return;
+                                        }
+                                        setActiveDocument(document.id);
+                                    }}
+                                    title={document.path || document.name}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 10px',
+                                        border: 'none',
+                                        borderRadius: 6,
+                                        marginBottom: 4,
+                                        cursor: 'pointer',
+                                        background: document.id === currentDocument?.id ? '#e6f4ff' : 'transparent',
+                                        color: '#262626',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 8,
+                                        textAlign: 'left',
+                                    }}
+                                >
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
+                                        {document.name}
+                                    </span>
+                                    <span style={{ color: '#999', fontSize: 11, textTransform: 'uppercase', flexShrink: 0 }}>
+                                        {document.kind}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
                     {/* 会话列表 */}
                     <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
                         <div style={{ fontSize: 12, color: '#999', marginBottom: 8, fontWeight: 500 }}>
@@ -865,6 +1430,15 @@ function App() {
                     />
                     <div style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>Workspace</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
+                        <Button
+                            size="small"
+                            type={modelConfigReady ? 'default' : 'primary'}
+                            icon={<SettingOutlined />}
+                            onClick={handleOpenModelConfig}
+                            title={modelConfigReady ? modelConfigButtonLabel : modelConfigValidation.message}
+                        >
+                            {modelConfigButtonLabel}
+                        </Button>
                         {rightToolTab === 'chat' && (
                             <>
                                 <Button
@@ -897,31 +1471,54 @@ function App() {
                 </div>
 
                 <div className="workspace-body">
-                    <section
-                        className="workspace-reader-pane"
+                    <div
+                        className="workspace-reading-surface"
                         style={{ flexBasis: `${workspaceSplitRatio * 100}%` }}
                     >
-                        <div className="workspace-pane-header">
-                            <span><FileTextOutlined /> {currentDocument?.name || 'Reader'}</span>
-                            <span className="workspace-pane-meta">
-                                {currentDocument?.kind === 'pdf' && pdfText
-                                    ? t('ai-chat-pdf-parsed', { pages: pdfPages })
-                                    : currentDocument?.kind || t('ai-chat-pdf-upload-drag')}
-                            </span>
-                        </div>
-                        <div className="workspace-pane-content">
-                            {currentDocument && currentDocument.kind !== 'pdf' ? (
-                                <DocumentReader document={currentDocument} onInject={handleInjectDocumentText} style={{ flex: 1, minHeight: 0 }} />
-                            ) : (
-                                <PdfViewer
-                                    onInject={handleInjectPdfText}
+                        <aside
+                            className="workspace-skim-map-pane"
+                            role="complementary"
+                            aria-label="Skim Map"
+                        >
+                            <Suspense fallback={<PanelFallback />}>
+                                <ThinkingTreePanel
                                     documentId={currentDocument?.id}
-                                    insights={insights}
-                                    style={{ flex: 1, minHeight: 0 }}
+                                    title="Skim Map"
+                                    generateLabel="生成 Skim Map"
+                                    progressText="正在生成文档阅读地图..."
+                                    onAskAI={handleAskAI}
+                                    onNavigateToParagraph={handleNavigateToParagraph}
+                                    activeParagraphId={selectedParagraphId}
+                                    style={{ flex: 1 }}
                                 />
-                            )}
-                        </div>
-                    </section>
+                            </Suspense>
+                        </aside>
+
+                        <section className="workspace-reader-pane">
+                            <div className="workspace-pane-header">
+                                <span><FileTextOutlined /> {currentDocument?.name || 'Reader'}</span>
+                                <span className="workspace-pane-meta">
+                                    {currentDocument?.kind === 'pdf' && pdfText
+                                        ? t('ai-chat-pdf-parsed', { pages: pdfPages })
+                                        : currentDocument?.kind || t('ai-chat-pdf-upload-drag')}
+                                </span>
+                            </div>
+                            <div className="workspace-pane-content">
+                                {currentDocument && currentDocument.kind !== 'pdf' ? (
+                                    <DocumentReader document={currentDocument} onInject={handleInjectDocumentText} style={{ flex: 1, minHeight: 0 }} />
+                                ) : (
+                                    <PdfViewer
+                                        onInject={handleInjectPdfText}
+                                        onGenerateLensCard={handleGenerateLensCard}
+                                        onPageChange={setActiveReaderPage}
+                                        documentId={currentDocument?.id}
+                                        insights={insights}
+                                        style={{ flex: 1, minHeight: 0 }}
+                                    />
+                                )}
+                            </div>
+                        </section>
+                    </div>
 
                     <div
                         className="workspace-divider"
@@ -943,15 +1540,37 @@ function App() {
                             size="small"
                             className="workspace-ai-tabs"
                             items={[
-                                { key: 'chat', label: <span><CommentOutlined /> {t('ai-chat-empty-session')}</span> },
-                                { key: 'summary', label: <span><ThunderboltOutlined /> {t('ai-chat-summary-panel-title', null, 'Summary')}</span> },
-                                { key: 'flashcard', label: <span><BookOutlined /> {t('ai-chat-flashcard-title', null, 'Flashcards')}</span> },
-                                { key: 'mindmap', label: <span><BranchesOutlined /> {t('ai-chat-thinking-tree-title', null, '思维树')}</span> },
-                                { key: 'navigator', label: <span><CompassOutlined /> 导航仪</span> },
+                                { key: 'summary', label: <span><ThunderboltOutlined /> {t('ai-chat-tab-summary')}</span> },
+                                { key: 'flashcard', label: <span><BookOutlined /> {t('ai-chat-tab-cards')}</span> },
+                                { key: 'navigator', label: <span><CompassOutlined /> {t('ai-chat-tab-navigator')}</span> },
+                                { key: 'artifacts', label: <span><FileTextOutlined /> {t('ai-chat-tab-notes')}</span> },
+                                { key: 'tasks', label: <span><ClockCircleOutlined /> Tasks</span> },
+                                { key: 'chat', label: <span><CommentOutlined /> {t('ai-chat-tab-chat')}</span> },
                             ]}
                         />
 
                         <div className="workspace-ai-content">
+                            {rightToolTab === 'chat' && (
+                                <div className="workspace-chat-context-bar">
+                                    <span className="workspace-chat-context-label">Context</span>
+                                    <Segmented
+                                        size="small"
+                                        aria-label="Chat context"
+                                        value={chatContextMode}
+                                        onChange={setChatContextMode}
+                                        options={[
+                                            { label: 'Relevant', value: 'relevant' },
+                                            { label: 'Current page', value: 'page' },
+                                            { label: 'Current section', value: 'section', disabled: !activeSection },
+                                            { label: 'Selected paragraph', value: 'paragraph', disabled: !selectedParagraphId },
+                                        ]}
+                                    />
+                                    <span className="workspace-chat-context-page">
+                                        P{activeReaderPage || 1}{activeSection?.title ? ` · ${activeSection.title}` : ''}
+                                    </span>
+                                </div>
+                            )}
+
                             {rightToolTab === 'chat' && (
                                 <div
                                     ref={messagesContainerRef}
@@ -996,6 +1615,21 @@ function App() {
                                                                 </details>
                                                             )}
                                                             <MarkdownRenderer content={msg.content} onExplainCode={handleAskAI} />
+                                                            <AssistantSourceRefs
+                                                                sourceRefs={msg.sourceRefs}
+                                                                onNavigate={handleNavigateSourceRef}
+                                                            />
+                                                            {!msg.typing && msg.content && (
+                                                                <div className="assistant-message-actions">
+                                                                    <Button
+                                                                        size="small"
+                                                                        type="text"
+                                                                        onClick={() => handleSaveAssistantAnswerCard(msg)}
+                                                                    >
+                                                                        保存回答卡片
+                                                                    </Button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ) : (
                                                         renderUserMessageContent(msg)
@@ -1009,29 +1643,49 @@ function App() {
                             )}
                             {rightToolTab === 'summary' && (
                                 <Suspense fallback={<PanelFallback />}>
-                                    <SummaryPanel onAskAI={handleAskAI} style={{ flex: 1 }} />
+                                    <SummaryPanel
+                                        documentId={currentDocument?.id}
+                                        onAskAI={handleAskAI}
+                                        onArtifactCreated={handleArtifactCreated}
+                                        style={{ flex: 1 }}
+                                    />
                                 </Suspense>
                             )}
                             {rightToolTab === 'flashcard' && (
                                 <Suspense fallback={<PanelFallback />}>
-                                    <FlashcardDeck style={{ flex: 1 }} />
-                                </Suspense>
-                            )}
-                            {rightToolTab === 'mindmap' && (
-                                <Suspense fallback={<PanelFallback />}>
-                                    <ThinkingTreePanel
-                                        onAskAI={handleAskAI}
-                                        onNavigateToParagraph={handleNavigateToParagraph}
-                                        activeParagraphId={selectedParagraphId}
-                                        style={{ flex: 1 }}
-                                    />
+                                    <FlashcardDeck documentId={currentDocument?.id} style={{ flex: 1 }} />
                                 </Suspense>
                             )}
                             {rightToolTab === 'navigator' && (
                                 <Suspense fallback={<PanelFallback />}>
                                     <AttentionNavigatorPanel
+                                        documentId={currentDocument?.id}
                                         onNavigateToParagraph={handleNavigateToParagraph}
                                         onInsightsChange={setInsights}
+                                        onArtifactCreated={handleArtifactCreated}
+                                        onAskAI={handleAskAI}
+                                        style={{ flex: 1 }}
+                                    />
+                                </Suspense>
+                            )}
+                            {rightToolTab === 'artifacts' && (
+                                <Suspense fallback={<PanelFallback />}>
+                                    <ArtifactPanel
+                                        documentId={currentDocument?.id}
+                                        artifacts={artifacts}
+                                        onNavigateToSource={handleNavigateArtifactSource}
+                                        onArtifactUpdated={handleArtifactUpdated}
+                                        onArtifactDeleted={handleArtifactDeleted}
+                                    />
+                                </Suspense>
+                            )}
+                            {rightToolTab === 'tasks' && (
+                                <Suspense fallback={<PanelFallback />}>
+                                    <TaskStatusPanel
+                                        documentId={currentDocument?.id}
+                                        onRetryTask={handleRetryTask}
+                                        onStartAgentTask={handleStartAgentTask}
+                                        onSaveTaskResult={handleSaveTaskResult}
                                         style={{ flex: 1 }}
                                     />
                                 </Suspense>
@@ -1049,6 +1703,7 @@ function App() {
                                     visionCapable={visionCapable}
                                     pendingInjection={pendingDragInjection}
                                     onDragInjectHandled={handleChatInputDragInjectHandled}
+                                    configOpenSignal={modelConfigOpenSignal}
                                 />
                             </div>
                         )}
@@ -1059,5 +1714,8 @@ function App() {
     );
 }
 
-const root = createRoot(document.getElementById('root'));
-root.render(<App />);
+const rootElement = document.getElementById('root');
+if (rootElement && import.meta.env.MODE !== 'test') {
+    const root = createRoot(rootElement);
+    root.render(<App />);
+}

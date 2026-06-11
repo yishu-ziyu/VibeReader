@@ -14,9 +14,16 @@ import { useProgressStore } from './store/progressStore';
 import { AgentProgressPanel } from './AgentProgressPanel';
 import { PdfAnnotationToolbar } from './PdfAnnotationToolbar';
 import { createAnnotation, listAnnotationsForDocument } from './services/annotationService';
+import { recognizeCurrentPdfPage } from './services/ocrService';
 import { flattenPdfOutline, resolveOutlinePageNumber } from './pdfOutline';
 import { configurePdfWorker } from './pdfWorker';
-import { isInsidePdfAnnotationToolbar } from './pdfSelection';
+import {
+  didPointerDrag,
+  denormalizePageRects,
+  isInsidePdfAnnotationToolbar,
+  isSelectionInsidePdfTextLayer,
+  normalizePageRects,
+} from './pdfSelection';
 import { t } from './i18n';
 import { createDragInjectPayload, writeDragInjectData } from './dragInject';
 import { extractParagraphsFromPage } from './paragraphExtractor';
@@ -26,6 +33,7 @@ configurePdfWorker(pdfjsLib);
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3.0;
 const ZOOM_STEP = 0.25;
+const FIT_WIDTH_ZOOM = 'fit-width';
 
 function copyPdfData(data) {
   if (data instanceof Uint8Array) return data.slice();
@@ -57,6 +65,43 @@ function findParagraphIdForItem(item, paragraphs) {
   return sorted[sorted.length - 1].id;
 }
 
+function hashText(text = '') {
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function createSelectionSpanId(documentId, page, rect, text) {
+  const left = Math.round(rect?.left || 0);
+  const top = Math.round(rect?.top || 0);
+  return `${documentId || 'current-pdf'}:p${page}:sel-${top}-${left}-${hashText(text)}`;
+}
+
+function appendOcrSpan(textLayerDiv, sourceSpan) {
+  const el = document.createElement('span');
+  el.textContent = sourceSpan.text;
+  el.setAttribute('data-source', 'ocr');
+  el.setAttribute('data-span-id', sourceSpan.spanId);
+  el.setAttribute('data-confidence', String(sourceSpan.confidence ?? ''));
+  el.style.position = 'absolute';
+  el.style.left = `${sourceSpan.bbox.left}px`;
+  el.style.top = `${sourceSpan.bbox.top}px`;
+  el.style.width = `${sourceSpan.bbox.width}px`;
+  el.style.height = `${sourceSpan.bbox.height}px`;
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+  el.style.overflow = 'hidden';
+  el.style.fontSize = `${Math.max(8, sourceSpan.bbox.height * 0.72)}px`;
+  el.style.lineHeight = `${sourceSpan.bbox.height}px`;
+  el.style.whiteSpace = 'pre';
+  el.style.userSelect = 'text';
+  el.style.cursor = 'text';
+  el.style.color = 'transparent';
+  textLayerDiv.appendChild(el);
+}
+
 /**
  * PdfViewer - Visual PDF renderer using pdf.js with TextLayer support.
  *
@@ -70,26 +115,37 @@ function findParagraphIdForItem(item, paragraphs) {
  * Props:
  *   - onInject: (text: string) => void — called when user clicks inject button
  *   - documentId: string — used for annotation persistence
+ *   - onGenerateLensCard: (selection) => void — called when user saves a Lens Card
+ *   - onPageChange: (page: number) => void — called when the visible page changes
  *   - style: CSS style object
  */
-export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [], style = {} }) {
+export function PdfViewer({ onInject, onGenerateLensCard, onPageChange, documentId = 'current-pdf', insights = [], style = {} }) {
   const { pdfFile, pdfText, pdfParsing, pdfPages } = usePdfStore();
 
   const [pdfDoc, setPdfDoc] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [zoom, setZoom] = useState(1.0);
+  const [zoom, setZoom] = useState(FIT_WIDTH_ZOOM);
   const [pageLoading, setPageLoading] = useState(false);
   const [selection, setSelection] = useState(null); // { text, x, y, rect }
   const [outlineItems, setOutlineItems] = useState([]);
   const [annotations, setAnnotations] = useState([]);
+  const [sourceHighlight, setSourceHighlight] = useState(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [pageBoxSize, setPageBoxSize] = useState({ width: 0, height: 0 });
+  const [pageTextLayerInfo, setPageTextLayerInfo] = useState({ page: null, textItemCount: 0 });
+  const [ocrSpansByPage, setOcrSpansByPage] = useState({});
+  const [ocrStatusByPage, setOcrStatusByPage] = useState({});
 
   const canvasRef = useRef(null);
   const textLayerRef = useRef(null);
   const highlightLayerRef = useRef(null);
   const attentionMarkerLayerRef = useRef(null);
   const containerRef = useRef(null);
+  const pageScrollRef = useRef(null);
   const renderTaskRef = useRef(null);
   const pendingParagraphIdRef = useRef(null);
+  const textPointerStartRef = useRef(null);
+  const textPointerDraggedRef = useRef(false);
 
   const highlightParagraph = useCallback((paragraphId) => {
     const textLayer = textLayerRef.current;
@@ -118,7 +174,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
         if (!cancelled) {
           setPdfDoc(pdf);
           setCurrentPage(1);
-          setZoom(1.0);
+          setZoom(FIT_WIDTH_ZOOM);
         }
       } catch (err) {
         console.error('[PdfViewer] Failed to load PDF:', err);
@@ -156,11 +212,39 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
   useEffect(() => {
     setPdfDoc(null);
     setCurrentPage(1);
-    setZoom(1.0);
+    setZoom(FIT_WIDTH_ZOOM);
     setSelection(null);
     setOutlineItems([]);
     setAnnotations([]);
+    setSourceHighlight(null);
+    setPageBoxSize({ width: 0, height: 0 });
+    setPageTextLayerInfo({ page: null, textItemCount: 0 });
+    setOcrSpansByPage({});
+    setOcrStatusByPage({});
   }, [documentId]);
+
+  useEffect(() => {
+    const element = pageScrollRef.current || containerRef.current;
+    if (!element) return undefined;
+
+    const measure = () => {
+      setContainerWidth(Math.round(element.clientWidth || 0));
+    };
+    measure();
+
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver(measure);
+      observer.observe(element);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [pdfDoc]);
+
+  useEffect(() => {
+    onPageChange?.(currentPage);
+  }, [currentPage, onPageChange]);
 
   useEffect(() => {
     if (!documentId) return;
@@ -175,33 +259,45 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
 
   // Render current page
   useEffect(() => {
-    if (!pdfDoc || !canvasRef.current) return;
+    if (!pdfDoc) return;
 
     let cancelled = false;
     const render = async () => {
       setPageLoading(true);
       try {
         const page = await pdfDoc.getPage(currentPage);
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        const container = containerRef.current;
-        const containerWidth = container ? container.clientWidth - 32 : 800;
+        const scrollArea = pageScrollRef.current;
+        const availableWidth = Math.max(240, (containerWidth || scrollArea?.clientWidth || 800) - 32);
 
         // Calculate scale
         let scale = zoom;
-        if (zoom === 'fit-width') {
+        if (zoom === FIT_WIDTH_ZOOM) {
           const viewportUnscaled = page.getViewport({ scale: 1 });
-          scale = containerWidth / viewportUnscaled.width;
+          scale = availableWidth / viewportUnscaled.width;
         }
 
         const viewport = page.getViewport({ scale });
+        setPageBoxSize({
+          width: Math.ceil(viewport.width),
+          height: Math.ceil(viewport.height),
+        });
+
+        const textContent = await page.getTextContent();
+        const textItems = textContent.items;
+        setPageTextLayerInfo({ page: currentPage, textItemCount: textItems.length });
+
+        if (cancelled) return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         canvas.style.width = `${viewport.width}px`;
         canvas.style.height = `${viewport.height}px`;
 
         // Cancel previous render
-        if (renderTaskRef.current) {
+        if (typeof renderTaskRef.current?.cancel === 'function') {
           renderTaskRef.current.cancel();
         }
 
@@ -218,15 +314,18 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
           textLayerDiv.innerHTML = '';
           textLayerDiv.style.width = `${viewport.width}px`;
           textLayerDiv.style.height = `${viewport.height}px`;
+          textLayerDiv.style.maxWidth = `${viewport.width}px`;
+          textLayerDiv.style.maxHeight = `${viewport.height}px`;
 
-          const textContent = await page.getTextContent();
-          const textItems = textContent.items;
           const paragraphs = extractParagraphsFromPage(textContent, currentPage);
 
           textItems.forEach((item) => {
             const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
             const fontHeight = Math.hypot(tx[0], tx[1]);
             const fontWidth = Math.hypot(tx[2], tx[3]);
+            const targetTextWidth = Math.max(0, (Number(item.width) || 0) * (Number(viewport.scale) || 1));
+            const baseTextWidth = fontWidth || targetTextWidth;
+            const textScaleX = baseTextWidth ? targetTextWidth / baseTextWidth : 1;
             const paragraphId = findParagraphIdForItem(item, paragraphs);
 
             const el = document.createElement('span');
@@ -235,6 +334,11 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
               el.setAttribute('data-paragraph-id', paragraphId);
               el.addEventListener('click', (event) => {
                 event.stopPropagation();
+                const activeSelection = window.getSelection()?.toString().trim();
+                if (textPointerDraggedRef.current || activeSelection) {
+                  textPointerDraggedRef.current = false;
+                  return;
+                }
                 window.dispatchEvent(new CustomEvent('vibereader:select-paragraph', {
                   detail: { paragraphId },
                 }));
@@ -245,13 +349,20 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
             el.style.top = `${tx[5] - fontHeight}px`;
             el.style.fontSize = `${fontHeight}px`;
             el.style.fontFamily = item.fontName || 'sans-serif';
-            el.style.transform = `scaleX(${fontWidth ? item.width / fontWidth : 1})`;
+            el.style.display = 'inline-block';
+            el.style.width = `${baseTextWidth}px`;
+            el.style.overflow = 'hidden';
+            el.style.transform = `scaleX(${textScaleX})`;
             el.style.transformOrigin = '0 0';
             el.style.whiteSpace = 'pre';
             el.style.userSelect = 'text';
-            el.style.cursor = paragraphId ? 'pointer' : 'text';
+            el.style.cursor = 'text';
             el.style.color = 'transparent';
             textLayerDiv.appendChild(el);
+          });
+
+          (ocrSpansByPage[currentPage] || []).forEach((sourceSpan) => {
+            appendOcrSpan(textLayerDiv, sourceSpan);
           });
 
           const pendingParagraphId = pendingParagraphIdRef.current;
@@ -312,11 +423,11 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
     render();
     return () => {
       cancelled = true;
-      if (renderTaskRef.current) {
+      if (typeof renderTaskRef.current?.cancel === 'function') {
         renderTaskRef.current.cancel();
       }
     };
-  }, [pdfDoc, currentPage, zoom, highlightParagraph, insights]);
+  }, [pdfDoc, currentPage, zoom, containerWidth, highlightParagraph, insights]);
 
   // Render annotation highlights on the current page
   useEffect(() => {
@@ -326,7 +437,12 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
     layer.innerHTML = '';
 
     const pageAnnotations = annotations.filter((a) => a.page === currentPage && a.rect);
-    if (pageAnnotations.length === 0) return;
+    const pageSourceHighlight =
+      sourceHighlight?.page === currentPage
+        && (sourceHighlight.rect || (Array.isArray(sourceHighlight.rects) && sourceHighlight.rects.length > 0))
+        ? sourceHighlight
+        : null;
+    if (pageAnnotations.length === 0 && !pageSourceHighlight) return;
 
     const { width, height } = textLayerRef.current.getBoundingClientRect();
     layer.style.width = `${width}px`;
@@ -350,7 +466,32 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
       });
       layer.appendChild(el);
     });
-  }, [annotations, currentPage]);
+
+    if (pageSourceHighlight) {
+      const sourceRects = Array.isArray(pageSourceHighlight.rects) && pageSourceHighlight.rects.length > 0
+        ? pageSourceHighlight.rects
+        : [pageSourceHighlight.rect];
+      const renderedSourceRects = pageSourceHighlight.coordinateSpace === 'page-normalized'
+        ? denormalizePageRects(sourceRects, { width, height })
+        : sourceRects;
+
+      renderedSourceRects.forEach((rect) => {
+        if (!rect?.width || !rect?.height) return;
+      const el = document.createElement('div');
+        el.setAttribute('data-testid', 'pdf-source-highlight');
+      el.style.position = 'absolute';
+        el.style.left = `${rect.left}px`;
+        el.style.top = `${rect.top}px`;
+        el.style.width = `${rect.width}px`;
+        el.style.height = `${rect.height}px`;
+      el.style.backgroundColor = 'rgba(244, 215, 88, 0.28)';
+      el.style.border = '2px solid var(--accent-blue, #2B7FD8)';
+      el.style.borderRadius = '3px';
+      el.style.pointerEvents = 'none';
+      layer.appendChild(el);
+      });
+    }
+  }, [annotations, currentPage, sourceHighlight]);
 
   // Listen for text selection to show floating inject button
   useEffect(() => {
@@ -361,21 +502,50 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
 
       const sel = window.getSelection();
       const text = sel.toString().trim();
-      if (text && textLayerRef.current && textLayerRef.current.contains(sel.anchorNode)) {
+      const textLayer = textLayerRef.current;
+      const scrollArea = pageScrollRef.current;
+      if (text && textLayer && scrollArea && isSelectionInsidePdfTextLayer(sel, textLayer)) {
         const range = sel.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        const containerRect = containerRef.current.getBoundingClientRect();
-        const textLayerRect = textLayerRef.current.getBoundingClientRect();
+        const visibleRects = [...range.getClientRects()].filter((item) => item.width > 0 && item.height > 0);
+        const visibleRect = visibleRects[0];
+        const rect = visibleRect || range.getBoundingClientRect();
+        if (!rect.width && !rect.height) {
+          setSelection(null);
+          return;
+        }
+
+        const scrollRect = scrollArea.getBoundingClientRect();
+        const textLayerRect = textLayer.getBoundingClientRect();
+        const pixelRects = (visibleRects.length > 0 ? visibleRects : [rect]).map((item) => ({
+          left: item.left - textLayerRect.left,
+          top: item.top - textLayerRect.top,
+          width: item.width,
+          height: item.height,
+        }));
+        const sourceRects = normalizePageRects(pixelRects, {
+          width: textLayerRect.width,
+          height: textLayerRect.height,
+        });
         setSelection({
+          documentId,
           text,
-          x: rect.left - containerRect.left + rect.width / 2,
-          y: rect.top - containerRect.top - 40,
+          page: currentPage,
+          spanId: createSelectionSpanId(documentId, currentPage, {
+            left: rect.left - textLayerRect.left,
+            top: rect.top - textLayerRect.top,
+          }, text),
+          sourceType: 'pdf-selection',
+          x: rect.left - scrollRect.left + scrollArea.scrollLeft + rect.width / 2,
+          y: rect.top - scrollRect.top + scrollArea.scrollTop - 44,
           rect: {
             left: rect.left - textLayerRect.left,
             top: rect.top - textLayerRect.top,
             width: rect.width,
             height: rect.height,
           },
+          sourceRect: sourceRects[0] || null,
+          sourceRects,
+          coordinateSpace: 'page-normalized',
         });
       } else {
         setSelection(null);
@@ -384,7 +554,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
 
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
-  }, []);
+  }, [currentPage, documentId]);
 
   const goToPage = useCallback(
     (page) => {
@@ -419,16 +589,33 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
     return () => window.removeEventListener('vibereader:navigate-paragraph', handleNavigateParagraph);
   }, [currentPage, goToPage, highlightParagraph]);
 
+  useEffect(() => {
+    const handleNavigateSourceSpan = (event) => {
+      const source = event.detail || {};
+      const hasSourceRect = Boolean(source.rect) || (Array.isArray(source.rects) && source.rects.length > 0);
+      if (!source.page || !hasSourceRect) return;
+      if (source.documentId && source.documentId !== documentId) return;
+
+      setSourceHighlight(source);
+      if (source.page !== currentPage) {
+        goToPage(source.page);
+      }
+    };
+
+    window.addEventListener('vibereader:navigate-source-span', handleNavigateSourceSpan);
+    return () => window.removeEventListener('vibereader:navigate-source-span', handleNavigateSourceSpan);
+  }, [currentPage, documentId, goToPage]);
+
   const zoomIn = useCallback(() => {
-    setZoom((z) => (z === 'fit-width' ? 1.25 : Math.min(MAX_ZOOM, z + ZOOM_STEP)));
+    setZoom((z) => (z === FIT_WIDTH_ZOOM ? 1.25 : Math.min(MAX_ZOOM, z + ZOOM_STEP)));
   }, []);
 
   const zoomOut = useCallback(() => {
-    setZoom((z) => (z === 'fit-width' ? 0.75 : Math.max(MIN_ZOOM, z - ZOOM_STEP)));
+    setZoom((z) => (z === FIT_WIDTH_ZOOM ? 0.75 : Math.max(MIN_ZOOM, z - ZOOM_STEP)));
   }, []);
 
   const zoomReset = useCallback(() => setZoom(1.0), []);
-  const zoomFitWidth = useCallback(() => setZoom('fit-width'), []);
+  const zoomFitWidth = useCallback(() => setZoom(FIT_WIDTH_ZOOM), []);
 
   const handleInject = useCallback(() => {
     if (selection && onInject) {
@@ -437,16 +624,6 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
       window.getSelection().removeAllRanges();
     }
   }, [selection, onInject]);
-
-  const handleSelectionDragStart = useCallback((event) => {
-    const payload = createDragInjectPayload({
-      text: selection?.text,
-      page: currentPage,
-      source: 'pdf-selection',
-    });
-    if (!payload) return;
-    writeDragInjectData(event.dataTransfer, payload);
-  }, [currentPage, selection]);
 
   const handleAnnotationDragStart = useCallback((event, annotation) => {
     const payload = createDragInjectPayload({
@@ -489,6 +666,35 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
     antMessage.success('已保存笔记');
   }, [currentPage, documentId, selection]);
 
+  const handleRecognizeCurrentPage = useCallback(async () => {
+    if (!canvasRef.current) return;
+
+    setOcrStatusByPage((items) => ({ ...items, [currentPage]: 'running' }));
+    try {
+      const spans = await recognizeCurrentPdfPage({
+        canvas: canvasRef.current,
+        documentId,
+        page: currentPage,
+      });
+
+      setOcrSpansByPage((items) => ({ ...items, [currentPage]: spans }));
+      setOcrStatusByPage((items) => ({ ...items, [currentPage]: 'succeeded' }));
+      if (textLayerRef.current) {
+        spans.forEach((sourceSpan) => appendOcrSpan(textLayerRef.current, sourceSpan));
+      }
+
+      if (spans.length > 0) {
+        antMessage.success(`已识别当前页 ${spans.length} 个文本片段`);
+      } else {
+        antMessage.warning('OCR 未识别出可用文字');
+      }
+    } catch (error) {
+      console.error('[PdfViewer] OCR failed:', error);
+      setOcrStatusByPage((items) => ({ ...items, [currentPage]: 'failed' }));
+      antMessage.error(error?.message || 'OCR 识别失败');
+    }
+  }, [currentPage, documentId]);
+
   const handleOutlineClick = useCallback(async (outlineItem) => {
     const pageNumber = await resolveOutlinePageNumber(pdfDoc, outlineItem);
     if (pageNumber) {
@@ -516,7 +722,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
     );
   }
 
-  if (!pdfText || !pdfFile) {
+  if (!pdfFile) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', ...style }}>
         <Empty
@@ -532,6 +738,15 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
   }
 
   const totalPages = pdfDoc ? pdfDoc.numPages : pdfPages;
+  const currentPageTextLayerReady = pageTextLayerInfo.page === currentPage;
+  const currentPageHasNativeText =
+    currentPageTextLayerReady && pageTextLayerInfo.textItemCount > 0;
+  const currentPageOcrSpans = ocrSpansByPage[currentPage] || [];
+  const currentPageNeedsOcr =
+    currentPageTextLayerReady
+    && pageTextLayerInfo.textItemCount === 0
+    && currentPageOcrSpans.length === 0;
+  const currentOcrStatus = ocrStatusByPage[currentPage] || 'idle';
 
   return (
     <div
@@ -587,7 +802,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
           </Tooltip>
           <Tooltip title="Reset zoom">
             <Button size="small" onClick={zoomReset} style={{ fontSize: 12, minWidth: 48 }}>
-              {zoom === 'fit-width' ? 'Fit' : `${Math.round((zoom || 1) * 100)}%`}
+              {zoom === FIT_WIDTH_ZOOM ? 'Fit' : `${Math.round((zoom || 1) * 100)}%`}
             </Button>
           </Tooltip>
           <Tooltip title="Zoom in">
@@ -597,6 +812,29 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
             <Button size="small" icon={<ColumnWidthOutlined />} onClick={zoomFitWidth} />
           </Tooltip>
         </div>
+
+        {pdfDoc && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--fill-tertiary)' }}>
+              {!currentPageTextLayerReady
+                ? '正在检测文字层'
+                : currentPageHasNativeText
+                ? '当前页可划词'
+                : (currentPageOcrSpans.length > 0 ? '当前页已 OCR' : '当前页没有可选文字')}
+            </span>
+            {currentPageTextLayerReady && !currentPageHasNativeText && (
+              <Button
+                size="small"
+                type={currentPageNeedsOcr ? 'primary' : 'default'}
+                loading={currentOcrStatus === 'running'}
+                disabled={currentOcrStatus === 'running'}
+                onClick={handleRecognizeCurrentPage}
+              >
+                识别当前页
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {outlineItems.length > 0 && (
@@ -618,6 +856,7 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
 
       {/* Page canvas area */}
       <div
+        ref={pageScrollRef}
         style={{
           flex: 1,
           overflow: 'auto',
@@ -627,16 +866,37 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
           position: 'relative',
         }}
       >
-        <div style={{ position: 'relative', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+        <div
+          style={{
+            position: 'relative',
+            width: pageBoxSize.width ? `${pageBoxSize.width}px` : undefined,
+            height: pageBoxSize.height ? `${pageBoxSize.height}px` : undefined,
+            flex: '0 0 auto',
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            contain: 'layout paint size',
+          }}
+        >
           <canvas ref={canvasRef} style={{ display: 'block', background: '#fff' }} />
           <div
             ref={textLayerRef}
-            draggable={!!selection}
-            onDragStart={handleSelectionDragStart}
+            onPointerDown={(event) => {
+              textPointerStartRef.current = { clientX: event.clientX, clientY: event.clientY };
+              textPointerDraggedRef.current = false;
+            }}
+            onPointerMove={(event) => {
+              if (didPointerDrag(textPointerStartRef.current, event)) {
+                textPointerDraggedRef.current = true;
+              }
+            }}
             style={{
               position: 'absolute',
               top: 0,
               left: 0,
+              overflow: 'hidden',
+              contain: 'layout paint size',
+              maxWidth: '100%',
+              maxHeight: '100%',
               pointerEvents: 'auto',
               userSelect: 'text',
             }}
@@ -685,12 +945,21 @@ export function PdfViewer({ onInject, documentId = 'current-pdf', insights = [],
         <PdfAnnotationToolbar
           selection={selection && {
             ...selection,
-            x: Math.max(8, Math.min(selection.x, (containerRef.current?.clientWidth || 400) - 420)),
-            y: Math.max(8, selection.y),
+            x: (() => {
+              const scrollArea = pageScrollRef.current;
+              const viewportWidth = scrollArea?.clientWidth || 400;
+              const scrollLeft = scrollArea?.scrollLeft || 0;
+              const minX = scrollLeft + 8;
+              const toolbarWidth = 368;
+              const maxX = scrollLeft + Math.max(8, viewportWidth - toolbarWidth);
+              return Math.max(minX, Math.min(selection.x - toolbarWidth / 2, maxX));
+            })(),
+            y: Math.max((pageScrollRef.current?.scrollTop || 0) + 8, selection.y),
           }}
           onInject={() => handleInject()}
           onHighlight={handleHighlight}
           onSaveNote={handleSaveNote}
+          onGenerateLensCard={onGenerateLensCard}
         />
       </div>
 

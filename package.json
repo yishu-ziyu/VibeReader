@@ -7,8 +7,9 @@
     "build": "vite build",
     "dev": "vite --host 127.0.0.1",
     "preview": "vite preview --host 127.0.0.1",
+    "qa:seed-model": "node scripts/seed-model-config.mjs",
     "qa:smoke": "node scripts/qa-smoke.mjs",
-    "test": "vitest run --environment jsdom --testTimeout=30000",
+    "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "tauri": "tauri",
@@ -38,6 +39,7 @@
     "slate-dom": "^0.123.0",
     "slate-history": "^0.113.1",
     "slate-react": "^0.123.0",
+    "tesseract.js": "^7.0.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

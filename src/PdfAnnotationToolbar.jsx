@@ -1,9 +1,9 @@
 import React, { useCallback, useState } from 'react';
 import { Button, Input } from 'antd';
-import { HighlightOutlined, MessageOutlined, SaveOutlined } from '@ant-design/icons';
+import { BookOutlined, HighlightOutlined, MessageOutlined, SaveOutlined } from '@ant-design/icons';
 import { t } from './i18n';
 
-export function PdfAnnotationToolbar({ selection, onInject, onHighlight, onSaveNote }) {
+export function PdfAnnotationToolbar({ selection, onInject, onHighlight, onSaveNote, onGenerateLensCard }) {
     const [note, setNote] = useState('');
 
     const handleSaveNote = useCallback(() => {
@@ -26,6 +26,14 @@ export function PdfAnnotationToolbar({ selection, onInject, onHighlight, onSaveN
             <span className="pdf-annotation-preview">{selection.text.slice(0, 30)}...</span>
             <Button
                 type="primary"
+                size="small"
+                icon={<BookOutlined />}
+                aria-label="生成卡片"
+                onClick={() => onGenerateLensCard?.(selection)}
+            >
+                生成卡片
+            </Button>
+            <Button
                 size="small"
                 icon={<MessageOutlined />}
                 aria-label="注入 AI"

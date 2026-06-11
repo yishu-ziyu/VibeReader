@@ -36,7 +36,7 @@ const initialEditorValue = [
     },
 ];
 
-function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, visionCapable, pendingInjection, onDragInjectHandled }) {
+function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, visionCapable, pendingInjection, onDragInjectHandled, configOpenSignal = 0 }) {
     const { token } = theme.useToken();
     const [form] = Form.useForm();
     const [editor] = useState(() => withReact(withHistory(createEditor())));
@@ -54,6 +54,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
     const [browserUrl, setBrowserUrl] = useState('');
     const [browserLoading, setBrowserLoading] = useState(false);
     const lastInjectionIdRef = useRef(null);
+    const lastConfigOpenSignalRef = useRef(0);
 
     // 预设选择
     const [selectedPresetKey, setSelectedPresetKey] = useState(null);
@@ -113,6 +114,12 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
             apiFormat: pick.apiFormat || 'openai'
         });
     }, [isConfigModalOpen, getCustomModelConfigs, form]);
+
+    useEffect(() => {
+        if (!configOpenSignal || configOpenSignal === lastConfigOpenSignalRef.current) return;
+        lastConfigOpenSignalRef.current = configOpenSignal;
+        setIsConfigModalOpen(true);
+    }, [configOpenSignal]);
 
     const handleSaveConfig = () => {
         form.validateFields().then(values => {

@@ -1,3 +1,9 @@
+import {
+    createPersistentAnnotation,
+    isPersistentStorageAvailable,
+    listPersistentAnnotations,
+} from './persistentStorage';
+
 const ANNOTATIONS_KEY = 'vibereader.annotations';
 
 function readAnnotations() {
@@ -26,11 +32,19 @@ export async function createAnnotation(input) {
         createdAt: Date.now(),
     };
 
+    if (isPersistentStorageAvailable()) {
+        return createPersistentAnnotation(annotation);
+    }
+
     writeAnnotations([annotation, ...readAnnotations()]);
     return annotation;
 }
 
 export async function listAnnotationsForDocument(documentId) {
+    if (isPersistentStorageAvailable()) {
+        return listPersistentAnnotations(documentId);
+    }
+
     return readAnnotations()
         .filter((annotation) => annotation.documentId === documentId)
         .sort((a, b) => b.createdAt - a.createdAt);

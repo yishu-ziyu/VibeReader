@@ -52,6 +52,7 @@ export function validateRunnableModelConfig(config) {
             modelName: model,
             apiFormat,
             apiType,
+            ...(config.authType ? { authType: config.authType } : {}),
         },
     };
 }

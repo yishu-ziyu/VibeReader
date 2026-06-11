@@ -125,7 +125,8 @@ describe('Drag-to-Inject', () => {
 
     it('drops a reader quote on the AI pane without sending it', async () => {
         document.body.innerHTML = '<div id="root"></div>';
-        await import('./App.jsx');
+        const { App } = await import('./App.jsx');
+        render(React.createElement(App));
 
         await screen.findByText('Workspace');
 

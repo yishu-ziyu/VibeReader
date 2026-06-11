@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Button,
   List,
@@ -25,14 +25,20 @@ import { useFlashcardStore, useCurrentDeck } from './store';
 import { usePdfStore } from './store';
 import { t } from './i18n';
 import aiService from './aiService';
+import {
+  isPersistentStorageAvailable,
+  listPersistentFlashcardDecks,
+  savePersistentFlashcardDecks,
+} from './services/persistentStorage';
 
 /**
  * FlashcardDeck - Deck management UI + study mode.
  *
  * Props:
+ *   - documentId: current document id for persisted decks
  *   - style: CSS style object
  */
-export function FlashcardDeck({ style = {} }) {
+export function FlashcardDeck({ documentId, style = {} }) {
   const {
     decks,
     currentDeckId,
@@ -44,6 +50,7 @@ export function FlashcardDeck({ style = {} }) {
     addCard,
     generateCards,
     resetProgress,
+    setDecks,
   } = useFlashcardStore();
 
   const currentDeck = useCurrentDeck();
@@ -55,6 +62,42 @@ export function FlashcardDeck({ style = {} }) {
   const [showAddCardModal, setShowAddCardModal] = useState(false);
   const [newCardFront, setNewCardFront] = useState('');
   const [newCardBack, setNewCardBack] = useState('');
+  const [loadedDocumentId, setLoadedDocumentId] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadedDocumentId(null);
+
+    if (!documentId || !isPersistentStorageAvailable()) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    listPersistentFlashcardDecks(documentId)
+      .then((records) => {
+        if (cancelled) return;
+        setDecks(records || []);
+        setLoadedDocumentId(documentId);
+      })
+      .catch((error) => {
+        console.warn('[FlashcardDeck] Failed to load persisted decks:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, setDecks]);
+
+  useEffect(() => {
+    if (!documentId || loadedDocumentId !== documentId || !isPersistentStorageAvailable()) {
+      return;
+    }
+
+    savePersistentFlashcardDecks(documentId, decks).catch((error) => {
+      console.warn('[FlashcardDeck] Failed to save persisted decks:', error);
+    });
+  }, [decks, documentId, loadedDocumentId]);
 
   /* ---------- deck management ---------- */
 

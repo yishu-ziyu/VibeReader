@@ -23,6 +23,27 @@ export const useDocumentStore = create((set, get) => ({
     });
   },
 
+  setDocuments: (documents = []) => {
+    set((state) => {
+      const activeRuntimeDocument = state.currentDocument;
+      const normalizedDocuments = documents.map((document) => {
+        if (activeRuntimeDocument?.id === document.id) {
+          return {
+            ...document,
+            ...activeRuntimeDocument,
+          };
+        }
+        return document;
+      });
+
+      return {
+        documents: normalizedDocuments,
+        activeDocumentId: activeRuntimeDocument ? state.activeDocumentId : null,
+        currentDocument: activeRuntimeDocument || null,
+      };
+    });
+  },
+
   setActiveDocument: (documentId) => {
     const document = get().documents.find((item) => item.id === documentId) || null;
     set({

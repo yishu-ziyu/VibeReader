@@ -25,6 +25,20 @@ export const useFlashcardStore = create(
       showAnswer: false,
       studyMode: false,
 
+      setDecks: (decks) => {
+        const nextDecks = Array.isArray(decks) ? decks : [];
+        set((state) => {
+          const currentDeckExists = nextDecks.some((deck) => deck.id === state.currentDeckId);
+          return {
+            decks: nextDecks,
+            currentDeckId: currentDeckExists ? state.currentDeckId : null,
+            currentCardIndex: 0,
+            showAnswer: false,
+            studyMode: false,
+          };
+        });
+      },
+
       // Actions - deck management
       addDeck: (title) => {
         const deck = createDefaultDeck(title);

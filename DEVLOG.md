@@ -1,5 +1,198 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 24：Task Result To Note
+
+改动：
+
+- 新增 `tasks/bdd-tdd-task-result-to-note.md`。
+- `TaskStatusPanel` 对有结果内容的 succeeded task 显示 `Save to Notes` 操作。
+- `ArtifactPanel` 支持 `reading_note` artifact 类型，显示标题和正文。
+- App 将当前文档的 Agent task result 保存为 `reading_note` artifact，并切到 Notes/Artifacts 面板。
+- 空结果 task 不显示保存入口，避免生成无内容 Notes。
+
+命令：
+
+- RED：`npm run test -- src/TaskStatusPanel.test.jsx src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` -> failed，缺少保存入口、Reading Note 展示和 App artifact 创建。
+- GREEN：`npm run test -- src/TaskStatusPanel.test.jsx src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（3 files / 31 tests）。
+- `npm run test -- src/agent/taskRunner.test.js src/TaskStatusPanel.test.jsx src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（4 files / 37 tests）。
+- `npm run test` -> pass（49 files / 246 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 保存的是 task result 的纯文本正文，还没有做 Markdown 展开、source refs 注入或完整阅读笔记模板合并。
+
+## 2026-06-11 Phase 23：Task Result Preview
+
+改动：
+
+- 新增 `tasks/bdd-tdd-task-result-preview.md`。
+- `TaskStatusPanel` 对 succeeded task 显示 `result.content` / `summary` / `text` 短预览。
+- 长结果预览有长度上限并显示省略号。
+- 没有结果内容时不显示空预览容器。
+
+命令：
+
+- RED：`npm run test -- src/TaskStatusPanel.test.jsx` -> failed，缺少 `.task-status-result`。
+- GREEN：`npm run test -- src/TaskStatusPanel.test.jsx` -> pass（1 file / 10 tests）。
+- `npm run test -- src/agent/taskRunner.test.js src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（3 files / 22 tests）。
+- `npm run test` -> pass（49 files / 242 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+- Playwright localhost smoke -> pass，`http://127.0.0.1:3217/` 可见 `VibeReader Dev` 和 `Tasks`。
+
+遗留风险：
+
+- 预览是纯文本短摘要，还没有 Markdown 展开、保存到 Notes、转 VibeCard 或 source refs 点击。
+
+## 2026-06-11 Phase 22：Paper Overview Agent Entry
+
+改动：
+
+- 新增 `tasks/bdd-tdd-paper-overview-agent-entry.md`。
+- `TaskStatusPanel` 在当前文档存在时显示 `Paper overview` 启动按钮。
+- App 从 Tasks 面板启动当前文档的 `paper_overview_agent`。
+- `paper_overview_agent` 使用现有 `runReadingAgentTask` 写入 task lifecycle。
+- 本地 deterministic paper overview model 调用 `get_current_document` / `get_document_chunks` 两个只读工具。
+- `paper_overview_agent` retry 会重建当前文档 runtime options。
+- `runReadingAgentTask` 保留调用方提供的可序列化 `payload.agentOptions`，避免把函数和 tool closure 写入持久 payload。
+
+命令：
+
+- RED：`npm run test -- src/agent/taskRunner.test.js src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> failed，缺少 `Paper overview` 按钮、App 未调用 `runReadingAgentTask`、runtime options 覆盖 serialized payload。
+- GREEN：`npm run test -- src/agent/taskRunner.test.js src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（3 files / 20 tests）。
+- `npm run test` -> pass（49 files / 240 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 这是本地 deterministic agent entry，还不是云模型 planner。
+- Agent 结果只进入 task record，尚未生成 VibeCard / Note / source refs artifact。
+
+## 2026-06-11 Phase 21：Agent Task UI Retry
+
+改动：
+
+- 新增 `tasks/bdd-tdd-agent-task-ui-retry.md`。
+- `TaskStatusPanel` 对 failed / cancelled 的 `_agent` task 显示 Retry。
+- App 对当前文档的 `_agent` task 调用 `retryReadingAgentTask(task)`。
+- `source_index` retry 继续走 `indexDocumentSourceSpans(currentDocument)`。
+
+命令：
+
+- RED：`npm run test -- src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> failed，Agent task 不显示 Retry，App 未调用 `retryReadingAgentTask`。
+- GREEN：`npm run test -- src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（2 files / 11 tests）。
+- `npm run test` -> pass（49 files / 236 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 这里接的是 retry 执行入口，还没有做用户创建 Agent task 的入口或 planner。
+
+## 2026-06-11 Phase 20：Retryable Agent Task Payload
+
+改动：
+
+- 新增 `tasks/bdd-tdd-agent-task-retry-payload.md`。
+- `runReadingAgentTask` 保存 `payload.agentOptions`，同时保留已有 payload 字段。
+- 新增 `retryReadingAgentTask`。
+- `retryReadingAgentTask` 可从 `payload` 或 `payloadJson` 解析 agent options，复用原 task identity 重跑。
+- 缺少 agent options 时抛出明确错误。
+
+命令：
+
+- RED：`npm run test -- src/agent/taskRunner.test.js src/agent/index.test.js` -> failed，未保存 `payload.agentOptions`，缺少 `retryReadingAgentTask` 和公共导出。
+- GREEN：`npm run test -- src/agent/taskRunner.test.js src/agent/index.test.js` -> pass（2 files / 6 tests）。
+- `npm run test -- src/agent/tools.test.js src/agent/permissions.test.js src/agent/runtime.test.js src/agent/taskRunner.test.js src/agent/index.test.js` -> pass（5 files / 27 tests）。
+- `npm run test` -> pass（49 files / 234 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- UI 还没有把 `_agent` task retry 接到这个 helper。
+
+## 2026-06-11 Phase 19：Agent Task Runner
+
+改动：
+
+- 新增 `tasks/bdd-tdd-agent-task-runner.md`。
+- 新增 `src/agent/taskRunner.js`。
+- `runReadingAgentTask` 会记录 `pending`、`running`、`succeeded` / `failed`。
+- Agent 返回非 completed 状态或 runner 抛错时，任务会保存为 `failed` 并保留错误信息。
+- `src/agent/index.js` 导出 task runner。
+
+命令：
+
+- RED：`npm run test -- src/agent/taskRunner.test.js src/agent/index.test.js` -> failed，缺少 `taskRunner` 模块和公共导出。
+- GREEN：`npm run test -- src/agent/taskRunner.test.js src/agent/index.test.js` -> pass（2 files / 4 tests）。
+- `npm run test -- src/agent/tools.test.js src/agent/permissions.test.js src/agent/runtime.test.js src/agent/taskRunner.test.js src/agent/index.test.js` -> pass（5 files / 25 tests）。
+- `npm run test` -> pass（49 files / 232 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- task runner 还没有接 UI planner、retry/cancel UX 或 streaming progress event。
+
+## 2026-06-11 Phase 18：Permission-gated PRD Write Tools
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-tool-registry-gated-writes.md`。
+- `createReadingTools` 暴露 `list_attention_insights`、`create_vibecard`、`create_annotation`、`export_note`。
+- `list_attention_insights` 是只读工具并默认允许。
+- `create_vibecard`、`create_annotation`、`export_note` 默认拒绝，必须同时进入 `allowedTools` 且打开对应能力 flag。
+- 写入/导出工具只委托 adapter；缺少 adapter 时抛出明确错误。
+
+命令：
+
+- RED：`npm run test -- src/agent/tools.test.js src/agent/permissions.test.js` -> failed，缺少 PRD 写入/导出工具函数、registry entries 和权限 flags。
+- GREEN：`npm run test -- src/agent/tools.test.js src/agent/permissions.test.js` -> pass（2 files / 16 tests）。
+- `npm run test -- src/agent/tools.test.js src/agent/permissions.test.js src/agent/runtime.test.js src/agent/index.test.js` -> pass（4 files / 22 tests）。
+- `npm run test` -> pass（48 files / 229 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 这些工具还没有接真实 Agent planner。
+- 写入权限 UX、任务审计日志和可恢复 execution record 仍未完成。
+
+## 2026-06-11 Phase 17：PRD Reading Tool Registry
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-tool-registry-prd-names.md`。
+- `createReadingTools` 暴露 PRD 可读工具名：`get_current_document`、`get_page_text`、`search_document`、`get_document_chunks`。
+- 保留既有 legacy 工具：`extractText`、`navigatePage`、`listAnnotations`。
+- `get_current_document` 只返回文档 metadata，不返回全文或 pages。
+- 默认权限允许 PRD 读工具，继续拒绝 `create_vibecard`、`create_annotation`、`export_note`。
+
+命令：
+
+- RED：`npm run test -- src/agent/tools.test.js src/agent/permissions.test.js` -> failed，缺少 PRD 工具函数、registry entries 和默认权限项。
+- GREEN：`npm run test -- src/agent/tools.test.js src/agent/permissions.test.js` -> pass（2 files / 12 tests）。
+- `npm run test -- src/agent/tools.test.js src/agent/permissions.test.js src/agent/runtime.test.js src/agent/index.test.js` -> pass（4 files / 18 tests）。
+- `npm run test` -> pass（48 files / 225 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（18 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 写入型工具、note export、Agent planner、Rust task executor 仍未接入。
+
 ## 2026-05-23 规划接力
 
 背景：
@@ -417,3 +610,546 @@ BDD/TDD：
 - VibeReader 不应照搬 Pi 的代码编辑 agent；应该借鉴其 agent loop 模式。
 - VibeReader 的工具边界应是 reading-only：读当前文档、取选区、查大纲、搜索文档、生成摘要/卡片/思维导图、保存批注和 artifact。
 - 后续重点是 source span grounding、context packer、bounded reading agent loop 和 artifact-centric UI。
+
+## 2026-05-31 Phase 8 Tauri Stop cancellation regression
+
+背景：
+
+- Rust 架构方向选择 C：保留 Tauri + React，但把桌面端重活和原生能力逐步下沉到 Tauri/native path。
+- 现有 Tauri AI 请求已走 `@tauri-apps/plugin-http`，但 Stop generating 的 `AbortSignal` 只覆盖浏览器 `fetch` 路径；桌面请求没有把 signal 传到原生 HTTP 插件。
+
+BDD/TDD：
+
+- 在 `tasks/bdd-tdd-phase8.md` 的“Stop generating 在 provider 路径变化后仍可用”下补充 Tauri 桌面路径约束。
+- 扩展 `src/aiService.test.js`，先观察到两个红灯：
+  - Tauri native HTTP 调用没有收到 `AbortSignal`。
+  - `@tauri-apps/plugin-http` 返回的 `Request cancelled` 被当成普通未知错误，而不是用户主动 Stop 的中断态。
+
+改动：
+
+- `src/aiService.js`：Tauri 分支调用 `tauriChatStream` 时传入 `signal`。
+- `src/tauriHttp.js`：把 `signal` 继续传给 `@tauri-apps/plugin-http`。
+- `src/aiService.js`：新增 abort-like 错误归一，兼容浏览器 `AbortError` 和 Tauri 插件的 `Request cancelled`。
+
+验证：
+
+- `npm test -- src/aiService.test.js` -> pass，4 tests。
+- `npm run test` -> pass，24 files / 102 tests。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo check` -> pass。
+
+## 2026-06-01 gstack product direction for VibeReader
+
+背景：
+
+- 明确 `/Users/mahaoxuan/gstack` 在 VibeReader 中的角色：它是开发治理层，不是运行时依赖。
+- 后续开发应使用 gstack 的 office-hours、plan review、QA、review、learn/session intelligence 思路来约束产品方向、工程边界和验收，而不是把 gstack 的技能系统直接搬进 VibeReader。
+
+落地：
+
+- 新增 `docs/GSTACK_PRODUCT_DIRECTION.md`。
+- 核心北极星：VibeReader 不是 “PDF + Chat”，而是本地优先的 source-grounded AI reading workbench。
+- 固定架构方向：保留 React + Tauri 混合架构；Rust 只下沉 native HTTP、本地索引、SQLite、向量检索等重活，不做纯 Rust GUI 重写。
+- 固定 Reading Agent 边界：只开放 reading tools，禁止第一版出现任意文件、shell、后台网页浏览或自动修改源文档能力。
+- 新增 Phase 10：Reading Agent Runtime Skeleton，下一步先做 context packer、artifact schema 和一个最小 source-grounded Lens Card。
+
+验证：
+
+- 本次只改文档和任务跟踪。
+- `git diff --check` -> pass。
+
+## 2026-06-02 Phase 10.1 Reading Agent artifact schema
+
+背景：
+
+- 按 gstack 产品方向继续推进 Phase 10：Reading Agent Runtime Skeleton。
+- 现有 `src/agent/` 已经有 context packer、reading-only tools、permissions 和 bounded runtime；本轮不重写已有骨架，只补 source-grounded artifact 契约。
+
+BDD/TDD：
+
+- 新增 `tasks/bdd-tdd-reading-agent.md`，固定选区解释、claim grounding、上下文优先级、工具边界和 runtime 边界行为。
+- 新增 `src/agent/artifact.test.js`，先跑出红灯：`./artifact` 模块不存在。
+
+改动：
+
+- 新增 `src/agent/artifact.js`：提供 `createReadingArtifact` 和 `createLensCardArtifact`。
+- artifact 保留 `documentId`、`type`、`goal`、`sourceSpanIds`、`modelId`、`createdAt`、`originalContent`、`currentContent`、`verificationStatus`。
+- claim 必须包含 `sourceSpanIds` 或显式 `inference=true`，否则拒绝生成 artifact。
+- 更新 `src/agent/index.js`，把 artifact schema 纳入 agent 公共出口。
+- 同步更新 `tasks/todo.md` 的 Phase 10 状态。
+
+验证：
+
+- `npm test -- src/agent/artifact.test.js src/agent/index.test.js` -> pass，2 files / 4 tests。
+
+旁路调研：
+
+- 用户提出 LiteParse v2 可作为 PDF 解析方向参考。本轮已派 sub agent 独立评估，不阻塞 Phase 10.1；写入范围限制在 `docs/PDF_PARSE_LITEPARSE_EVALUATION.md`。
+- 当前 PDF 解析链路确认：文本提取和视觉渲染都走 `pdfjs-dist`；Tauri/Rust 目前只负责本地文件读取、HTTP 和日志插件，没有 Rust PDF 解析命令。
+- LiteParse 建议：先做 benchmark/POC，把它作为 Rust/Tauri 后端 source span 解析候选；不直接替换现有 PDF.js viewer。
+
+## 2026-06-02 Phase 10 PDF Lens Card 闭环
+
+BDD/TDD：
+
+- 确认第一条产品闭环为：PDF 选区 -> Lens Card -> 保存 artifact -> 右侧 Artifacts 列表 -> 回到原文。
+- 红灯覆盖缺少 artifact 持久化、缺少 Lens Card agent flow、PDF 选区工具条缺少“生成卡片”、右侧 Artifacts 面板缺失。
+- 绿灯结果：定向测试 5 个文件 / 10 个用例通过。
+
+改动：
+
+- 新增 `artifactService`，用 `localStorage.vibereader.artifacts` 按 document 隔离保存 artifacts。
+- 新增 `generateLensCardArtifact`，复用 context packer，要求 claim 带 `sourceSpanIds` 或 `inference=true`。
+- `PdfViewer` 为 PDF 选区生成 `documentId/page/spanId/rect/sourceType`，并支持 `vibereader:navigate-source-span` 回跳高亮。
+- `PdfAnnotationToolbar` 新增“生成卡片”入口。
+- `App` 复用当前模型配置生成 Lens Card，但用 `includeHistory:false` 避免污染聊天历史；生成后自动切到 Artifacts tab。
+- 新增 `ArtifactPanel` 展示 Lens Card、来源标签和“回到原文”按钮。
+
+验收：
+
+- `npm test -- src/services/artifactService.test.js src/agent/lensCard.test.js src/PdfAnnotationToolbar.test.jsx src/ArtifactPanel.test.jsx src/agent/artifact.test.js` -> pass，5 files / 10 tests。
+- `npm run test` -> pass，28 files / 111 tests。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo check` -> pass。
+- `git diff --check` -> pass。
+- Playwright UI smoke -> pass，`http://127.0.0.1:3217/` 页面标题为 `VibeReader Standalone Dev`，Artifacts 空状态可见，console/pageerror 为空，截图 `/tmp/vibereader-artifacts-smoke.png`。
+
+遗留风险：
+
+- 真实模型生成仍依赖用户已配置可用 API key。
+- 当前来源回跳以 PDF 页内选区 rect 高亮为主，后续可扩展为更稳定的 PDF text span 精确定位。
+
+## 2026-06-02 PDF 阅读区自适应修复
+
+问题：
+
+- PDF Viewer 加载 PDF 和切换文档时默认 `zoom=1.0`，只在用户手动点击 Fit Width 后才适配阅读栏宽度。
+- 分栏或窗口尺寸变化时，没有重新计算 fit-width 画布尺寸，容易出现横向滚动和右侧被裁切。
+- Notion 导出的 PDF 透明 text layer 可能出现远大于 canvas 的 `scrollWidth`，触发 Fit Width / ResizeObserver 的宽度反馈，表现为页面反复缩放或抽搐。
+
+改动：
+
+- `PdfViewer` 默认使用 Fit Width。
+- 打开 PDF 和切换文档时重置为 Fit Width。
+- 增加 `ResizeObserver` 监听阅读栏宽度变化，在 Fit Width 模式下重渲染 PDF。
+- 透明 text layer 增加 `overflow: hidden`，防止不可见文本层撑大外层滚动宽度。
+- 保留手动放大、缩小、100% reset 和 Fit Width 控件。
+- 新增回归测试确认 PDF Viewer 默认显示 `Fit`，并确认 text layer clipping 存在。
+
+验收：
+
+- `npm test -- src/services/documentIsolation.test.jsx` -> pass，1 file / 4 tests。
+- `npm run test` -> pass，28 files / 113 tests。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo check` -> pass。
+- `git diff --check` -> pass。
+- Playwright PDF smoke -> pass，上传 `demo-assets/outline-demo.pdf` 后默认 `Fit` 可见，canvas 930px <= 滚动容器 962px，外层 `scrollWidth=962`，`hasHorizontalOverflow=false`，console/pageerror 为空，截图 `/tmp/vibereader-fit-width-smoke.png`。
+- Playwright 复现 smoke -> pass，上传 `/Users/mahaoxuan/Downloads/欧游notion pdf.pdf` 后 20 次采样 canvas 宽度稳定为 810，外层 `scrollWidth=842/clientWidth=842`，console/pageerror 为空，截图 `/tmp/vibereader-ouyou-notion-repro-final.png`。
+
+## 2026-06-02 项目图标替换
+
+来源：
+
+- 用户下载目录中的 `ChatGPT Image Jun 2, 2026, 03_47_04 PM.png`，与截图中的书本图标一致。
+
+改动：
+
+- 替换 `icons/vibero.png`，用于应用内侧边栏和空状态品牌图。
+- 新增 `public/favicon.png`，并在 `index.html` 接入 `rel=icon` 和 `apple-touch-icon`。
+- 运行 Tauri icon 生成，覆盖 `src-tauri/icons/` 下 macOS、Windows、iOS、Android 图标资源。
+
+验收：
+
+- `curl -I http://127.0.0.1:3217/favicon.png` -> 200，`Content-Type: image/png`。
+- `file public/favicon.png icons/vibero.png src-tauri/icons/icon.icns src-tauri/icons/icon.png` -> favicon/侧边栏图标为 1254x1254 PNG，Tauri icon 为有效 icns / 512x512 PNG。
+- `npm run build` -> pass，`dist/index.html` 保留 favicon / apple-touch-icon 链接。
+
+## 2026-06-02 Phase 11 Web 工作区三栏布局
+
+产品决策：
+
+- Web 端先做成真实可用产品，再推进 Tauri App / Rust 强化。
+- Skim Map 和 Lens Card 是不同区域：Skim Map 作为阅读纸面的左边注，Lens Cards 放在右侧 Notes。
+- 用户纠偏：Skim Map 不能和 Reader 做成两张独立卡片，要像读报纸/文章时在正文旁边做笔记。
+- 右侧不再把工程词 `Artifacts` 暴露为用户入口，改为 `Notes`。
+- Skim Map 第一版不默认调用 LLM，只保留显式生成入口。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-phase11-web-closure.md`，记录 Web 端三栏布局 BDD。
+- 新增 `src/WorkspaceLayout.test.jsx`，覆盖 Skim Map、Reader、Notes 的布局顺序和右侧文案。
+- `App.jsx` 新增 `workspace-reading-surface`，把左侧 `Skim Map` 边注和 PDF Reader 合并为同一张阅读纸面，右侧 Notes 承载 Lens Cards。
+- 移除右侧“思维树”tab，旧持久化 `mindmap` tab 自动迁移到 Notes，避免更新后空白。
+- `ThinkingTreePanel` 支持传入标题、生成按钮和进度文案，并在空文档状态也显示面板标题。
+- `styles.css` 增加 reading surface、Skim Map 边注宽度和窄屏堆叠规则；Skim Map / Reader 不再各自拥有独立卡片阴影和外边距。
+- `tasks/lessons.md` 记录 Skim Map / Lens Card 分区修正。
+
+验收：
+
+- RED：`npm run test -- src/WorkspaceLayout.test.jsx` 先失败，缺少 `Skim Map` complementary 区域且右侧仍为 `Artifacts`。
+- GREEN：`npm run test -- src/WorkspaceLayout.test.jsx src/ThinkingTreePanel.test.jsx` -> pass，2 files / 5 tests。
+- 相邻回归：`npm run test -- src/WorkspaceLayout.test.jsx src/ArtifactPanel.test.jsx src/ThinkingTreePanel.test.jsx src/dragInject.test.js` -> pass，4 files / 10 tests。
+- 全量：`npm run test` -> pass，29 files / 114 tests。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- 格式：`git diff --check` -> pass。
+- Playwright Web smoke：`http://127.0.0.1:3217/` 中 Skim Map 和 Reader 共享同一 `workspace-reading-surface`；右侧 tab 包含 `Notes`，不包含 `Artifacts`；Skim Map 标题可见；console/pageerror 为空；截图 `/tmp/vibereader-web-embedded-skim-map.png`。
+
+遗留风险：
+
+- 本切片只覆盖空文档和结构布局；真实 PDF 选区 -> Lens Card -> Notes -> 回到原文的 Web smoke 仍需下一切片继续跑通。
+- 窄屏布局有 CSS 降级规则，但尚未做 Playwright 多 viewport 截图验收。
+
+## 2026-06-02 PDF Fit Width 抽搐回归修复
+
+问题：
+
+- 用户上传 `工业机器人应用、制造业就业转移与劳动者健康-蔚金霞.pdf` 后，PDF 页面会持续向放大方向抽搐。
+- 诊断采样发现该 PDF 的透明 text layer `scrollWidth=18553`，而 canvas 实际宽度只有 `474`。
+- 如果 text layer 或 page shell 参与外层布局，Fit Width 的 ResizeObserver 会收到被渲染结果反向影响的宽度，形成重新测宽 -> 重新渲染 -> 再测宽的反馈风险。
+
+改动：
+
+- `PdfViewer` 新增 `pageScrollRef`，Fit Width 只测量稳定的 PDF 滚动区 `clientWidth`，不再依赖可能被 canvas/text layer 影响的根容器宽度。
+- 新增 `pageBoxSize`，由 pdf.js viewport 直接驱动 page shell 的固定宽高。
+- page shell 设置 `overflow: hidden` 和 `contain: layout paint size`，透明 text layer 设置同样 containment，并限制 max width/height。
+- 扩展 `documentIsolation.test.jsx`，断言 text layer 和 page shell 都被 layout/paint/size containment 隔离。
+
+验收：
+
+- `npm run test -- src/services/documentIsolation.test.jsx` -> pass，1 file / 4 tests。
+- Playwright PDF smoke：上传 `/Users/mahaoxuan/Desktop/学术road/工业机器人应用、制造业就业转移与劳动者健康-蔚金霞.pdf` 后 40 次采样，canvas 宽度恒定 `474`，page shell 宽度恒定 `474`，scroll area `scrollWidth` 恒定 `506`，console/pageerror 为空；截图 `/tmp/vibereader-industrial-robot-fit-debug.png`。
+- `npm run test` -> pass，29 files / 114 tests。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 当前 smoke 覆盖桌面 viewport；窄屏、多浏览器缩放比例下的 Fit Width 稳定性仍需纳入后续 viewport QA。
+
+## 2026-06-02 PDF 划词体验修复
+
+问题：
+
+- 用户反馈 PDF 划词体验很糟糕。
+- 真实鼠标拖拽复现发现，选区会混入侧栏、Workspace 标题和 Skim Map 文本。
+- 坐标诊断发现部分透明 text span 的命中宽度被拉到几千到上万像素，超出 PDF 页面边界，导致浏览器原生 selection 扫到阅读器外的 UI 文本。
+
+参考方向：
+
+- 对照成熟开源 PDF 阅读器模式：PDF text layer 只负责原生文字选择；选中后的高亮、按钮、提示使用 overlay；选区判定围绕 text layer / selection region，而不是外层工作台。
+- 当前切片只嫁接交互结构，不引入新 PDF viewer 依赖，不改变现有 Lens Card / 注入 AI / 高亮 / 保存笔记入口。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-pdf-selection-ux.md`，明确划词优先于段落点击、跨 span 选区有效、工具条不打断选区。
+- `pdfSelection` 新增 `isSelectionInsidePdfTextLayer` 和 `didPointerDrag`，避免只检查 `selection.anchorNode`。
+- `PdfViewer` 将 selection 判断改为 Range 与 PDF text layer 相交；跨行、跨 span、反向选择都能保留。
+- 段落点击增加拖拽/已有选区保护，避免划词动作误触发 `vibereader:select-paragraph`。
+- 移除 text layer 的 `draggable`，保留批注列表拖拽，避免原生划词被 drag-start 抢断。
+- 约束 PDF text span 的命中盒：按 `item.width * viewport.scale` 计算目标宽度，并用 inline-block/overflow hidden 限制异常超宽 span。
+- 工具条坐标改为相对 PDF 滚动区，并按实际工具条宽度 clamp 到可见范围内。
+
+验收：
+
+- RED：`npm run test -- src/pdfSelection.test.js` 先失败，缺少 text layer 交集判断和拖拽判断 helper。
+- GREEN：`npm run test -- src/pdfSelection.test.js` -> pass，1 file / 5 tests。
+- 定向回归：`npm run test -- src/pdfSelection.test.js src/services/documentIsolation.test.jsx src/PdfAnnotationToolbar.test.jsx src/dragInject.test.js` -> pass，4 files / 13 tests。
+- Playwright 真实 PDF 鼠标拖拽：上传 `/Users/mahaoxuan/Desktop/学术road/工业机器人应用、制造业就业转移与劳动者健康-蔚金霞.pdf` 后，选中 160 字纯 PDF 正文，不混入 `VibeReader Dev`、`Sessions`、`Workspace`、`Skim Map`；工具条在 PDF 滚动区内；异常超宽 text span 数量为 0；console/pageerror 为空；截图 `/tmp/vibereader-pdf-selection-drag.png`。
+- `npm run test` -> pass，29 files / 117 tests。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本切片验证了真实桌面 viewport 的 PDF 划词；窄屏和浏览器缩放比例下的划词工具条位置仍应纳入后续 viewport QA。
+
+## 2026-06-02 PDF 当前页 OCR 入口
+
+产品规则：
+
+- 非纯文字 PDF 不再直接进入“无法提取 PDF text”的空状态；只要 PDF.js 能渲染 canvas，用户就能先读页面。
+- OCR 是显式动作：当前页没有可选文字层时显示“识别当前页”，不自动开始识别，也不自动调用 LLM。
+- OCR 输出必须进入同一套 source span 体系，包含 `documentId`、`page`、`bbox`、`source=ocr`、`engine`、`confidence`，后续 Lens Card 和回到原文可以复用。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-pdf-ocr-current-page.md`，记录扫描 PDF / 显式 OCR / source span 三条 BDD 行为。
+- 新增 `src/ocrSourceSpans.js`，把 OCR words 标准化为 page-bound source spans，并过滤空文本和零面积 bbox。
+- 新增 `src/services/ocrService.js`，Web 端使用 `tesseract.js` 的 `createWorker(language)` + `worker.recognize(canvas)`，完成后释放 worker。
+- `PdfViewer` 在空文字层 PDF 下仍显示阅读器；当前页无文字层时显示“识别当前页”；OCR 成功后把透明文本 span 叠加进 PDF text layer。
+- 新增 `src/services/ocrService.test.js`、`src/ocrSourceSpans.test.js`、`src/PdfOcrCurrentPage.test.jsx`。
+
+验收：
+
+- 定向 OCR 测试：`npm run test -- src/services/ocrService.test.js src/ocrSourceSpans.test.js src/PdfOcrCurrentPage.test.jsx` -> pass，3 files / 5 tests。
+- 全量测试：`npm run test` -> pass，32 files / 122 tests。
+- 运行时 API 检查：`tesseract.js` 的 `createWorker` 存在。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- 格式：`git diff --check` -> pass。
+
+遗留风险：
+
+- 当前只做“当前页 OCR”，不做全文批量 OCR。
+- Web 端首次 OCR 需要加载语言数据，速度和离线能力后续再优化；桌面端 LiteParse/Rust 仍是后续增强路线。
+
+## 2026-06-02 PDF 文字层状态反馈
+
+问题：
+
+- 用户上传一份有文字层的 PDF 后，Skim Map 和 Paper Summary 都没有自动生成，阅读器也没有解释当前页状态，视觉上像“啥也没有”。
+- OCR 入口此前只在无文字层时出现；已有文字层时虽然可以划词，但缺少明确反馈。
+
+改动：
+
+- `PdfViewer` 在 PDF 加载后立即显示“正在检测文字层”。
+- 当前页有 PDF 原生文字层时显示“当前页可划词”，并隐藏 OCR 按钮。
+- 当前页无文字层时显示“当前页没有可选文字”和“识别当前页”按钮。
+- 扩展 `PdfOcrCurrentPage.test.jsx`，覆盖有文字层时不出现 OCR 入口。
+
+验收：
+
+- `npm run test -- src/PdfOcrCurrentPage.test.jsx` -> pass，1 file / 3 tests。
+- `npm run test -- --no-file-parallelism src/PdfOcrCurrentPage.test.jsx src/WorkspaceLayout.test.jsx src/dragInject.test.js` -> pass，3 files / 7 tests。
+- `npm run test` -> pass，32 files / 123 tests。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `git diff --check` -> pass。
+- Playwright Web smoke：上传 `/Users/mahaoxuan/Downloads/「词元工坊」赛道命题解读.pdf` 后显示“当前页没有可选文字”和“识别当前页”；截图 `output/playwright/pdf-upload-state.png`。
+- Playwright Web smoke：上传 `/Users/mahaoxuan/Downloads/iFinD HTTP API 用户手册.pdf` 后显示“当前页可划词”，不显示 OCR 按钮；截图 `output/playwright/pdf-native-text-state.png`。
+
+## 2026-06-11 Phase 12 Rust Source Index Foundation
+
+产品规则：
+
+- Rust 先接管 source span / local search substrate，不替换 React/PDF.js 渲染。
+- Web-first 路径继续可用；浏览器 runtime 下 source index bridge 安全空返回。
+- 当前切片只建立 Rust-backed source span 表和搜索命令，不把 Chat 默认切到 Rust 检索。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-rust-source-index.md`，记录 source span replace/search/list 的 BDD/TDD 行为。
+- Rust SQLite 新增 `source_spans` 表，保存 `document_id`、`page`、`paragraph_id`、`chunk_id`、`text`、`normalized_text`、`order_index`、`source_type`、`metadata_json`。
+- Rust storage core 新增 `replace_source_spans`、`list_source_spans`、`search_source_spans`。
+- Tauri commands 新增 `storage_replace_source_spans`、`storage_list_source_spans`、`storage_search_source_spans`。
+- 前端 persistent storage bridge 新增 `replacePersistentSourceSpans`、`listPersistentSourceSpans`、`searchPersistentSourceSpans`。
+
+验收：
+
+- RED：`cargo test --test storage_core source_spans` 先失败于缺少 `SourceSpanInput` 和 source span storage 方法。
+- RED：`npm run test -- src/services/persistentStorage.test.js` 先失败于缺少 source span bridge functions。
+- GREEN：`cargo test --test storage_core source_spans` -> pass，2 tests。
+- GREEN：`npm run test -- src/services/persistentStorage.test.js` -> pass，4 tests。
+- 相关 JS 验证：`npm run test -- src/services/persistentStorage.test.js src/retrievalContext.test.js` -> pass，2 files / 12 tests。
+- 全量测试：`npm run test` -> pass，46 files / 199 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Rust 标准验证：`cd src-tauri && cargo clean && cargo check && cargo test` -> pass；清掉旧 target 中 stale absolute path 缓存后，15 storage tests + 1 command test 通过。
+
+遗留风险：
+
+- 解析后的 chunks 尚未自动写入 `source_spans` 表。
+- Chat 仍默认使用现有 JS retrieval；后续需要在 Tauri runtime 下接入 Rust search 作为可选或默认 retrieval backend。
+
+## 2026-06-11 Phase 12 Rust Source Index Bridge
+
+产品规则：
+
+- Tauri runtime 下 Chat retrieval 优先使用 Rust source index。
+- 浏览器 runtime 不调用 Rust storage，继续使用现有 JS retrieval。
+- Rust index 为空或不可用时必须回退 JS retrieval，不能让 Chat 丢失文档上下文。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-rust-source-index-bridge.md`，记录 source index bridge 的 BDD/TDD 行为。
+- 新增 `src/services/sourceIndexService.js`，负责 retrieval chunks 到 source spans 的映射、Tauri source index 写入、Rust search，以及 JS fallback。
+- `src/retrievalContext.js` 抽出 `buildRetrievalContextFromChunks` 和 `sourceIdForChunk`，让 Rust search 结果复用现有 prompt/sourceRefs 格式。
+- `src/App.jsx` 将 Chat retrieval 从同步 `buildRetrievalContext` 切换到异步 `buildIndexedRetrievalContext`。
+- `src/App.retrievalContext.test.jsx` 的 persistentStorage mock 补齐 source span bridge，确保浏览器测试路径仍按 JS fallback 验证。
+
+验收：
+
+- RED：`npm run test -- src/services/sourceIndexService.test.js` 先失败于缺少 `sourceIndexService`。
+- GREEN：`npm run test -- src/services/sourceIndexService.test.js src/App.retrievalContext.test.jsx` -> pass，2 files / 14 tests。
+- 回归：`npm run test -- src/retrievalContext.test.js src/services/persistentStorage.test.js src/services/sourceIndexService.test.js src/App.retrievalContext.test.jsx` -> pass，4 files / 26 tests。
+
+遗留风险：
+
+- 当前 Tauri Chat 提问时会即时重建当前文档 source index；后续应在文档打开或解析完成后建立索引状态，避免长文档重复写库。
+
+## 2026-06-11 Phase 12 Source Index Cache
+
+产品规则：
+
+- 同一文档版本在当前 renderer session 内连续提问，不应重复 replace `source_spans`。
+- 同一 `documentId` 的正文或版本签名变化后，必须重建 source index，避免 stale source refs。
+- 显式 `indexDocumentSourceSpans()` 保留 force-write 语义，供后续文档打开/解析完成时主动索引。
+
+改动：
+
+- `tasks/bdd-tdd-rust-source-index-bridge.md` 补充 source index cache / cache invalidation 行为。
+- `src/services/sourceIndexService.js` 新增文档 source index signature，包含 `id`、`fingerprint`、`updatedAt`、`size`、`kind`、`maxCharsPerChunk` 和正文 hash。
+- `buildIndexedRetrievalContext()` 改为通过 `ensureDocumentSourceIndex()` 写入索引，同一签名只写一次。
+- 新增 `clearSourceIndexCache()`，用于测试、文档删除或后续索引失效入口。
+
+验收：
+
+- RED：`npm run test -- src/services/sourceIndexService.test.js` 先失败于缺少 `clearSourceIndexCache`。
+- GREEN：`npm run test -- src/services/sourceIndexService.test.js` -> pass，1 file / 7 tests。
+- 回归：`npm run test -- src/services/sourceIndexService.test.js src/App.retrievalContext.test.jsx src/retrievalContext.test.js src/services/persistentStorage.test.js` -> pass，4 files / 28 tests。
+- 全量测试：`npm run test` -> pass，47 files / 206 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass，15 storage tests + 1 command test。
+- 格式：`git diff --check` -> pass。
+
+遗留风险：
+
+- 缓存目前只在 renderer session 内有效；应用重启后首次提问仍会重建当前文档索引。后续应把 `indexSignature/indexedAt` 落到 SQLite 或 document metadata，并在文档打开/解析完成时主动调度索引。
+
+## 2026-06-11 Phase 12 Persistent Source Index Status
+
+产品规则：
+
+- Source index freshness 必须能跨 renderer session 判断，不应只依赖内存缓存。
+- 文档打开/解析完成后应主动调度 source span indexing；Chat retrieval 只保留兜底 ensure。
+- 打开文档时索引失败不得阻断阅读器打开。
+
+改动：
+
+- Rust SQLite 新增 `source_index_status` 表，字段为 `document_id`、`index_signature`、`span_count`、`indexed_at`、`updated_at`。
+- Rust storage core 新增 `SourceIndexStatusInput` / `SourceIndexStatusRecord`、`upsert_source_index_status`、`load_source_index_status`。
+- Tauri commands 新增 `storage_upsert_source_index_status` / `storage_load_source_index_status` 并注册到 handler。
+- 前端 `persistentStorage` 新增 `savePersistentSourceIndexStatus` / `loadPersistentSourceIndexStatus`。
+- `sourceIndexService` force-write source spans 后保存 index status；renderer cache miss 时先读取 SQLite status，签名一致则跳过 replace。
+- `App` 在文档进入 workspace 后非阻塞调用 `indexDocumentSourceSpans(document)`，让索引成为文档 ingestion 的一部分。
+
+验收：
+
+- RED：`cargo test --test storage_core source_index_status` 先失败于缺少 `SourceIndexStatusInput` 和 source index status storage 方法。
+- RED：`npm run test -- src/services/persistentStorage.test.js` 先失败于缺少 `loadPersistentSourceIndexStatus` / `savePersistentSourceIndexStatus`。
+- RED：`npm run test -- src/services/sourceIndexService.test.js` 先失败于 renderer cache 清空后仍重复 replace source spans。
+- RED：`npm run test -- src/WorkspaceLayout.test.jsx` 先失败于打开文档后未调用 `indexDocumentSourceSpans`。
+- GREEN：`cargo test --test storage_core source_index_status` -> pass，1 filtered test。
+- 组合回归：`npm run test -- src/services/sourceIndexService.test.js src/services/persistentStorage.test.js src/WorkspaceLayout.test.jsx src/App.retrievalContext.test.jsx src/retrievalContext.test.js` -> pass，5 files / 32 tests。
+
+遗留风险：
+
+- 当前索引调度仍是 fire-and-forget，没有后台任务进度、取消或失败状态 UI；后续应接入 Rust task queue / progress event。
+
+## 2026-06-11 Phase 13 Rust Task State Foundation
+
+产品规则：
+
+- 长任务状态必须可持久恢复，不能只存在于前端临时 spinner。
+- Task status 必须是封闭集合：`pending`、`running`、`succeeded`、`failed`、`cancelled`。
+- 浏览器 runtime 继续 no-op，不阻塞 Web-first 开发路径。
+- source indexing 失败必须写入 failed 状态，同时不能阻断文档打开。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-task-state.md`，记录 Rust task state 的 BDD/TDD 行为。
+- Rust SQLite 新增 `task_records` 表，保存任务类型、状态、进度、payload/result/error 和生命周期时间戳。
+- Rust storage core 新增 `TaskInput` / `TaskRecord`、`upsert_task`、`load_task`、`list_tasks`，并校验 task status。
+- Tauri commands 新增 `storage_upsert_task` / `storage_load_task` / `storage_list_tasks` 并注册到 handler。
+- 前端 persistent storage bridge 新增 `savePersistentTask` / `loadPersistentTask` / `listPersistentTasks`。
+- `indexDocumentSourceSpans` 开始记录 `source_index` 任务生命周期：运行中、成功、失败。
+
+验收：
+
+- RED：`cargo test --test storage_core task` 先失败于缺少 `TaskInput` 和 task storage 方法。
+- RED：`npm run test -- src/services/persistentStorage.test.js` 先失败于缺少 task bridge functions。
+- RED：`npm run test -- src/services/sourceIndexService.test.js` 先失败于没有记录 source indexing task state。
+- GREEN：`cargo test --test storage_core task` -> pass，2 filtered tests。
+- GREEN：`npm run test -- src/services/persistentStorage.test.js` -> pass，1 file / 4 tests。
+- GREEN：`npm run test -- src/services/sourceIndexService.test.js` -> pass，1 file / 10 tests。
+- 全量测试：`npm run test` -> pass，47 files / 210 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Rust 标准验证：`cd src-tauri && cargo fmt && cargo fmt --check && cargo check && cargo test` -> pass，18 storage tests + 1 command test。
+
+遗留风险：
+
+- 这仍是 task state foundation，不是完整后台队列；还没有 UI 进度、取消按钮、任务事件流、重试入口。
+- Summary、Attention、Agent 阅读任务尚未迁入统一 task state。
+
+## 2026-06-11 Phase 14 Task State UI and Reading Task Adoption
+
+产品规则：
+
+- Summary 和 Attention 都是阅读任务，不能只靠组件内 loading 状态。
+- 用户需要在右侧工具区看到当前文档发生过哪些阅读任务、任务状态和失败原因。
+- 本切片只做 task snapshot UI，不做 retry/cancel/executor。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-task-state-ui.md`，记录 Summary、Attention 和 Tasks 面板的 BDD/TDD 行为。
+- `SummaryCard` 生成摘要时写入 `section_summary` task：`running`、`succeeded`、`failed`。
+- `AttentionNavigatorPanel` 分析关键位置时写入 `attention_analysis` task：`running`、`succeeded`、`failed`。
+- 新增 `TaskStatusPanel`，按当前 `documentId` 读取 `listPersistentTasks`，展示 title、type、status、progress 和 errorMessage。
+- `App` 右侧工具区新增 `Tasks` tab。
+
+验收：
+
+- RED：`npm run test -- src/SummaryCard.test.jsx` 先失败于没有记录 `section_summary` task state。
+- RED：`npm run test -- src/AttentionNavigatorPanel.test.jsx` 先失败于没有记录 `attention_analysis` task state。
+- RED：`npm run test -- src/TaskStatusPanel.test.jsx` 先失败于缺少 `TaskStatusPanel`。
+- GREEN：`npm run test -- src/SummaryCard.test.jsx src/AttentionNavigatorPanel.test.jsx src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass，4 files / 19 tests。
+- 全量测试：`npm run test` -> pass，48 files / 216 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass，18 storage tests + 1 command test。
+
+遗留风险：
+
+- Tasks 面板目前不会实时订阅任务事件，切到面板时读取当前快照。
+- 还没有 retry、cancel、后台 executor 或 progress event；后续 Phase 应继续推进 task runtime。
+
+## 2026-06-11 Phase 15 Task Live Refresh
+
+产品规则：
+
+- Task 状态写入成功后，当前渲染进程里的 Tasks 面板应该自动看到更新。
+- Task update 事件必须按 `documentId` 隔离，不能刷新其它文档的任务列表。
+- 本切片只做 renderer-local refresh event，不做 Rust progress event stream、retry/cancel 或 executor。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-task-live-refresh.md`，记录 task live refresh 的 BDD/TDD 行为。
+- `persistentStorage` 导出 `TASK_UPDATED_EVENT`，`savePersistentTask` 在 Tauri command 成功返回后派发本地事件。
+- `TaskStatusPanel` 监听 `TASK_UPDATED_EVENT`，仅在事件 `documentId` 等于当前文档时重新调用 `listPersistentTasks(documentId)`。
+- `TaskStatusPanel` 忽略其它文档的 task update 事件，保持多文档隔离。
+
+验收：
+
+- RED：`npm run test -- src/services/persistentStorage.test.js src/TaskStatusPanel.test.jsx` 先失败于没有 task update 事件和面板订阅。
+- GREEN：`npm run test -- src/services/persistentStorage.test.js src/TaskStatusPanel.test.jsx` -> pass，2 files / 9 tests。
+- 全量测试：`npm run test` -> pass，48 files / 219 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass，18 storage tests + 1 command test。
+
+遗留风险：
+
+- 当前事件只覆盖同一 renderer 内的即时刷新；未来 Rust 后台任务、跨窗口进度、取消和重试仍需要正式 task runtime。
+
+## 2026-06-11 Phase 16 Source Index Task Retry
+
+产品规则：
+
+- 失败的 source indexing 任务应该有明确恢复入口。
+- Retry 必须触发真实已有能力，不能只改 UI 或伪造 task 状态。
+- 只为已有 executor 的 `source_index` 接入重试；Summary / Attention 暂不显示假的 retry/cancel。
+- Retry 必须保持文档隔离，只重试当前文档的 task。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-task-source-index-retry.md`，记录 source index retry 的 BDD/TDD 行为。
+- `TaskStatusPanel` 对 failed / cancelled 的 `source_index` task 显示 Retry 操作。
+- 点击 Retry 后，`TaskStatusPanel` 调用 `onRetryTask(task)`，保留完整 task record。
+- `App` 新增 `handleRetryTask`，只在 task 属于当前文档且类型为 `source_index` 时调用 `indexDocumentSourceSpans(currentDocument)`。
+
+验收：
+
+- RED：`npm run test -- src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` 先失败于缺少 Retry 按钮和 App retry callback。
+- GREEN：`npm run test -- src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass，2 files / 9 tests。
+- 全量测试：`npm run test` -> pass，48 files / 221 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass，18 storage tests + 1 command test。
+
+遗留风险：
+
+- 这仍不是通用 task executor；Summary / Attention retry、真实 cancellation token、跨窗口 progress event 仍需后续 task runtime。

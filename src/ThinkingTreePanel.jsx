@@ -13,6 +13,10 @@ import {
   expandTreeToParagraph,
   scrollTreeToNode,
 } from './bidirectionalAnchor';
+import {
+  loadPersistentThinkingTree,
+  savePersistentThinkingTree,
+} from './services/persistentStorage';
 
 const SUMMARY_MAX_LENGTH = 50;
 const POINT_MAX_LENGTH = 20;
@@ -165,7 +169,16 @@ function ThinkingTreeNode({ node, depth, expandedIds, onToggle, onParagraphClick
   );
 }
 
-export function ThinkingTreePanel({ onAskAI, onNavigateToParagraph, activeParagraphId, style = {} }) {
+export function ThinkingTreePanel({
+  documentId,
+  onAskAI,
+  onNavigateToParagraph,
+  activeParagraphId,
+  title,
+  generateLabel = '生成思维树',
+  progressText = '正在生成段落级思维树...',
+  style = {},
+}) {
   const { pdfText, pdfParsing } = usePdfStore();
   const { vibeData } = useVibeStore();
   const [tree, setTree] = useState(null);
@@ -173,11 +186,35 @@ export function ThinkingTreePanel({ onAskAI, onNavigateToParagraph, activeParagr
   const [progress, setProgress] = useState(0);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const treeContentRef = useRef(null);
+  const panelTitle = title || t('ai-chat-thinking-tree-title', null, '思维树');
 
   useEffect(() => {
+    let cancelled = false;
+
     setTree(null);
     setExpandedIds(new Set());
-  }, [pdfText, vibeData]);
+
+    if (!documentId || !pdfText) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    loadPersistentThinkingTree(documentId)
+      .then((record) => {
+        if (cancelled || !record?.treeJson) return;
+        const persistedTree = JSON.parse(record.treeJson);
+        setTree(persistedTree);
+        setExpandedIds(new Set(collectExpandableIds(persistedTree)));
+      })
+      .catch((error) => {
+        console.warn('[ThinkingTreePanel] Failed to load persisted tree:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, pdfText, vibeData]);
 
   // Expand tree and scroll to node when a paragraph is selected from PdfViewer
   useEffect(() => {
@@ -204,9 +241,14 @@ export function ThinkingTreePanel({ onAskAI, onNavigateToParagraph, activeParagr
     const defaultExpanded = new Set(collectExpandableIds(nextTree));
     setTree(nextTree);
     setExpandedIds(defaultExpanded);
+    if (documentId) {
+      savePersistentThinkingTree(documentId, nextTree).catch((error) => {
+        console.warn('[ThinkingTreePanel] Failed to persist tree:', error);
+      });
+    }
     setProgress(100);
     setGenerating(false);
-  }, [pdfText, vibeData]);
+  }, [documentId, pdfText, vibeData]);
 
   const handleToggle = useCallback((nodeId) => {
     setExpandedIds((current) => {
@@ -224,38 +266,48 @@ export function ThinkingTreePanel({ onAskAI, onNavigateToParagraph, activeParagr
     [onNavigateToParagraph]
   );
 
+  const renderHeader = () => (
+    <div className="thinking-tree-header">
+      <div className="thinking-tree-title">
+        <BranchesOutlined />
+        <span>{panelTitle}</span>
+      </div>
+      {tree && <Tag>{tree.children.length} sections</Tag>}
+    </div>
+  );
+
   if (pdfParsing) {
     return (
-      <div className="thinking-tree-empty" style={style}>
-        <Spin size="small" />
-        <div className="thinking-tree-muted">{t('ai-chat-pdf-parsing')}</div>
+      <div className="thinking-tree-panel" style={style}>
+        {renderHeader()}
+        <div className="thinking-tree-empty">
+          <Spin size="small" />
+          <div className="thinking-tree-muted">{t('ai-chat-pdf-parsing')}</div>
+        </div>
       </div>
     );
   }
 
   if (!pdfText) {
     return (
-      <div className="thinking-tree-empty" style={style}>
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('ai-chat-no-pdf-context')} />
+      <div className="thinking-tree-panel" style={style}>
+        {renderHeader()}
+        <div className="thinking-tree-empty">
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('ai-chat-no-pdf-context')} />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="thinking-tree-panel" style={style}>
-      <div className="thinking-tree-header">
-        <div className="thinking-tree-title">
-          <BranchesOutlined />
-          <span>{t('ai-chat-thinking-tree-title', null, '思维树')}</span>
-        </div>
-        {tree && <Tag>{tree.children.length} sections</Tag>}
-      </div>
+      {renderHeader()}
 
       {!tree && !generating && (
         <div className="thinking-tree-generate">
           <FileTextOutlined className="thinking-tree-generate-icon" />
           <Button type="primary" icon={<BranchesOutlined />} onClick={handleGenerate}>
-            生成思维树
+            {generateLabel}
           </Button>
         </div>
       )}
@@ -263,7 +315,7 @@ export function ThinkingTreePanel({ onAskAI, onNavigateToParagraph, activeParagr
       {generating && (
         <div className="thinking-tree-progress">
           <Spin size="small" />
-          <div className="thinking-tree-muted">正在生成段落级思维树...</div>
+          <div className="thinking-tree-muted">{progressText}</div>
           <Progress percent={progress} size="small" showInfo={false} />
         </div>
       )}

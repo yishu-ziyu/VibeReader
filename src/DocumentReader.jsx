@@ -25,7 +25,13 @@ export function DocumentReader({ document: activeDocument, onInject, style = {} 
         const handleSelectionChange = () => {
             const sel = window.getSelection();
             const text = sel?.toString().trim() || '';
-            if (text && containerRef.current?.contains(sel.anchorNode)) {
+            const container = containerRef.current;
+            const isInsideReader = !!container && !!sel && (
+                container.contains(sel.anchorNode) ||
+                container.contains(sel.focusNode) ||
+                (sel.rangeCount > 0 && sel.getRangeAt(0).intersectsNode(container))
+            );
+            if (text && isInsideReader) {
                 setSelection(text);
             } else {
                 setSelection(null);

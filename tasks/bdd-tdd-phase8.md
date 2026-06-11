@@ -76,6 +76,7 @@ And UI 应回到可继续发送状态
 自动化映射：
 
 - 现有 `src/aiService.test.js` 继续覆盖 AbortSignal
+- Tauri 桌面路径也必须把同一个 `AbortSignal` 传给 `@tauri-apps/plugin-http`
 - Playwright smoke 在 live key 存在时验证真实 Stop；无 key 时跳过 live AI 并报告原因
 
 ## 行为 5：多文档切换时状态不串文档
@@ -132,4 +133,3 @@ And 退出码应反映本地核心路径是否通过
 4. 绿灯：实现最小 endpoint 决策或明确的 Tauri/proxy release strategy。
 5. 自动化：新增 `scripts/qa-smoke.mjs` 和 `npm run qa:smoke`。
 6. 验收：运行 `npm run test`、`npm run build`、`cd src-tauri && cargo check`、`npm run qa:smoke`。
-

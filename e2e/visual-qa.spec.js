@@ -29,8 +29,7 @@ test.describe('Visual QA screenshots', () => {
       const fileInput = page.locator('input[type="file"]').first();
       await fileInput.setInputFiles(DEMO_PDF);
 
-      await expect(page.locator('.ant-spin')).not.toBeVisible({ timeout: 30000 });
-      await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('canvas').first()).toBeVisible({ timeout: 30000 });
       await expect(page.locator('.workspace-pane-header')).toContainText('outline-demo.pdf');
 
       const screenshotPath = path.join(

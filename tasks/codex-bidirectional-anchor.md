@@ -293,8 +293,8 @@ B. **段落-批注映射**: 将批注按段落分组（通过 `selectedText` 匹
 const annotationsByParagraph = useMemo(() => {
   const map = new Map();
   paragraphs.forEach(para => {
-    const paraAnnotations = annotations.filter(a => 
-      para.text.includes(a.selectedText) || 
+    const paraAnnotations = annotations.filter(a =>
+      para.text.includes(a.selectedText) ||
       a.selectedText.includes(para.text.slice(0, 50))
     );
     if (paraAnnotations.length > 0) {
@@ -326,16 +326,16 @@ D. **点击徽章**: 弹出批注列表
 ```css
 /* 脉冲高亮 */
 @keyframes pulse-highlight {
-  0%, 100% { 
-    background-color: rgba(255, 235, 59, 0); 
+  0%, 100% {
+    background-color: rgba(255, 235, 59, 0);
     box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.4);
   }
-  25%, 75% { 
-    background-color: rgba(255, 235, 59, 0.5); 
+  25%, 75% {
+    background-color: rgba(255, 235, 59, 0.5);
     box-shadow: 0 0 0 4px rgba(255, 235, 59, 0.2);
   }
-  50% { 
-    background-color: rgba(255, 235, 59, 0.2); 
+  50% {
+    background-color: rgba(255, 235, 59, 0.2);
     box-shadow: 0 0 0 8px rgba(255, 235, 59, 0);
   }
 }
@@ -407,9 +407,9 @@ D. **点击徽章**: 弹出批注列表
 
 ### annotationService 已有接口
 ```javascript
-import { 
-  createAnnotation, 
-  listAnnotationsForDocument 
+import {
+  createAnnotation,
+  listAnnotationsForDocument
 } from './services/annotationService';
 
 // 返回结构: { id, documentId, page, selectedText, note, color, rect }
@@ -418,14 +418,14 @@ import {
 ### App 中左右面板结构
 ```jsx
 <section className="workspace-reader-pane">
-  <PdfViewer 
+  <PdfViewer
     onInject={handleInjectPdfText}
     documentId={currentDocument?.id}
   />
 </section>
 
 <section className="workspace-ai-pane">
-  <ThinkingTreePanel 
+  <ThinkingTreePanel
     onAskAI={handleAskAI}
     onNavigateToParagraph={handleNavigateToParagraph}
     activeParagraphId={activeParagraphId}

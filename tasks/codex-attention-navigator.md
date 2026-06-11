@@ -215,7 +215,7 @@ const handleInsightClick = useCallback((insight) => {
     // 2. 否则只跳转到页
     goToPage(insight.location.page);
   }
-  
+
   // 3. 触发外部回调（通知 AttentionNavigatorPanel 高亮）
   if (onInsightClick) {
     onInsightClick(insight);

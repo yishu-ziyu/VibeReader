@@ -3,6 +3,14 @@ const path = require('path');
 
 const DEMO_ASSETS = path.join(__dirname, '..', 'demo-assets');
 
+async function uploadPdfAndWaitForRender(page, filename) {
+  const fileInput = page.locator('input[type="file"]').first();
+  await fileInput.setInputFiles(path.join(DEMO_ASSETS, filename));
+
+  await expect(page.locator('.workspace-reader-pane canvas')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('.workspace-reader-pane .ant-spin-spinning')).toHaveCount(0, { timeout: 30000 });
+}
+
 /**
  * P0: PDF upload and render
  * Behavior: When user uploads a PDF file, it should be parsed and rendered with canvas and text layer.
@@ -12,12 +20,8 @@ test.describe('PDF Upload and Render', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    // Upload PDF via hidden file input
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles(path.join(DEMO_ASSETS, 'outline-demo.pdf'));
-
-    // Wait for PDF parsing to complete (spin should disappear)
-    await expect(page.locator('.ant-spin')).not.toBeVisible({ timeout: 30000 });
+    // Upload PDF via hidden file input and wait for rendered page readiness.
+    await uploadPdfAndWaitForRender(page, 'outline-demo.pdf');
 
     // PDF viewer should show canvas
     await expect(page.locator('canvas')).toBeVisible({ timeout: 10000 });
@@ -33,12 +37,7 @@ test.describe('PDF Upload and Render', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles(path.join(DEMO_ASSETS, 'wonderland_short.pdf'));
-
-    // Wait for parsing
-    await expect(page.locator('.ant-spin')).not.toBeVisible({ timeout: 30000 });
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 10000 });
+    await uploadPdfAndWaitForRender(page, 'wonderland_short.pdf');
 
     // Check page navigation controls exist
     await expect(page.locator('button .anticon-left')).toBeVisible();
@@ -59,10 +58,7 @@ test.describe('PDF Outline Navigation', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles(path.join(DEMO_ASSETS, 'outline-demo.pdf'));
-
-    await expect(page.locator('.ant-spin')).not.toBeVisible({ timeout: 30000 });
+    await uploadPdfAndWaitForRender(page, 'outline-demo.pdf');
 
     // Outline strip should be visible
     await expect(page.locator('.pdf-outline-strip')).toBeVisible({ timeout: 10000 });
@@ -78,10 +74,7 @@ test.describe('PDF Outline Navigation', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles(path.join(DEMO_ASSETS, 'outline-demo.pdf'));
-
-    await expect(page.locator('.ant-spin')).not.toBeVisible({ timeout: 30000 });
+    await uploadPdfAndWaitForRender(page, 'outline-demo.pdf');
     await expect(page.locator('.pdf-outline-strip')).toBeVisible({ timeout: 10000 });
 
     // Get initial page
@@ -110,11 +103,7 @@ test.describe('PDF Text Selection and Highlight', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles(path.join(DEMO_ASSETS, 'outline-demo.pdf'));
-
-    await expect(page.locator('.ant-spin')).not.toBeVisible({ timeout: 30000 });
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 10000 });
+    await uploadPdfAndWaitForRender(page, 'outline-demo.pdf');
 
     // Wait for text layer to render
     await page.waitForTimeout(2000);
@@ -137,11 +126,7 @@ test.describe('PDF Text Selection and Highlight', () => {
     await page.goto('/');
     await expect(page.locator('.workspace-body')).toBeVisible({ timeout: 10000 });
 
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles(path.join(DEMO_ASSETS, 'outline-demo.pdf'));
-
-    await expect(page.locator('.ant-spin')).not.toBeVisible({ timeout: 30000 });
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 10000 });
+    await uploadPdfAndWaitForRender(page, 'outline-demo.pdf');
 
     // Wait for text layer
     await page.waitForTimeout(2000);

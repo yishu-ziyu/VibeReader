@@ -12,6 +12,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/minimax/, '/anthropic'),
       },
+      '/api/mimo': {
+        target: 'https://token-plan-cn.xiaomimimo.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/mimo/, '/anthropic'),
+      },
       '/api/kimi': {
         target: 'https://api.moonshot.cn',
         changeOrigin: true,

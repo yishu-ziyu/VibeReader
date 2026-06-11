@@ -11,6 +11,15 @@ describe('AI endpoint runtime routing', () => {
         expect(endpoint).toBe('/api/minimax/v1/messages');
     });
 
+    it('routes MiMo Anthropic requests through the same-origin dev proxy', () => {
+        const endpoint = resolveAiEndpointForRuntime(
+            'https://token-plan-cn.xiaomimimo.com/anthropic/v1/messages',
+            'http://127.0.0.1:3217'
+        );
+
+        expect(endpoint).toBe('/api/mimo/v1/messages');
+    });
+
     it('keeps non-local and non-MiniMax endpoints unchanged', () => {
         expect(resolveAiEndpointForRuntime(
             'https://api.minimaxi.com/anthropic/v1/messages',
@@ -32,4 +41,3 @@ describe('AI endpoint runtime routing', () => {
         expect(endpoint).toBe('/api/kimi/chat/completions');
     });
 });
-

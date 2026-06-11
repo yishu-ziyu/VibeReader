@@ -6,6 +6,10 @@ describe('agent public exports', () => {
         expect(agent.runReadingAgent).toBeTypeOf('function');
         expect(agent.createReadingTools).toBeTypeOf('function');
         expect(agent.packDocumentContext).toBeTypeOf('function');
+        expect(agent.createReadingArtifact).toBeTypeOf('function');
+        expect(agent.createLensCardArtifact).toBeTypeOf('function');
         expect(agent.isToolAllowed).toBeTypeOf('function');
+        expect(agent.runReadingAgentTask).toBeTypeOf('function');
+        expect(agent.retryReadingAgentTask).toBeTypeOf('function');
     });
 });

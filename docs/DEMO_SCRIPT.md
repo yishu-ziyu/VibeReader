@@ -1,187 +1,222 @@
-# VibeReader Hackathon Demo Script
+# VibeReader Web-First Demo Script
 
 ## Demo Goal
 
-Show that VibeReader is no longer a Zotero-bound chat panel. It is a lightweight Tauri desktop reading workspace where local documents stay on the left and AI synthesis tools stay on the right.
+Show the browser app as the primary product path: open a local document, read in the center workspace, create source-grounded cards, keep artifacts in Notes, and recover the workspace after refresh.
+
+This demo should not depend on Tauri-only features. Desktop/Rust capabilities are follow-up strengtheners, not blockers for the Web product story.
 
 ## Before Demo
 
 Run:
 
 ```bash
-npm run tauri:dev
+npm run dev -- --port 3217
+```
+
+Open:
+
+```text
+http://127.0.0.1:3217
 ```
 
 Use stable assets from:
 
 ```text
-/Users/mahaoxuan/Desktop/ai-chat-standalone/demo-assets/
+/Users/mahaoxuan/Desktop/黑客松/ai-chat-standalone/demo-assets/
 ```
 
 Recommended order:
 
 1. `outline-demo.pdf`
 2. `sample.md`
-3. `wonderland_short.pdf`
-4. `demo-fallback-answer.md` if the live AI provider fails
+3. `demo-fallback-answer.md` if the live AI provider fails
+
+Optional checks before presenting:
+
+```bash
+npx playwright test e2e/visual-qa.spec.js e2e/workspace-viewport.spec.js --project=chromium
+```
 
 ## 3-Minute Script
 
 ### 0:00-0:20 Positioning
 
-Open `VibeReader Standalone Dev`.
+Open the browser app.
 
 Say:
 
-> This is a local-first AI reading workspace built with Tauri. The key interaction is simple: read on the left, ask and synthesize on the right.
+> VibeReader is a local-first AI reading workspace. The current product path is Web first: the same React workbench proves the reading loop before Tauri and Rust add stronger local capabilities.
 
-### 0:20-1:00 PDF Reader
+Show:
+
+- Session sidebar on the left.
+- Reading surface in the center.
+- Notes / cards panel on the right or below on narrow screens.
+
+### 0:20-1:00 PDF Reading Loop
 
 Open `demo-assets/outline-demo.pdf`.
 
 Show:
 
-- PDF renders without a blank page.
-- Outline entries appear above the page.
-- Clicking `Methods` jumps to page 2.
-- Zoom controls remain available.
+- PDF appears in the Reader.
+- Skim Map stays attached to the reading surface.
+- Fit Width, page navigation, and zoom remain usable.
+- Narrow-width layout keeps Reader and Notes visible instead of squeezing them.
 
 Say:
 
-> The reader is custom-built on pdf.js, not tied to Zotero's reader module.
+> The first acceptance point is not model output. It is a stable reading surface that can carry source positions.
 
-### 1:00-1:45 Selection, Annotation, and AI Injection
+### 1:00-1:45 Source Selection to Lens Card
 
-Select a sentence on page 2.
+Select a sentence in the PDF.
 
 Click:
 
-1. `高亮`
-2. `保存笔记`
-3. `注入 AI`
+1. `Create Lens Card` or the current Lens Card action.
+2. Save the generated card.
+3. Open Notes.
+4. Click the card source action to return to the original PDF position.
 
-Add a short question in Chat:
+Show:
+
+- The card has source text and page information.
+- Notes stores the card as a reusable artifact.
+- Source navigation returns to the selected span or paragraph.
+
+### 1:45-2:25 Persistence and Document Isolation
+
+Refresh the browser.
+
+Show:
+
+- Recent documents restore metadata.
+- Reopening the same PDF restores document-scoped artifacts and annotations.
+- Notes do not leak across another document.
+
+Say:
+
+> Web persistence is intentionally metadata and artifact focused. It does not store raw PDF binary or full document text in localStorage.
+
+### 2:25-3:00 AI Fallback and Close
+
+If a model key is configured, ask:
 
 ```text
-用中文解释这段话，并说明它适合生成哪类复习卡片。
+用中文解释这个来源片段，并生成一个适合复习的概念卡片。
 ```
 
-Show:
-
-- Annotation list contains the page number and selected text.
-- Chat input contains the injected source passage.
-
-### 1:45-2:30 Universal Reading
-
-Open `demo-assets/sample.md`.
-
-Show:
-
-- Markdown title, list, and code block render in the same left pane.
-- Select the "The important design decision..." paragraph.
-- Inject into AI.
+If the model fails or no key is configured, show the readable error state and open `demo-assets/demo-fallback-answer.md`.
 
 Say:
 
-> The same workflow works for papers, notes, and article-like documents.
-
-### 2:30-3:00 Close
-
-Switch through Summary, Flashcard, and MindMap tabs.
-
-Say:
-
-> The product direction is a reading workspace: source-grounded chat today, study and synthesis tools next.
+> The core product loop is source-grounded reading: open, locate, select, save, revisit, and then ask AI with evidence. Cloud model output is useful, but the reading workspace remains usable without waiting on a provider.
 
 ## 8-Minute Script
 
 ### 0:00-1:00 Problem
 
-Explain the old pain:
-
-- Reading and asking are usually separated.
-- Zotero-style readers are strong for papers but weak as a general workspace.
-- Browser-only AI tools often lose local-file context.
-
-### 1:00-2:00 Architecture
-
-Show the app title and file picker.
-
 Explain:
 
-- Tauri shell keeps the desktop app lightweight.
-- React workspace handles the reader and AI panel.
-- Local file opening supports PDF, Markdown, Text, and safe HTML text extraction.
+- Chat-only PDF tools lose location and reading state.
+- Long documents need navigation, evidence, cards, and exportable artifacts.
+- VibeReader treats AI output as part of a reading workflow, not the whole product.
 
-### 2:00-3:30 PDF Path
+### 1:00-2:00 Platform Strategy
+
+Show the browser app and say:
+
+> The Web app is the fastest path to prove the product. Tauri desktop reuses this React workbench later, while Rust takes over persistence, secure keys, parsing, indexing, export, and agent tasks.
+
+Do not present the desktop app as a separate fork.
+
+### 2:00-3:20 PDF Path
 
 Open `outline-demo.pdf`.
 
 Demonstrate:
 
-- Outline jump.
-- Page navigation.
-- Zoom.
+- Reader / Skim Map / Notes layout.
+- Fit Width.
+- Page jump.
 - Text selection.
-- Highlight and note annotation.
+- Source-grounded card creation.
 
-### 3:30-5:00 AI Path
+### 3:20-4:40 Notes and VibeCards
 
-Inject selected PDF text into Chat.
+Show Notes:
 
-Ask:
+- Lens Card from the selection.
+- Explain Card if an AI answer was saved.
+- Concept Card if a summary point was saved.
+- Drag a card into Chat if presenting the longer flow.
+- Use source navigation to return to the document.
 
-```text
-请用中文分三点解释这段内容，并给出一个可以用于复习的问答卡片。
-```
+### 4:40-5:50 Persistence
 
-If the model streams normally, click `Stop` midway once to show interruption. Then send a shorter follow-up.
+Refresh the page.
 
-### 5:00-6:15 Universal Reader Path
+Demonstrate:
 
-Open `sample.md`, then `sample.html`.
+- Recent document metadata is still available.
+- Reopen the same PDF.
+- Document-scoped artifacts and annotations restore.
+- Open `sample.md` and show artifacts remain isolated by document.
 
-Show:
+### 5:50-6:40 Model Error Handling
 
-- Markdown rendered as readable content.
-- HTML shows text only; scripts are not executed.
-- Selection injection works outside PDF.
+Open the model config path from Chat or Notes.
 
-### 6:15-7:15 Study Tools
+Show one of:
 
-Move through:
-
-- Summary
-- Flashcard
-- MindMap
-
-Describe these as synthesis surfaces connected to the same reading context.
-
-### 7:15-8:00 Roadmap
+- No API key state.
+- Bad key / unauthorized state.
+- Provider unavailable state.
+- Browser proxy or CORS failure state.
 
 Say:
 
-> The current demo proves the end-to-end loop: local document, visible reader, source selection, AI context, interruption, and saved annotations. Next steps are EPUB, multi-document tabs, and export.
+> Provider errors should be readable product states. API keys and token-like values must not appear in logs, error text, or exports.
+
+### 6:40-7:30 OCR Current Page
+
+Use a scanned or no-text PDF page if available.
+
+Show:
+
+- The app explains that the current page has no selectable text.
+- User explicitly clicks current-page OCR.
+- OCR spans become source candidates with confidence and bounding boxes.
+
+If no scanned file is available, state that this is covered by the current-page OCR smoke tests and skip live OCR.
+
+### 7:30-8:00 Roadmap
+
+Close with:
+
+> Phase 11 proves the Web reading loop. The next acceptance layer is not a UI rewrite: it is Rust-backed local reliability, search, export, secure key storage, and eventually reading agents.
 
 ## Fallback Path
 
-If AI API is slow, blocked, or returns `Failed to fetch`:
+If AI API is slow, blocked, or returns a request error:
 
 1. Do not wait on the model.
-2. Show that selected source text is injected into Chat.
-3. Show existing Summary, Flashcard, and MindMap tabs as the synthesis surfaces.
-4. Open `demo-assets/demo-fallback-answer.md` if you need to show the intended answer shape.
-5. Use annotation creation as the guaranteed offline value path.
-6. Say clearly:
-
-> The live model provider is replaceable. The product-critical loop is already local and visible: open, read, select, annotate, and pass grounded context to the assistant.
+2. Show selected source text and saved Lens Card.
+3. Show the readable model error.
+4. Open `demo-assets/demo-fallback-answer.md` only to show intended answer shape.
+5. Use source navigation and persistence as the guaranteed offline value path.
 
 ## Acceptance Checklist
 
-- [ ] Tauri window opens as `VibeReader Standalone Dev`.
-- [ ] `outline-demo.pdf` renders and outline jump works.
-- [ ] Text selection shows the annotation toolbar.
-- [ ] Highlight and note appear in the annotation list.
-- [ ] AI injection moves selected source text to Chat.
-- [ ] `sample.md` opens in the same workspace.
-- [ ] Fallback path can be spoken without waiting for AI.
+- [ ] Browser app opens at `http://127.0.0.1:3217`.
+- [ ] `outline-demo.pdf` opens through the Web file picker.
+- [ ] Reader, Skim Map, and Notes stay usable at desktop and 1024px widths.
+- [ ] PDF text selection creates a source-grounded Lens Card.
+- [ ] Notes shows the card with source text and page metadata.
+- [ ] Card source action returns to the PDF span or paragraph.
+- [ ] Refresh plus reopen of the same file restores document-scoped artifacts.
+- [ ] Opening `sample.md` does not show the PDF document's artifacts.
+- [ ] Model configuration or request failure produces a readable error.
+- [ ] Fallback path can be presented without waiting for live AI.

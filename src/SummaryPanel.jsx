@@ -53,10 +53,12 @@ function extractSections(pdfText) {
  * SummaryPanel — Sidebar panel showing a grid/list of SummaryCards.
  *
  * Props:
+ *   - documentId: current document id for persisted summaries
  *   - onAskAI: (question: string) => void
+ *   - onArtifactCreated: (artifact) => void
  *   - style: CSS style object
  */
-export function SummaryPanel({ onAskAI, style = {} }) {
+export function SummaryPanel({ documentId, onAskAI, onArtifactCreated, style = {} }) {
   const { pdfText, pdfPages, pdfParsing } = usePdfStore();
 
   const sections = useMemo(() => extractSections(pdfText), [pdfText]);
@@ -158,8 +160,10 @@ export function SummaryPanel({ onAskAI, style = {} }) {
         {sections.map((section, idx) => (
           <SummaryCard
             key={section.id}
+            documentId={documentId}
             section={section}
             onAskAI={handleAskAI}
+            onArtifactCreated={onArtifactCreated}
             defaultExpanded={idx === 0}
           />
         ))}

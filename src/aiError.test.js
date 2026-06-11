@@ -51,6 +51,13 @@ describe('classifyAiError', () => {
     expect(result.action).toBe('稍后再试');
   });
 
+  it('classifies 503 as PROVIDER_UNAVAILABLE', () => {
+    const result = classifyAiError(503, 'Provider temporarily unavailable');
+    expect(result.code).toBe(AI_ERROR_CODES.PROVIDER_UNAVAILABLE);
+    expect(result.title).toBe('模型服务不可用');
+    expect(result.action).toBe('稍后重试或切换模型');
+  });
+
   it('classifies timeout errors as TIMEOUT', () => {
     const result = classifyAiError(null, 'Request timeout');
     expect(result.code).toBe(AI_ERROR_CODES.TIMEOUT);
