@@ -1,5 +1,26 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 26：Reading Note Export Source Refs
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-note-export-source-refs.md`。
+- Rust `export_reading_note` 的 Markdown renderer 解析 `reading_note` artifact 的 `ai_content.body`。
+- Markdown 导出显示 `sourceRefs` 的页码和 `paragraphId`。
+- 普通 VibeCard 没有 `sourceRefs` 时继续使用已有 page / paragraph fallback。
+
+命令：
+
+- RED：`cargo test --test storage_core reading_note_export_renders_artifact_body_and_source_refs` -> failed，Markdown 未包含 `reading_note` 正文。
+- GREEN：`cargo test --test storage_core reading_note_export_renders_artifact_body_and_source_refs` -> pass（1 test）。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（19 storage tests + 1 command test）。
+- `npm run test` -> pass（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+
+遗留风险：
+
+- Markdown source refs 目前是文本锚点，尚未做 Obsidian/wiki-link 或应用内深链格式。
+
 ## 2026-06-11 Phase 25：Task Result Source Refs
 
 改动：

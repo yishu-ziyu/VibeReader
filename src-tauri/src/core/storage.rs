@@ -1664,16 +1664,28 @@ fn render_reading_note_markdown(payload: &ReadingNoteExportPayload) -> String {
         output.push_str("_No VibeCards saved yet._\n\n");
     } else {
         for card in &payload.vibecards {
-            let page = card
-                .page
-                .map(|page| format!("P{}", page))
-                .unwrap_or_else(|| "No source page".into());
+            let ai_content = parse_json_object(&card.ai_content);
+            let source_refs = card_source_refs(card, ai_content.as_ref());
+            let page = card_page_label(card, &source_refs);
             output.push_str(&format!(
                 "- {} ({}, {})\n",
                 card.title, card.card_type, page
             ));
+            if card.card_type == "reading_note" {
+                if let Some(body) = ai_content
+                    .as_ref()
+                    .and_then(|content| json_string_field(content, "body"))
+                {
+                    if !body.is_empty() {
+                        output.push_str(&format!("  - Body: {}\n", body));
+                    }
+                }
+            }
             if !card.source_text.is_empty() {
                 output.push_str(&format!("  - Source: {}\n", card.source_text));
+            }
+            for source_ref in source_refs {
+                output.push_str(&format!("  - Source ref: {}\n", source_ref));
             }
             if !card.user_note.is_empty() {
                 output.push_str(&format!("  - Note: {}\n", card.user_note));
@@ -1731,6 +1743,60 @@ fn render_reading_note_markdown(payload: &ReadingNoteExportPayload) -> String {
 
 fn parse_json_string_list(value: &str) -> Vec<String> {
     serde_json::from_str::<Vec<String>>(value).unwrap_or_default()
+}
+
+fn parse_json_object(value: &str) -> Option<serde_json::Value> {
+    serde_json::from_str::<serde_json::Value>(value).ok()
+}
+
+fn json_string_field<'a>(value: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+    value.get(key)?.as_str().map(str::trim)
+}
+
+fn card_page_label(card: &VibeCardRecord, source_refs: &[String]) -> String {
+    card.page
+        .map(|page| format!("P{}", page))
+        .or_else(|| source_refs.first().cloned())
+        .unwrap_or_else(|| "No source page".into())
+}
+
+fn card_source_refs(card: &VibeCardRecord, ai_content: Option<&serde_json::Value>) -> Vec<String> {
+    let refs = ai_content
+        .and_then(|content| content.get("sourceRefs"))
+        .and_then(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(source_ref_label)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    if !refs.is_empty() {
+        return refs;
+    }
+
+    match (card.page, card.paragraph_id.as_deref()) {
+        (Some(page), Some(paragraph_id)) => vec![format!("P{} {}", page, paragraph_id)],
+        (Some(page), None) => vec![format!("P{}", page)],
+        _ => vec![],
+    }
+}
+
+fn source_ref_label(value: &serde_json::Value) -> Option<String> {
+    let page = value.get("page").and_then(serde_json::Value::as_i64);
+    let paragraph_id = value
+        .get("paragraphId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|paragraph_id| !paragraph_id.is_empty());
+
+    match (page, paragraph_id) {
+        (Some(page), Some(paragraph_id)) => Some(format!("P{} {}", page, paragraph_id)),
+        (Some(page), None) => Some(format!("P{}", page)),
+        (None, Some(paragraph_id)) => Some(paragraph_id.to_string()),
+        (None, None) => None,
+    }
 }
 
 fn annotation_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AnnotationRecord> {

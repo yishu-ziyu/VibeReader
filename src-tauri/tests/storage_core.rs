@@ -951,3 +951,67 @@ fn builds_markdown_reading_note_export_without_secrets() {
     assert!(!export.markdown.to_lowercase().contains("authorization"));
     assert!(export.json.contains("\"doc-export\""));
 }
+
+#[test]
+fn reading_note_export_renders_artifact_body_and_source_refs() {
+    let storage = Storage::open_memory().expect("open memory db");
+    storage.init_schema().expect("init schema");
+
+    storage
+        .upsert_document(DocumentInput {
+            id: "doc-note-export".into(),
+            name: "Grounded Agent Note.pdf".into(),
+            kind: "pdf".into(),
+            source: "local-file".into(),
+            path: Some("/tmp/grounded-agent-note.pdf".into()),
+            mime_type: "application/pdf".into(),
+            size: 84,
+            fingerprint: None,
+            opened_at: 200,
+            updated_at: 200,
+            parse_status: "parsed".into(),
+        })
+        .expect("save document");
+    storage
+        .create_vibecard(VibeCardInput {
+            id: "reading-note-card".into(),
+            document_id: "doc-note-export".into(),
+            card_type: "reading_note".into(),
+            title: "Paper overview".into(),
+            source_text: "".into(),
+            ai_content: r#"{
+                "title": "Paper overview",
+                "body": "The paper's contribution is grounded in the method section.",
+                "sourceRefs": [
+                    {
+                        "documentId": "doc-note-export",
+                        "page": 2,
+                        "paragraphId": "page-2-para-0",
+                        "text": "Method section source text"
+                    }
+                ]
+            }"#
+            .into(),
+            user_note: "".into(),
+            page: None,
+            paragraph_id: None,
+            tags_json: "[]".into(),
+            source_json: r#"{"sourceType":"agent-task"}"#.into(),
+            created_at: 210,
+            updated_at: 210,
+            verification_status: "grounded".into(),
+        })
+        .expect("save reading note card");
+
+    let export = storage
+        .export_reading_note("doc-note-export")
+        .expect("build reading note export");
+
+    assert!(export.markdown.contains("Paper overview"));
+    assert!(export
+        .markdown
+        .contains("The paper's contribution is grounded in the method section."));
+    assert!(export.markdown.contains("P2"));
+    assert!(export.markdown.contains("page-2-para-0"));
+    assert!(export.json.contains("sourceRefs"));
+}

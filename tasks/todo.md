@@ -525,7 +525,25 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（18 storage tests + 1 command test）
 - [x] diff whitespace 检查：`git diff --check` 通过
 
+## Phase 26：Reading Note Export Source Refs
+
+- [x] 新增 `tasks/bdd-tdd-reading-note-export-source-refs.md`
+- [x] Rust `export_reading_note` 导出 `reading_note` artifact 的正文
+- [x] Markdown 导出显示 `sourceRefs` 页码和段落锚点
+- [x] 无 `sourceRefs` 时保留普通 VibeCard 来源页 fallback
+- [x] JSON payload 继续保留原始 `aiContent/sourceRefs`
+
+验收：
+
+- [x] RED：`cargo test --test storage_core reading_note_export_renders_artifact_body_and_source_refs` 先失败于 Markdown 未包含 `reading_note` 正文
+- [x] GREEN：`cargo test --test storage_core reading_note_export_renders_artifact_body_and_source_refs` 通过（1 test）
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+
 ## Review
+
+2026-06-11：继续推进 Phase 26，把 Agent task result 保存成 `reading_note` 后的完整导出补上来源。新增 `tasks/bdd-tdd-reading-note-export-source-refs.md`；Rust `export_reading_note` 的 Markdown renderer 现在会解析 `reading_note` VibeCard 的 `ai_content.body` 和 `ai_content.sourceRefs`，导出正文、页码和 `paragraphId`，同时普通 VibeCard 仍保留已有 page fallback。验证：红灯先失败于 Markdown 未包含 reading note 正文；实现后目标测试通过（1 test），`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test），`npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning。剩余风险：Markdown source refs 仍是文本锚点，尚未做 Obsidian/wiki-link 或应用内深链格式。
 
 2026-06-11：继续推进 Phase 25，把 Agent task result 保存到 Notes 的链路从纯文本推进为 source-grounded。新增 `tasks/bdd-tdd-task-result-source-refs.md`；`runReadingAgent` 现在保留 final response 的 `sourceRefs`，`runReadingAgentTask` 将这些 refs 写入 succeeded task result；本地 `paper_overview_agent` 从 bounded chunks 生成 source refs；App 保存 task result 到 Notes 时会写入 `currentContent.sourceRefs`、`sourceSpanIds` 和首个 source，并在有来源时标记为 `grounded`；`ArtifactPanel` 对 Reading Note 复用来源标签展示。验证：runtime 红灯先失败于缺少 `result.sourceRefs`，task/App 红灯先失败于 saved note 仍是 ungrounded 且无 source refs；实现后目标测试通过（4 files / 32 tests），全量 `npm run test` 通过（49 files / 248 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（18 storage tests + 1 command test），`git diff --check` 通过。剩余风险：Reading Note 仍是 task result 级 artifact，还没有合并成完整导出模板或做 markdown source-ref 链接化。
 
