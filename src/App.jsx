@@ -16,6 +16,7 @@ import { fileToDocument, fileToDocumentWithContent, openTauriDocument, SUPPORTED
 import { createArtifact, deleteArtifact, listArtifactsForDocument, updateArtifact } from './services/artifactService';
 import {
     initializePersistentStorage,
+    listPersistentAttentionInsights,
     listPersistentDocuments,
     loadPersistentDocumentContent,
     savePersistentDocument,
@@ -27,6 +28,7 @@ import {
     createReadingTools,
     generateLensCardArtifact,
     getReadingAgentSkill,
+    listReadingAgentSkills,
     retryReadingAgentTask,
     runReadingAgentTask,
 } from './agent';
@@ -57,6 +59,10 @@ const AttentionNavigatorPanel = React.lazy(() => import('./AttentionNavigatorPan
 const ArtifactPanel = React.lazy(() => import('./ArtifactPanel').then(m => ({ default: m.ArtifactPanel })));
 const TaskStatusPanel = React.lazy(() => import('./TaskStatusPanel').then(m => ({ default: m.TaskStatusPanel })));
 const READABLE_DOCUMENT_KINDS = ['markdown', 'text', 'html'];
+const RUNNABLE_READING_AGENT_TYPES = new Set([
+    'paper_overview_agent',
+    'attention_agent',
+]);
 
 /** Simple fallback for lazy-loaded panels */
 function PanelFallback() {
@@ -188,15 +194,124 @@ function createLocalPaperOverviewModel() {
     };
 }
 
-function createPaperOverviewAgentOptions(document) {
-    const skill = getReadingAgentSkill('paper_overview_agent');
+function insightLocationLabel(insight = {}) {
+    const location = insight.location || {};
+    if (location.page) return `P${location.page}`;
+    if (insight.page) return `P${insight.page}`;
+    return insight.paragraphId || insight.id || 'source';
+}
+
+function insightDescription(insight = {}) {
+    return String(insight.description || insight.title || insight.text || '').replace(/\s+/g, ' ').trim();
+}
+
+function createLocalAttentionRouteModel() {
+    return async ({ iteration, trace }) => {
+        if (iteration === 1) {
+            return {
+                type: 'tool_call',
+                toolName: 'get_current_document',
+                args: {},
+            };
+        }
+
+        if (iteration === 2) {
+            return {
+                type: 'tool_call',
+                toolName: 'list_attention_insights',
+                args: {},
+            };
+        }
+
+        if (iteration === 3) {
+            return {
+                type: 'tool_call',
+                toolName: 'get_document_chunks',
+                args: {
+                    query: 'problem claim method evidence result limitation definition formula warning',
+                    limit: 5,
+                    maxChars: 800,
+                },
+            };
+        }
+
+        const metadata = lastToolResult(trace, 'get_current_document') || {};
+        const insightResult = lastToolResult(trace, 'list_attention_insights') || {};
+        const chunkResult = lastToolResult(trace, 'get_document_chunks') || {};
+        const insights = Array.isArray(insightResult.insights) ? insightResult.insights : [];
+        const chunks = Array.isArray(chunkResult.chunks) ? chunkResult.chunks : [];
+        const insightLines = insights
+            .slice(0, 5)
+            .map((insight, index) => {
+                const description = insightDescription(insight);
+                const type = insight.type || 'Insight';
+                return description ? `${index + 1}. ${insightLocationLabel(insight)} · ${type}: ${description}` : null;
+            })
+            .filter(Boolean);
+        const chunkLines = chunks
+            .slice(0, 5)
+            .map((chunk, index) => {
+                const location = chunk.page ? `P${chunk.page}` : chunk.paragraphId || `chunk-${index + 1}`;
+                const snippet = overviewSnippet(chunk.text);
+                return snippet ? `${index + 1}. ${location}: ${snippet}` : null;
+            })
+            .filter(Boolean);
+        const sourceRefs = [
+            ...insights.map((insight) => ({
+                documentId: insight.documentId || metadata.documentId || metadata.id,
+                page: insight.location?.page || insight.page || null,
+                paragraphId: insight.location?.paragraphId || insight.paragraphId || insight.id || null,
+                text: insightDescription(insight),
+            })),
+            ...chunks.map((chunk) => ({
+                documentId: chunk.documentId || metadata.documentId || metadata.id,
+                page: chunk.page || null,
+                paragraphId: chunk.paragraphId || chunk.id || null,
+                text: overviewSnippet(chunk.text, 240),
+            })),
+        ].filter((sourceRef) => sourceRef.paragraphId || sourceRef.page || sourceRef.text);
+
+        return {
+            type: 'final',
+            content: [
+                '# Attention route',
+                '',
+                `Document: ${metadata.name || 'Untitled'}`,
+                '',
+                'Saved attention insights:',
+                insightLines.length > 0 ? insightLines.join('\n') : '- No saved attention insights were available.',
+                '',
+                'Source scan:',
+                chunkLines.length > 0 ? chunkLines.join('\n') : '- No bounded source chunks were available.',
+            ].join('\n'),
+            sourceRefs,
+        };
+    };
+}
+
+function createReadingAgentOptions(taskType, document) {
+    const skill = getReadingAgentSkill(taskType);
+    const model = taskType === 'attention_agent'
+        ? createLocalAttentionRouteModel()
+        : taskType === 'paper_overview_agent'
+            ? createLocalPaperOverviewModel()
+            : null;
+
+    if (!skill || !model) return null;
+
     return {
-        goal: skill?.goal || 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
-        model: createLocalPaperOverviewModel(),
-        tools: createReadingTools({ document }),
-        maxIterations: skill?.maxIterations || 4,
+        goal: skill.goal,
+        model,
+        tools: createReadingTools({ document }, {
+            listAttentionInsightsForDocument: listPersistentAttentionInsights,
+        }),
+        maxIterations: skill.maxIterations || 4,
         timeoutMs: 30000,
     };
+}
+
+function runnableReadingAgentSkills() {
+    return listReadingAgentSkills().filter((skill) => RUNNABLE_READING_AGENT_TYPES.has(skill.type));
 }
 
 function taskResultContent(task = {}) {
@@ -523,14 +638,15 @@ export function App() {
 
     const handleStartAgentTask = useCallback((taskType) => {
         if (!currentDocument?.id) return;
-        if (taskType !== 'paper_overview_agent') return;
 
-        const agentOptions = createPaperOverviewAgentOptions(currentDocument);
+        const agentOptions = createReadingAgentOptions(taskType, currentDocument);
+        if (!agentOptions) return;
+
         runReadingAgentTask({
             task: buildReadingAgentTask(taskType, currentDocument, { goal: agentOptions.goal }),
             agentOptions,
         }).catch((error) => {
-            console.warn('[App] Failed to start paper overview agent:', error);
+            console.warn('[App] Failed to start reading agent:', error);
         });
     }, [currentDocument]);
 
@@ -543,11 +659,14 @@ export function App() {
             return;
         }
 
-        if (task.type === 'paper_overview_agent') {
+        if (RUNNABLE_READING_AGENT_TYPES.has(task.type)) {
+            const agentOptions = createReadingAgentOptions(task.type, currentDocument);
+            if (!agentOptions) return;
+
             retryReadingAgentTask(task, {
-                agentOptions: createPaperOverviewAgentOptions(currentDocument),
+                agentOptions,
             }).catch((error) => {
-                console.warn('[App] Failed to retry paper overview agent:', error);
+                console.warn('[App] Failed to retry reading agent:', error);
             });
             return;
         }
@@ -1752,6 +1871,7 @@ export function App() {
                             {rightToolTab === 'tasks' && (
                                 <Suspense fallback={<PanelFallback />}>
                                     <TaskStatusPanel
+                                        agentSkills={runnableReadingAgentSkills()}
                                         documentId={currentDocument?.id}
                                         onRetryTask={handleRetryTask}
                                         onStartAgentTask={handleStartAgentTask}

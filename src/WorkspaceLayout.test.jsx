@@ -28,19 +28,29 @@ const agentMock = vi.hoisted(() => ({
     buildReadingAgentTask: vi.fn((type, document, overrides = {}) => ({
         documentId: document?.id || null,
         type,
-        title: 'Paper overview',
+        title: type === 'attention_agent' ? 'Attention route' : 'Paper overview',
         payload: {
             agentOptions: {
                 taskType: type,
                 documentId: document?.id || null,
-                goal: overrides.goal || 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
+                goal: overrides.goal || (type === 'attention_agent'
+                    ? 'Identify the most important source-grounded reading positions and rank them as a short reading route.'
+                    : 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.'),
                 maxIterations: 4,
-                skillPath: 'docs/reading-agent-skills/paper-overview.md',
-                requiredTools: [
-                    'get_current_document',
-                    'get_document_chunks',
-                ],
-                outputArtifactType: 'reading_note',
+                skillPath: type === 'attention_agent'
+                    ? 'docs/reading-agent-skills/attention-route.md'
+                    : 'docs/reading-agent-skills/paper-overview.md',
+                requiredTools: type === 'attention_agent'
+                    ? [
+                        'get_current_document',
+                        'get_document_chunks',
+                        'list_attention_insights',
+                    ]
+                    : [
+                        'get_current_document',
+                        'get_document_chunks',
+                    ],
+                outputArtifactType: type === 'attention_agent' ? 'attention_insights' : 'reading_note',
             },
         },
     })),
@@ -49,12 +59,36 @@ const agentMock = vi.hoisted(() => ({
         get_document_chunks: { run: vi.fn() },
     })),
     generateLensCardArtifact: vi.fn(),
-    getReadingAgentSkill: vi.fn(() => ({
-        type: 'paper_overview_agent',
-        title: 'Paper overview',
-        goal: 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
-        maxIterations: 4,
-    })),
+    getReadingAgentSkill: vi.fn((type) => {
+        if (type === 'attention_agent') {
+            return {
+                type: 'attention_agent',
+                title: 'Attention route',
+                goal: 'Identify the most important source-grounded reading positions and rank them as a short reading route.',
+                maxIterations: 4,
+            };
+        }
+        return {
+            type: 'paper_overview_agent',
+            title: 'Paper overview',
+            goal: 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
+            maxIterations: 4,
+        };
+    }),
+    listReadingAgentSkills: vi.fn(() => [
+        {
+            type: 'paper_overview_agent',
+            title: 'Paper overview',
+            goal: 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.',
+            maxIterations: 4,
+        },
+        {
+            type: 'attention_agent',
+            title: 'Attention route',
+            goal: 'Identify the most important source-grounded reading positions and rank them as a short reading route.',
+            maxIterations: 4,
+        },
+    ]),
     retryReadingAgentTask: vi.fn(async () => ({ status: 'succeeded' })),
     runReadingAgentTask: vi.fn(async () => ({ status: 'succeeded' })),
 }));
@@ -108,6 +142,7 @@ vi.mock('./services/artifactService', () => ({
 
 vi.mock('./services/persistentStorage', () => ({
     initializePersistentStorage: vi.fn(async () => ({ initialized: true, path: '/tmp/test.sqlite3' })),
+    listPersistentAttentionInsights: vi.fn(async () => []),
     listPersistentDocuments: mockListPersistentDocuments,
     loadPersistentDocumentContent: mockLoadPersistentDocumentContent,
     savePersistentDocument: vi.fn(async (document) => document),
@@ -186,6 +221,12 @@ vi.mock('./TaskStatusPanel', () => ({
                 </button>
                 <button
                     type="button"
+                    onClick={() => props.onStartAgentTask?.('attention_agent')}
+                >
+                    Start mocked attention route
+                </button>
+                <button
+                    type="button"
                     onClick={() => props.onSaveTaskResult?.({
                         id: 'task-agent-overview-doc-opened-md',
                         documentId: 'doc-opened-md',
@@ -246,6 +287,12 @@ vi.mock('./TaskStatusPanel', () => ({
                     onClick={() => props.onStartAgentTask?.('paper_overview_agent')}
                 >
                     Start mocked paper overview
+                </button>
+                <button
+                    type="button"
+                    onClick={() => props.onStartAgentTask?.('attention_agent')}
+                >
+                    Start mocked attention route
                 </button>
                 <button
                     type="button"
@@ -748,8 +795,72 @@ describe('Workspace layout', () => {
                     id: 'doc-opened-md',
                     contentText: expect.stringContaining('identification strategy'),
                 }),
+            }),
+            expect.objectContaining({
+                listAttentionInsightsForDocument: expect.any(Function),
             })
         );
+    });
+
+    it('starts an attention route agent task for the current document from the Tasks panel', async () => {
+        documentServiceMock.fileToDocument.mockReturnValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+        });
+        documentServiceMock.fileToDocumentWithContent.mockResolvedValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+            contentText: 'The result section reports matched-control evidence.',
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, {
+            target: {
+                files: [new File(['# Results'], 'opened.md', { type: 'text/markdown' })],
+            },
+        });
+
+        await waitFor(() => {
+            expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByText('Tasks'));
+        fireEvent.click(await screen.findByText('Start mocked attention route'));
+
+        await waitFor(() => {
+            expect(agentMock.runReadingAgentTask).toHaveBeenCalledWith(expect.objectContaining({
+                task: expect.objectContaining({
+                    documentId: 'doc-opened-md',
+                    type: 'attention_agent',
+                    title: 'Attention route',
+                    payload: {
+                        agentOptions: expect.objectContaining({
+                            taskType: 'attention_agent',
+                            documentId: 'doc-opened-md',
+                            skillPath: 'docs/reading-agent-skills/attention-route.md',
+                            requiredTools: [
+                                'get_current_document',
+                                'get_document_chunks',
+                                'list_attention_insights',
+                            ],
+                        }),
+                    },
+                }),
+                agentOptions: expect.objectContaining({
+                    goal: expect.stringContaining('reading positions'),
+                    tools: expect.any(Object),
+                }),
+            }));
+        });
     });
 
     it('saves a completed agent task result as a reading note artifact', async () => {

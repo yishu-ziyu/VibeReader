@@ -1,5 +1,33 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-12 Phase 36：Attention Agent Entry
+
+改动：
+
+- 新增 `tasks/bdd-tdd-attention-agent-entry.md`。
+- `TaskStatusPanel` 支持通过 `agentSkills` 渲染多个可启动 reading agent。
+- `App` 将 runnable skills 限定为 `paper_overview_agent` 和 `attention_agent`，并传给 Tasks 面板。
+- 新增本地 deterministic `attention_agent` model，按顺序调用 `get_current_document`、`list_attention_insights`、`get_document_chunks`。
+- `attention_agent` 生成 `# Attention route` task result，并保留 insight/chunk source refs。
+- `createReadingTools` 在 App 内接入 `listPersistentAttentionInsights` adapter。
+- 补充 `.task-status-agent-actions` 样式，避免多个 task 按钮挤出面板。
+
+命令：
+
+- RED：`npm run test -- src/TaskStatusPanel.test.jsx` -> failed，找不到 `Attention route` 启动按钮。
+- GREEN：`npm run test -- src/TaskStatusPanel.test.jsx` -> pass（1 file / 13 tests）。
+- RED：`npm run test -- src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> failed，App 未启动 `attention_agent`。
+- GREEN：`npm run test -- src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（2 files / 25 tests）。
+- `npm run test` -> pass（50 files / 261 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（22 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- `attention_agent` 仍是本地 deterministic task，不是云模型 planner。
+- `card_generation_agent` 和 `note_export_agent` 仍未接运行入口，需要等写入/导出权限确认 UI。
+
 ## 2026-06-11 Phase 35：Reading Agent Skill Registry
 
 改动：

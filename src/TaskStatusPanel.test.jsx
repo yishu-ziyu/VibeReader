@@ -193,6 +193,26 @@ describe('TaskStatusPanel', () => {
     expect(onStartAgentTask).toHaveBeenCalledWith('paper_overview_agent');
   });
 
+  it('starts configured reading agent skills for the current document', async () => {
+    const onStartAgentTask = vi.fn();
+
+    render(
+      <TaskStatusPanel
+        documentId="doc-1"
+        agentSkills={[
+          { type: 'paper_overview_agent', title: 'Paper overview' },
+          { type: 'attention_agent', title: 'Attention route' },
+        ]}
+        onStartAgentTask={onStartAgentTask}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attention route' }));
+
+    expect(onStartAgentTask).toHaveBeenCalledTimes(1);
+    expect(onStartAgentTask).toHaveBeenCalledWith('attention_agent');
+  });
+
   it('does not show the paper overview entry without a current document', () => {
     render(<TaskStatusPanel onStartAgentTask={vi.fn()} />);
 

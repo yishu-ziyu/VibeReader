@@ -55,7 +55,25 @@ function canSaveTaskResult(task = {}) {
   return task.status === 'succeeded' && !!taskResultText(task);
 }
 
-export function TaskStatusPanel({ documentId, onRetryTask, onStartAgentTask, onSaveTaskResult, style = {} }) {
+const DEFAULT_AGENT_SKILLS = Object.freeze([
+  Object.freeze({ type: 'paper_overview_agent', title: 'Paper overview' }),
+]);
+
+function visibleAgentSkills(agentSkills) {
+  const skills = Array.isArray(agentSkills) && agentSkills.length > 0
+    ? agentSkills
+    : DEFAULT_AGENT_SKILLS;
+  return skills.filter((skill) => skill?.type && skill?.title);
+}
+
+export function TaskStatusPanel({
+  documentId,
+  agentSkills,
+  onRetryTask,
+  onStartAgentTask,
+  onSaveTaskResult,
+  style = {},
+}) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -109,15 +127,20 @@ export function TaskStatusPanel({ documentId, onRetryTask, onStartAgentTask, onS
           <span>Reading Tasks</span>
         </div>
         {documentId && typeof onStartAgentTask === 'function' && (
-          <Button
-            aria-label="Paper overview"
-            icon={<ThunderboltOutlined />}
-            size="small"
-            type="primary"
-            onClick={() => onStartAgentTask('paper_overview_agent')}
-          >
-            Paper overview
-          </Button>
+          <div className="task-status-agent-actions">
+            {visibleAgentSkills(agentSkills).map((skill) => (
+              <Button
+                aria-label={skill.title}
+                icon={<ThunderboltOutlined />}
+                key={skill.type}
+                size="small"
+                type={skill.type === 'paper_overview_agent' ? 'primary' : 'default'}
+                onClick={() => onStartAgentTask(skill.type)}
+              >
+                {skill.title}
+              </Button>
+            ))}
+          </div>
         )}
       </div>
 

@@ -2300,6 +2300,14 @@
     font-weight: 600;
 }
 
+.task-status-agent-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+}
+
 .task-status-empty {
     display: flex;
     flex: 1;
