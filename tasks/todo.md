@@ -632,7 +632,29 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（21 storage tests + 1 command test）
 - [x] Whitespace 检查：`git diff --check` 通过
 
+## Phase 32：Reading Note JSON Import UI
+
+- [x] 新增 `tasks/bdd-tdd-reading-note-json-import-ui.md`
+- [x] Notes / Export 工具栏新增 `Import JSON` 入口
+- [x] 支持粘贴 Reading Note JSON 后导入
+- [x] 支持选择 `.json` 文件并填入导入输入框
+- [x] 导入调用 `importPersistentReadingNoteJson`
+- [x] 导入成功后回调 App 刷新最近文档
+- [x] 导入当前文档时刷新 Notes / VibeCards 列表
+
+验收：
+
+- [x] RED：`npm run test -- src/ArtifactPanel.test.jsx` 先失败于找不到 `Import JSON` 按钮
+- [x] RED：`npm run test -- src/WorkspaceLayout.test.jsx` 先失败于 `ArtifactPanel` 未收到 `onReadingNoteImported`
+- [x] GREEN：`npm run test -- src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` 通过（2 files / 25 tests）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 253 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（21 storage tests + 1 command test）
+- [x] Whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-11：继续推进 Phase 32，把 Phase 31 的 Reading Note JSON 导入能力接到 Notes / Export UI。新增 `tasks/bdd-tdd-reading-note-json-import-ui.md`；`ArtifactPanel` 现在有 `Import JSON` 入口，支持粘贴 JSON 或选择 `.json` 文件，导入时调用 `importPersistentReadingNoteJson`，成功后关闭导入框并通过 `onReadingNoteImported` 通知 App。App 接到导入成功后会刷新最近文档列表；如果导入的是当前文档，会重新读取当前文档的 Notes / VibeCards，让恢复的数据不用重启即可出现在面板里。验证：红灯先失败于缺少 Import JSON 按钮和 App 回调接线；实现后目标测试通过（2 files / 25 tests），全量 `npm run test` 通过（49 files / 253 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（21 storage tests + 1 command test），`git diff --check` 通过。剩余风险：本切片不做复杂冲突解决 UI，也不自动切换到被导入的非当前文档。
 
 2026-06-11：继续推进 Phase 31，补齐 PRD Notes / Export P0 的 “JSON 可重新导入 VibeReader” 后端闭环。新增 `tasks/bdd-tdd-reading-note-json-import.md`；Rust `Storage::import_reading_note_json` 现在会校验 `exportType: reading_note` 与 `schemaVersion: 1`，并把导出的 document metadata、summaries、annotations、vibecards、flashcard decks/cards、attention insights、thinking tree 和 conversations 写回 SQLite。导入同一文档时会先替换导出覆盖的文档级集合，避免 annotation/flashcard/attention 重复追加。新增 Tauri command `storage_import_reading_note_json` 和前端 adapter `importPersistentReadingNoteJson`；本切片不做文件选择 UI。验证：红灯先失败于 Rust 缺少导入方法、前端缺少 adapter；实现后目标 Rust 导入恢复测试通过（1 test）、schema 拒绝测试通过（1 test）、persistentStorage adapter 测试通过（1 file / 5 tests），全量 `npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（21 storage tests + 1 command test），`git diff --check` 通过。剩余风险：这里只完成 Rust/SQLite 导入和前端 adapter，尚未做“选择 JSON 文件并导入”的 UI。
 

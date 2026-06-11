@@ -381,6 +381,41 @@
     padding: 8px;
 }
 
+.artifact-import-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--fill-quinary);
+    border-radius: 8px;
+    background: var(--material-background);
+}
+
+.artifact-import-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.artifact-import-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    color: var(--accent-blue);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.artifact-import-file input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+}
+
 .artifact-export-preview {
     max-height: 260px;
     margin: 0;

@@ -407,6 +407,69 @@ describe('Workspace layout', () => {
         }));
     });
 
+    it('refreshes recent documents and current Notes after Reading Note JSON import', async () => {
+        documentServiceMock.fileToDocument.mockReturnValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+        });
+        documentServiceMock.fileToDocumentWithContent.mockResolvedValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+            contentText: 'The identification strategy uses matched controls.',
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, {
+            target: {
+                files: [new File(['# Methods'], 'opened.md', { type: 'text/markdown' })],
+            },
+        });
+
+        await waitFor(() => {
+            expect(useDocumentStore.getState().currentDocument?.id).toBe('doc-opened-md');
+        });
+        fireEvent.click(screen.getByText(/Notes|笔记/));
+        await screen.findByTestId('mock-artifact-panel');
+        artifactServiceMock.listArtifactsForDocument.mockClear();
+        artifactServiceMock.listArtifactsForDocument.mockResolvedValueOnce([
+            {
+                id: 'imported-card',
+                documentId: 'doc-opened-md',
+                type: 'concept_card',
+                goal: 'Imported card',
+            },
+        ]);
+        mockListPersistentDocuments.mockResolvedValueOnce([
+            {
+                id: 'doc-opened-md',
+                name: 'opened.md',
+                kind: 'markdown',
+                openedAt: 100,
+            },
+        ]);
+
+        await artifactPanelMock.lastProps.onReadingNoteImported({
+            document: { id: 'doc-opened-md' },
+        });
+
+        expect(mockListPersistentDocuments).toHaveBeenCalled();
+        expect(artifactServiceMock.listArtifactsForDocument).toHaveBeenCalledWith('doc-opened-md');
+        await waitFor(() => {
+            expect(artifactPanelMock.lastProps.artifacts).toEqual([
+                expect.objectContaining({ id: 'imported-card' }),
+            ]);
+        });
+    });
+
     it('retries failed source indexing tasks for the current document from the Tasks panel', async () => {
         documentServiceMock.fileToDocument.mockReturnValue({
             id: 'doc-opened-md',

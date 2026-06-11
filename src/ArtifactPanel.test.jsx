@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ArtifactPanel } from './ArtifactPanel';
 
@@ -7,6 +7,7 @@ const DRAG_INJECT_MIME = 'application/x-vibereader-drag-inject';
 
 const persistentMock = vi.hoisted(() => ({
     exportPersistentReadingNote: vi.fn(),
+    importPersistentReadingNoteJson: vi.fn(),
 }));
 
 vi.mock('./services/persistentStorage', () => persistentMock);
@@ -40,6 +41,7 @@ describe('ArtifactPanel', () => {
 
     beforeEach(() => {
         persistentMock.exportPersistentReadingNote.mockReset();
+        persistentMock.importPersistentReadingNoteJson.mockReset();
         createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:export');
         revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
         appendChildSpy = vi.spyOn(document.body, 'appendChild');
@@ -480,7 +482,7 @@ describe('ArtifactPanel', () => {
 
         expect(await screen.findByText(/# Reading Note/)).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: /Markdown/ }));
-        fireEvent.click(screen.getByRole('button', { name: /JSON/ }));
+        fireEvent.click(screen.getByRole('button', { name: /^downloadJSON$/ }));
 
         expect(appendedDownloads(appendChildSpy)).toEqual([
             'vibereader-export-paper-2026-06-10.md',
@@ -489,6 +491,61 @@ describe('ArtifactPanel', () => {
         expect(createObjectURLSpy).toHaveBeenCalledTimes(2);
         expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:export');
         expect(persistentMock.exportPersistentReadingNote).toHaveBeenCalledWith('doc-1');
+    });
+
+    it('imports pasted Reading Note JSON from the export toolbar', async () => {
+        persistentMock.importPersistentReadingNoteJson.mockResolvedValue({
+            document: 'doc-imported',
+            summaryCount: 1,
+        });
+        const onReadingNoteImported = vi.fn();
+        const json = '{"exportType":"reading_note","schemaVersion":1}';
+
+        render(
+            <ArtifactPanel
+                documentId="doc-1"
+                artifacts={[]}
+                onReadingNoteImported={onReadingNoteImported}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /Import JSON/ }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Reading Note JSON' }), {
+            target: { value: json },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Import Reading Note/ }));
+
+        await waitFor(() => {
+            expect(persistentMock.importPersistentReadingNoteJson).toHaveBeenCalledWith(json);
+        });
+        expect(onReadingNoteImported).toHaveBeenCalledWith({
+            document: 'doc-imported',
+            summaryCount: 1,
+        });
+    });
+
+    it('imports a chosen Reading Note JSON file through the same import flow', async () => {
+        persistentMock.importPersistentReadingNoteJson.mockResolvedValue({
+            document: 'doc-file-imported',
+        });
+        const json = '{"exportType":"reading_note","schemaVersion":1,"document":{"id":"doc-file"}}';
+        const file = new File([json], 'reading-note.json', { type: 'application/json' });
+
+        render(<ArtifactPanel documentId="doc-1" artifacts={[]} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Import JSON/ }));
+        fireEvent.change(screen.getByLabelText('Reading Note JSON file'), {
+            target: { files: [file] },
+        });
+
+        await waitFor(() => {
+            expect(screen.getByRole('textbox', { name: 'Reading Note JSON' }).value).toBe(json);
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Import Reading Note/ }));
+
+        await waitFor(() => {
+            expect(persistentMock.importPersistentReadingNoteJson).toHaveBeenCalledWith(json);
+        });
     });
 
     it('downloads selected VibeCard exports with document-name based filenames', () => {

@@ -8,8 +8,12 @@ import {
     FileSearchOutlined,
     FileTextOutlined,
     SaveOutlined,
+    UploadOutlined,
 } from '@ant-design/icons';
-import { exportPersistentReadingNote } from './services/persistentStorage';
+import {
+    exportPersistentReadingNote,
+    importPersistentReadingNoteJson,
+} from './services/persistentStorage';
 import { createDragInjectPayload, writeDragInjectData } from './dragInject';
 
 function artifactTypeLabel(type) {
@@ -393,9 +397,13 @@ export function ArtifactPanel({
     onNavigateToSource,
     onArtifactUpdated,
     onArtifactDeleted,
+    onReadingNoteImported,
 }) {
     const [exportPreview, setExportPreview] = useState(null);
     const [exporting, setExporting] = useState(false);
+    const [importPanelOpen, setImportPanelOpen] = useState(false);
+    const [importJson, setImportJson] = useState('');
+    const [importing, setImporting] = useState(false);
     const [selectedArtifactIds, setSelectedArtifactIds] = useState(() => new Set());
     const [selectedExportMarkdown, setSelectedExportMarkdown] = useState('');
     const [selectedObsidianMarkdown, setSelectedObsidianMarkdown] = useState('');
@@ -450,6 +458,45 @@ export function ArtifactPanel({
             'application/json;charset=utf-8'
         );
     }, [exportBaseName, exportPreview]);
+
+    const handleImportFile = useCallback(async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            setImportJson(text);
+        } catch (error) {
+            antMessage.error(error?.message || '读取 JSON 文件失败');
+        } finally {
+            event.target.value = '';
+        }
+    }, []);
+
+    const handleImportJson = useCallback(async () => {
+        const json = importJson.trim();
+        if (!json) {
+            antMessage.warning('请先粘贴或选择 Reading Note JSON');
+            return;
+        }
+
+        setImporting(true);
+        try {
+            const result = await importPersistentReadingNoteJson(json);
+            if (!result) {
+                antMessage.warning('当前运行环境暂不支持本地 JSON 导入');
+                return;
+            }
+            antMessage.success('Reading Note JSON 已导入');
+            setImportJson('');
+            setImportPanelOpen(false);
+            onReadingNoteImported?.(result);
+        } catch (error) {
+            antMessage.error(error?.message || '导入 Reading Note JSON 失败');
+        } finally {
+            setImporting(false);
+        }
+    }, [importJson, onReadingNoteImported]);
 
     const handlePreviewSelectedExport = useCallback(() => {
         if (selectedArtifacts.length === 0) {
@@ -518,6 +565,13 @@ export function ArtifactPanel({
                 )}
                 <Button
                     size="small"
+                    icon={<UploadOutlined />}
+                    onClick={() => setImportPanelOpen((current) => !current)}
+                >
+                    Import JSON
+                </Button>
+                <Button
+                    size="small"
                     icon={<FileTextOutlined />}
                     disabled={artifacts.length === 0}
                     onClick={handlePreviewSelectedExport}
@@ -551,6 +605,38 @@ export function ArtifactPanel({
                     </Button>
                 )}
             </div>
+
+            {importPanelOpen && (
+                <div className="artifact-import-panel">
+                    <Input.TextArea
+                        aria-label="Reading Note JSON"
+                        rows={4}
+                        value={importJson}
+                        placeholder="Paste exported Reading Note JSON here"
+                        onChange={(event) => setImportJson(event.target.value)}
+                    />
+                    <div className="artifact-import-actions">
+                        <label className="artifact-import-file">
+                            <UploadOutlined />
+                            <span>Choose JSON file</span>
+                            <input
+                                aria-label="Reading Note JSON file"
+                                type="file"
+                                accept=".json,application/json"
+                                onChange={handleImportFile}
+                            />
+                        </label>
+                        <Button
+                            size="small"
+                            type="primary"
+                            loading={importing}
+                            onClick={handleImportJson}
+                        >
+                            Import Reading Note
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {exporting && (
                 <div className="artifact-export-loading">

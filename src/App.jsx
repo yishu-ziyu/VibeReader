@@ -953,6 +953,23 @@ export function App() {
         }
     }, []);
 
+    const handleReadingNoteImported = useCallback(async (result) => {
+        try {
+            const persistentDocuments = await listPersistentDocuments();
+            setDocuments(persistentDocuments.map((document) => ({
+                ...document,
+                isRecentOnly: true,
+            })));
+
+            const importedDocumentId = result?.document?.id;
+            if (importedDocumentId && importedDocumentId === currentDocument?.id) {
+                setArtifacts(await listArtifactsForDocument(importedDocumentId));
+            }
+        } catch (error) {
+            console.warn('[App] Failed to refresh after reading note import:', error);
+        }
+    }, [currentDocument?.id, setDocuments]);
+
     const handleSaveTaskResult = useCallback(async (task) => {
         if (!currentDocument?.id || task?.documentId !== currentDocument.id) return;
         const body = taskResultContent(task);
@@ -1695,6 +1712,7 @@ export function App() {
                                         onNavigateToSource={handleNavigateArtifactSource}
                                         onArtifactUpdated={handleArtifactUpdated}
                                         onArtifactDeleted={handleArtifactDeleted}
+                                        onReadingNoteImported={handleReadingNoteImported}
                                     />
                                 </Suspense>
                             )}

@@ -1,5 +1,30 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 32：Reading Note JSON Import UI
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-note-json-import-ui.md`。
+- Notes / Export 面板新增 `Import JSON` 入口。
+- 支持粘贴 Reading Note JSON 后导入。
+- 支持选择 `.json` 文件并填入导入输入框。
+- 导入调用 `importPersistentReadingNoteJson`。
+- App 在导入成功后刷新最近文档列表；导入当前文档时刷新 Notes / VibeCards。
+
+命令：
+
+- RED：`npm run test -- src/ArtifactPanel.test.jsx` -> failed，找不到 `Import JSON` 按钮。
+- RED：`npm run test -- src/WorkspaceLayout.test.jsx` -> failed，`ArtifactPanel` 未收到 `onReadingNoteImported`。
+- GREEN：`npm run test -- src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（2 files / 25 tests）。
+- `npm run test` -> pass（49 files / 253 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（21 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本切片不做复杂冲突解决 UI，也不自动切换到被导入的非当前文档。
+
 ## 2026-06-11 Phase 31：Reading Note JSON Import
 
 改动：
