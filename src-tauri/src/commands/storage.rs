@@ -7,9 +7,10 @@ use crate::core::error::StorageError;
 use crate::core::storage::{
     AnnotationInput, AnnotationRecord, AttentionInsightInput, AttentionInsightRecord,
     ConversationInput, ConversationRecord, DocumentInput, DocumentRecord, FlashcardDeckInput,
-    FlashcardDeckRecord, ReadingNoteExport, SourceIndexStatusInput, SourceIndexStatusRecord,
-    SourceSpanInput, SourceSpanRecord, Storage, SummaryInput, SummaryRecord, TaskInput, TaskRecord,
-    ThinkingTreeInput, ThinkingTreeRecord, VibeCardInput, VibeCardRecord,
+    FlashcardDeckRecord, ReadingNoteExport, ReadingNoteImportResult, SourceIndexStatusInput,
+    SourceIndexStatusRecord, SourceSpanInput, SourceSpanRecord, Storage, SummaryInput,
+    SummaryRecord, TaskInput, TaskRecord, ThinkingTreeInput, ThinkingTreeRecord, VibeCardInput,
+    VibeCardRecord,
 };
 
 #[derive(Default)]
@@ -267,6 +268,14 @@ pub fn storage_export_reading_note(
     document_id: String,
 ) -> Result<ReadingNoteExport, CommandError> {
     with_storage(&state, |storage| storage.export_reading_note(&document_id))
+}
+
+#[tauri::command]
+pub fn storage_import_reading_note_json(
+    state: State<'_, StorageState>,
+    json: String,
+) -> Result<ReadingNoteImportResult, CommandError> {
+    with_storage(&state, |storage| storage.import_reading_note_json(&json))
 }
 
 #[tauri::command]

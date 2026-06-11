@@ -20,6 +20,7 @@ import {
     loadPersistentConversation,
     loadPersistentSummary,
     exportPersistentReadingNote,
+    importPersistentReadingNoteJson,
     savePersistentDocument,
     savePersistentConversation,
     savePersistentAttentionInsights,
@@ -62,6 +63,7 @@ describe('persistentStorage', () => {
         await expect(listPersistentAttentionInsights('doc-1')).resolves.toEqual([]);
         await expect(loadPersistentSummary('doc-1', 'section', 'section-0')).resolves.toBeNull();
         await expect(exportPersistentReadingNote('doc-1')).resolves.toBeNull();
+        await expect(importPersistentReadingNoteJson('{"exportType":"reading_note"}')).resolves.toBeNull();
         await expect(listPersistentFlashcardDecks('doc-1')).resolves.toEqual([]);
         await expect(listPersistentAnnotations('doc-1')).resolves.toEqual([]);
         await expect(listPersistentVibeCards('doc-1')).resolves.toEqual([]);
@@ -102,6 +104,7 @@ describe('persistentStorage', () => {
             .mockResolvedValueOnce({ id: 'summary-1', keyPointsJson: '["point"]' })
             .mockResolvedValueOnce({ id: 'summary-1', keyPointsJson: '["point"]' })
             .mockResolvedValueOnce({ markdown: '# Reading Note', json: '{"document":{}}' })
+            .mockResolvedValueOnce({ document: { id: 'doc-1' }, summaryCount: 1 })
             .mockResolvedValueOnce([{ id: 'deck-1', cards: [{ id: 'card-1' }] }])
             .mockResolvedValueOnce([{ id: 'deck-1', cards: [{ id: 'card-1' }] }])
             .mockResolvedValueOnce({ id: 'annotation-1' })
@@ -170,6 +173,10 @@ describe('persistentStorage', () => {
         await expect(exportPersistentReadingNote('doc-1')).resolves.toEqual({
             markdown: '# Reading Note',
             json: '{"document":{}}',
+        });
+        await expect(importPersistentReadingNoteJson('{"exportType":"reading_note"}')).resolves.toEqual({
+            document: { id: 'doc-1' },
+            summaryCount: 1,
         });
         await expect(savePersistentFlashcardDecks('doc-1', [{
             id: 'deck-1',
@@ -257,6 +264,7 @@ describe('persistentStorage', () => {
             'storage_upsert_summary',
             'storage_load_summary',
             'storage_export_reading_note',
+            'storage_import_reading_note_json',
             'storage_replace_flashcard_decks',
             'storage_list_flashcard_decks',
             'storage_create_annotation',
@@ -314,6 +322,9 @@ describe('persistentStorage', () => {
                 payloadJson: '{"documentId":"doc-1"}',
                 startedAt: 1234,
             }),
+        });
+        expect(invokeMock).toHaveBeenCalledWith('storage_import_reading_note_json', {
+            json: '{"exportType":"reading_note"}',
         });
         expect(invokeMock).toHaveBeenCalledWith('storage_load_task', {
             id: 'task-1',

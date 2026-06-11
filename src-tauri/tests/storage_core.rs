@@ -962,6 +962,234 @@ fn builds_markdown_reading_note_export_without_secrets() {
 }
 
 #[test]
+fn imports_reading_note_export_json_into_storage() {
+    let source = Storage::open_memory().expect("open source db");
+    source.init_schema().expect("init source schema");
+
+    source
+        .upsert_document(DocumentInput {
+            id: "doc-import".into(),
+            name: "Importable Paper.pdf".into(),
+            kind: "pdf".into(),
+            source: "local-file".into(),
+            path: Some("/tmp/importable.pdf".into()),
+            mime_type: "application/pdf".into(),
+            size: 42,
+            fingerprint: Some("fp-import".into()),
+            opened_at: 100,
+            updated_at: 120,
+            parse_status: "parsed".into(),
+        })
+        .expect("save document");
+    source
+        .upsert_summary(SummaryInput {
+            id: "summary-import".into(),
+            document_id: "doc-import".into(),
+            summary_kind: "paper".into(),
+            section_id: None,
+            section_title: "Paper".into(),
+            summary: "Import summary".into(),
+            key_points_json: "[\"point\"]".into(),
+            raw_response: "{}".into(),
+            created_at: 130,
+            updated_at: 130,
+        })
+        .expect("save summary");
+    source
+        .create_annotation(AnnotationInput {
+            id: "annotation-import".into(),
+            document_id: "doc-import".into(),
+            page: 2,
+            paragraph_id: Some("page-2-para-0".into()),
+            selected_text: "Important imported quote".into(),
+            note: "Imported note".into(),
+            color: "yellow".into(),
+            rect_json: None,
+            created_at: 140,
+            updated_at: 140,
+        })
+        .expect("save annotation");
+    source
+        .create_vibecard(VibeCardInput {
+            id: "vibecard-import".into(),
+            document_id: "doc-import".into(),
+            card_type: "reading_note".into(),
+            title: "Imported card".into(),
+            source_text: "Imported source".into(),
+            ai_content: r#"{"body":"Imported body"}"#.into(),
+            user_note: "Imported user note".into(),
+            page: Some(3),
+            paragraph_id: Some("page-3-para-0".into()),
+            tags_json: "[]".into(),
+            source_json: "{}".into(),
+            created_at: 150,
+            updated_at: 150,
+            verification_status: "grounded".into(),
+        })
+        .expect("save card");
+    source
+        .replace_flashcard_decks(
+            "doc-import",
+            vec![FlashcardDeckInput {
+                id: "deck-import".into(),
+                document_id: "doc-import".into(),
+                title: "Imported deck".into(),
+                created_at: 160,
+                updated_at: 160,
+                cards: vec![FlashcardInput {
+                    id: "flashcard-import".into(),
+                    deck_id: "deck-import".into(),
+                    document_id: "doc-import".into(),
+                    front: "Front".into(),
+                    back: "Back".into(),
+                    known: true,
+                    unknown: false,
+                    created_at: 161,
+                    updated_at: 161,
+                }],
+            }],
+        )
+        .expect("save flashcards");
+    source
+        .replace_attention_insights(
+            "doc-import",
+            vec![AttentionInsightInput {
+                id: "insight-import".into(),
+                document_id: "doc-import".into(),
+                insight_type: "method".into(),
+                description: "Imported method insight".into(),
+                page: 4,
+                paragraph_index: 0,
+                paragraph_id: "page-4-para-0".into(),
+                payload_json: "{}".into(),
+                read_status: "unread".into(),
+                created_at: 170,
+                updated_at: 170,
+            }],
+        )
+        .expect("save insight");
+    source
+        .upsert_thinking_tree(ThinkingTreeInput {
+            document_id: "doc-import".into(),
+            tree_json: "{\"id\":\"root\"}".into(),
+            created_at: 180,
+            updated_at: 180,
+        })
+        .expect("save tree");
+    source
+        .upsert_conversation(ConversationInput {
+            session_id: "session-import".into(),
+            document_id: Some("doc-import".into()),
+            title: "Imported chat".into(),
+            messages_json: "[{\"role\":\"user\",\"content\":\"Q\"}]".into(),
+            message_count: 1,
+            created_at: 190,
+            updated_at: 190,
+        })
+        .expect("save conversation");
+
+    let export = source
+        .export_reading_note("doc-import")
+        .expect("export reading note");
+
+    let target = Storage::open_memory().expect("open target db");
+    target.init_schema().expect("init target schema");
+    let result = target
+        .import_reading_note_json(&export.json)
+        .expect("import reading note json");
+
+    assert_eq!(result.document.id, "doc-import");
+    assert_eq!(result.summary_count, 1);
+    assert_eq!(result.annotation_count, 1);
+    assert_eq!(result.vibecard_count, 1);
+    assert_eq!(result.flashcard_deck_count, 1);
+    assert_eq!(result.attention_insight_count, 1);
+    assert_eq!(result.conversation_count, 1);
+    assert_eq!(target.list_documents().expect("list documents").len(), 1);
+    assert_eq!(
+        target.list_summaries("doc-import").expect("list summaries")[0].summary,
+        "Import summary"
+    );
+    assert_eq!(
+        target
+            .list_annotations("doc-import")
+            .expect("list annotations")[0]
+            .selected_text,
+        "Important imported quote"
+    );
+    assert_eq!(
+        target.list_vibecards("doc-import").expect("list vibecards")[0].title,
+        "Imported card"
+    );
+    assert_eq!(
+        target
+            .list_flashcard_decks("doc-import")
+            .expect("list flashcards")[0]
+            .cards[0]
+            .front,
+        "Front"
+    );
+    assert_eq!(
+        target
+            .list_attention_insights("doc-import")
+            .expect("list insights")[0]
+            .description,
+        "Imported method insight"
+    );
+    assert!(target
+        .load_thinking_tree("doc-import")
+        .expect("load tree")
+        .is_some());
+    assert_eq!(
+        target
+            .load_conversation("session-import")
+            .expect("load conversation")
+            .expect("conversation")
+            .title,
+        "Imported chat"
+    );
+}
+
+#[test]
+fn rejects_reading_note_json_import_with_unsupported_schema() {
+    let storage = Storage::open_memory().expect("open memory db");
+    storage.init_schema().expect("init schema");
+
+    let error = storage
+        .import_reading_note_json(
+            r#"{
+                "exportType": "reading_note",
+                "schemaVersion": 999,
+                "exportedAt": 100,
+                "document": {
+                    "id": "doc-bad",
+                    "name": "Bad.pdf",
+                    "kind": "pdf",
+                    "source": "local-file",
+                    "path": null,
+                    "mimeType": "application/pdf",
+                    "size": 1,
+                    "fingerprint": null,
+                    "openedAt": 100,
+                    "updatedAt": 100,
+                    "parseStatus": "parsed"
+                },
+                "summaries": [],
+                "annotations": [],
+                "vibecards": [],
+                "flashcardDecks": [],
+                "attentionInsights": [],
+                "thinkingTree": null,
+                "conversations": []
+            }"#,
+        )
+        .expect_err("unsupported schema should fail");
+
+    assert_eq!(error.code(), "validation_error");
+    assert!(error.message().contains("unsupported reading note schema"));
+}
+
+#[test]
 fn reading_note_export_renders_artifact_body_and_source_refs() {
     let storage = Storage::open_memory().expect("open memory db");
     storage.init_schema().expect("init schema");

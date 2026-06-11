@@ -610,7 +610,31 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test）
 - [x] Whitespace 检查：`git diff --check` 通过
 
+## Phase 31：Reading Note JSON Import
+
+- [x] 新增 `tasks/bdd-tdd-reading-note-json-import.md`
+- [x] Rust `import_reading_note_json` 校验 `exportType/schemaVersion`
+- [x] Rust 可把 Reading Note JSON 导入 SQLite
+- [x] 导入恢复 document metadata、summaries、annotations、vibecards、flashcard decks、attention insights、thinking tree、conversations
+- [x] 重复导入按文档替换导出覆盖的集合，避免追加重复 rows
+- [x] Tauri command `storage_import_reading_note_json`
+- [x] 前端 adapter `importPersistentReadingNoteJson`
+
+验收：
+
+- [x] RED：`cargo test --test storage_core import_reading_note` 先失败于 `Storage` 缺少 `import_reading_note_json`
+- [x] RED：`npm run test -- src/services/persistentStorage.test.js` 先失败于缺少 `importPersistentReadingNoteJson`
+- [x] GREEN：`cargo test --test storage_core imports_reading_note_export_json_into_storage` 通过（1 test）
+- [x] GREEN：`cargo test --test storage_core reading_note_json` 通过（1 test）
+- [x] GREEN：`npm run test -- src/services/persistentStorage.test.js` 通过（1 file / 5 tests）
+- [x] 全量前端测试：`npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（21 storage tests + 1 command test）
+- [x] Whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-11：继续推进 Phase 31，补齐 PRD Notes / Export P0 的 “JSON 可重新导入 VibeReader” 后端闭环。新增 `tasks/bdd-tdd-reading-note-json-import.md`；Rust `Storage::import_reading_note_json` 现在会校验 `exportType: reading_note` 与 `schemaVersion: 1`，并把导出的 document metadata、summaries、annotations、vibecards、flashcard decks/cards、attention insights、thinking tree 和 conversations 写回 SQLite。导入同一文档时会先替换导出覆盖的文档级集合，避免 annotation/flashcard/attention 重复追加。新增 Tauri command `storage_import_reading_note_json` 和前端 adapter `importPersistentReadingNoteJson`；本切片不做文件选择 UI。验证：红灯先失败于 Rust 缺少导入方法、前端缺少 adapter；实现后目标 Rust 导入恢复测试通过（1 test）、schema 拒绝测试通过（1 test）、persistentStorage adapter 测试通过（1 file / 5 tests），全量 `npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（21 storage tests + 1 command test），`git diff --check` 通过。剩余风险：这里只完成 Rust/SQLite 导入和前端 adapter，尚未做“选择 JSON 文件并导入”的 UI。
 
 2026-06-11：继续推进 Phase 30，补齐 Reading Note JSON 导出的显式 schema metadata。新增 `tasks/bdd-tdd-reading-note-export-schema.md`；Rust `export_reading_note` 现在在 command 返回体和 JSON payload 顶层写入 `exportType: "reading_note"` 与 `schemaVersion: 1`，为后续 JSON 重新导入和 schema migration 提供稳定判别字段。本切片不实现导入。验证：红灯先失败于 `ReadingNoteExport` 缺少 `export_type/schema_version` 字段；实现后目标 Rust 测试通过（1 test），全量 `npm run test` 通过（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（19 storage tests + 1 command test），`git diff --check` 通过。剩余风险：这里只声明导出 schema，尚未实现 JSON 重新导入。
 

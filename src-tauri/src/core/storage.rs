@@ -69,7 +69,7 @@ pub struct DocumentInput {
     pub parse_status: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentRecord {
     pub id: String,
@@ -100,7 +100,7 @@ pub struct AnnotationInput {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnnotationRecord {
     pub id: String,
@@ -135,7 +135,7 @@ pub struct VibeCardInput {
     pub verification_status: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VibeCardRecord {
     pub id: String,
@@ -169,7 +169,7 @@ pub struct FlashcardInput {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlashcardRecord {
     pub id: String,
@@ -194,7 +194,7 @@ pub struct FlashcardDeckInput {
     pub cards: Vec<FlashcardInput>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlashcardDeckRecord {
     pub id: String,
@@ -217,7 +217,7 @@ pub struct ConversationInput {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversationRecord {
     pub session_id: String,
@@ -238,7 +238,7 @@ pub struct ThinkingTreeInput {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThinkingTreeRecord {
     pub document_id: String,
@@ -264,7 +264,7 @@ pub struct AttentionInsightInput {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttentionInsightRecord {
     pub id: String,
@@ -296,7 +296,7 @@ pub struct SummaryInput {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SummaryRecord {
     pub id: String,
@@ -403,7 +403,7 @@ pub struct TaskRecord {
     pub cancelled_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadingNoteExport {
     pub export_type: String,
@@ -421,7 +421,7 @@ pub struct ReadingNoteExport {
     pub json: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReadingNoteExportPayload {
     export_type: String,
@@ -435,6 +435,220 @@ struct ReadingNoteExportPayload {
     attention_insights: Vec<AttentionInsightRecord>,
     thinking_tree: Option<ThinkingTreeRecord>,
     conversations: Vec<ConversationRecord>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadingNoteImportResult {
+    pub document: DocumentRecord,
+    pub summary_count: usize,
+    pub annotation_count: usize,
+    pub vibecard_count: usize,
+    pub flashcard_deck_count: usize,
+    pub attention_insight_count: usize,
+    pub conversation_count: usize,
+}
+
+fn document_input_from_record(record: &DocumentRecord) -> DocumentInput {
+    DocumentInput {
+        id: record.id.clone(),
+        name: record.name.clone(),
+        kind: record.kind.clone(),
+        source: record.source.clone(),
+        path: record.path.clone(),
+        mime_type: record.mime_type.clone(),
+        size: record.size,
+        fingerprint: record.fingerprint.clone(),
+        opened_at: record.opened_at,
+        updated_at: record.updated_at,
+        parse_status: record.parse_status.clone(),
+    }
+}
+
+fn annotation_input_from_record(record: &AnnotationRecord) -> AnnotationInput {
+    AnnotationInput {
+        id: record.id.clone(),
+        document_id: record.document_id.clone(),
+        page: record.page,
+        paragraph_id: record.paragraph_id.clone(),
+        selected_text: record.selected_text.clone(),
+        note: record.note.clone(),
+        color: record.color.clone(),
+        rect_json: record.rect_json.clone(),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn vibecard_input_from_record(record: &VibeCardRecord) -> VibeCardInput {
+    VibeCardInput {
+        id: record.id.clone(),
+        document_id: record.document_id.clone(),
+        card_type: record.card_type.clone(),
+        title: record.title.clone(),
+        source_text: record.source_text.clone(),
+        ai_content: record.ai_content.clone(),
+        user_note: record.user_note.clone(),
+        page: record.page,
+        paragraph_id: record.paragraph_id.clone(),
+        tags_json: record.tags_json.clone(),
+        source_json: record.source_json.clone(),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        verification_status: record.verification_status.clone(),
+    }
+}
+
+fn flashcard_input_from_record(record: &FlashcardRecord) -> FlashcardInput {
+    FlashcardInput {
+        id: record.id.clone(),
+        deck_id: record.deck_id.clone(),
+        document_id: record.document_id.clone(),
+        front: record.front.clone(),
+        back: record.back.clone(),
+        known: record.known,
+        unknown: record.unknown,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn flashcard_deck_input_from_record(record: &FlashcardDeckRecord) -> FlashcardDeckInput {
+    FlashcardDeckInput {
+        id: record.id.clone(),
+        document_id: record.document_id.clone(),
+        title: record.title.clone(),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        cards: record
+            .cards
+            .iter()
+            .map(flashcard_input_from_record)
+            .collect(),
+    }
+}
+
+fn conversation_input_from_record(record: &ConversationRecord) -> ConversationInput {
+    ConversationInput {
+        session_id: record.session_id.clone(),
+        document_id: record.document_id.clone(),
+        title: record.title.clone(),
+        messages_json: record.messages_json.clone(),
+        message_count: record.message_count,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn thinking_tree_input_from_record(record: &ThinkingTreeRecord) -> ThinkingTreeInput {
+    ThinkingTreeInput {
+        document_id: record.document_id.clone(),
+        tree_json: record.tree_json.clone(),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn attention_insight_input_from_record(record: &AttentionInsightRecord) -> AttentionInsightInput {
+    AttentionInsightInput {
+        id: record.id.clone(),
+        document_id: record.document_id.clone(),
+        insight_type: record.insight_type.clone(),
+        description: record.description.clone(),
+        page: record.page,
+        paragraph_index: record.paragraph_index,
+        paragraph_id: record.paragraph_id.clone(),
+        payload_json: record.payload_json.clone(),
+        read_status: record.read_status.clone(),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn summary_input_from_record(record: &SummaryRecord) -> SummaryInput {
+    SummaryInput {
+        id: record.id.clone(),
+        document_id: record.document_id.clone(),
+        summary_kind: record.summary_kind.clone(),
+        section_id: record.section_id.clone(),
+        section_title: record.section_title.clone(),
+        summary: record.summary.clone(),
+        key_points_json: record.key_points_json.clone(),
+        raw_response: record.raw_response.clone(),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn validate_payload_document_ids(payload: &ReadingNoteExportPayload) -> StorageResult<()> {
+    let document_id = &payload.document.id;
+    validate_required("document id", document_id)?;
+
+    for summary in &payload.summaries {
+        if &summary.document_id != document_id {
+            return Err(StorageError::Validation(
+                "summary document id does not match import document".into(),
+            ));
+        }
+    }
+    for annotation in &payload.annotations {
+        if &annotation.document_id != document_id {
+            return Err(StorageError::Validation(
+                "annotation document id does not match import document".into(),
+            ));
+        }
+    }
+    for card in &payload.vibecards {
+        if &card.document_id != document_id {
+            return Err(StorageError::Validation(
+                "vibecard document id does not match import document".into(),
+            ));
+        }
+    }
+    for deck in &payload.flashcard_decks {
+        if &deck.document_id != document_id {
+            return Err(StorageError::Validation(
+                "flashcard deck document id does not match import document".into(),
+            ));
+        }
+        for card in &deck.cards {
+            if &card.document_id != document_id {
+                return Err(StorageError::Validation(
+                    "flashcard document id does not match import document".into(),
+                ));
+            }
+            if card.deck_id != deck.id {
+                return Err(StorageError::Validation(
+                    "flashcard deck id does not match parent deck".into(),
+                ));
+            }
+        }
+    }
+    for insight in &payload.attention_insights {
+        if &insight.document_id != document_id {
+            return Err(StorageError::Validation(
+                "attention insight document id does not match import document".into(),
+            ));
+        }
+    }
+    if let Some(tree) = &payload.thinking_tree {
+        if &tree.document_id != document_id {
+            return Err(StorageError::Validation(
+                "thinking tree document id does not match import document".into(),
+            ));
+        }
+    }
+    for conversation in &payload.conversations {
+        if let Some(conversation_document_id) = &conversation.document_id {
+            if conversation_document_id != document_id {
+                return Err(StorageError::Validation(
+                    "conversation document id does not match import document".into(),
+                ));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub struct Storage {
@@ -1259,6 +1473,104 @@ impl Storage {
             conversations: payload.conversations,
             markdown,
             json,
+        })
+    }
+
+    pub fn import_reading_note_json(&self, json: &str) -> StorageResult<ReadingNoteImportResult> {
+        validate_required("reading note json", json)?;
+        let payload: ReadingNoteExportPayload = serde_json::from_str(json)
+            .map_err(|error| StorageError::Validation(error.to_string()))?;
+
+        if payload.export_type != READING_NOTE_EXPORT_TYPE {
+            return Err(StorageError::Validation(format!(
+                "unsupported reading note export type: {}",
+                payload.export_type
+            )));
+        }
+        if payload.schema_version != READING_NOTE_SCHEMA_VERSION {
+            return Err(StorageError::Validation(format!(
+                "unsupported reading note schema version: {}",
+                payload.schema_version
+            )));
+        }
+        validate_payload_document_ids(&payload)?;
+
+        let document_id = payload.document.id.clone();
+        let document = self.upsert_document(document_input_from_record(&payload.document))?;
+
+        self.connection.execute(
+            "DELETE FROM annotations WHERE document_id = ?1",
+            [&document_id],
+        )?;
+        self.connection.execute(
+            "DELETE FROM vibecards WHERE document_id = ?1",
+            [&document_id],
+        )?;
+        self.connection.execute(
+            "DELETE FROM summaries WHERE document_id = ?1",
+            [&document_id],
+        )?;
+        self.connection.execute(
+            "DELETE FROM flashcards WHERE document_id = ?1",
+            [&document_id],
+        )?;
+        self.connection.execute(
+            "DELETE FROM flashcard_decks WHERE document_id = ?1",
+            [&document_id],
+        )?;
+        self.connection.execute(
+            "DELETE FROM attention_insights WHERE document_id = ?1",
+            [&document_id],
+        )?;
+        self.connection.execute(
+            "DELETE FROM thinking_trees WHERE document_id = ?1",
+            [&document_id],
+        )?;
+        self.connection.execute(
+            "DELETE FROM conversations WHERE document_id = ?1",
+            [&document_id],
+        )?;
+
+        for summary in &payload.summaries {
+            self.upsert_summary(summary_input_from_record(summary))?;
+        }
+        for annotation in &payload.annotations {
+            self.create_annotation(annotation_input_from_record(annotation))?;
+        }
+        for card in &payload.vibecards {
+            self.create_vibecard(vibecard_input_from_record(card))?;
+        }
+        self.replace_flashcard_decks(
+            &document_id,
+            payload
+                .flashcard_decks
+                .iter()
+                .map(flashcard_deck_input_from_record)
+                .collect(),
+        )?;
+        self.replace_attention_insights(
+            &document_id,
+            payload
+                .attention_insights
+                .iter()
+                .map(attention_insight_input_from_record)
+                .collect(),
+        )?;
+        if let Some(tree) = &payload.thinking_tree {
+            self.upsert_thinking_tree(thinking_tree_input_from_record(tree))?;
+        }
+        for conversation in &payload.conversations {
+            self.upsert_conversation(conversation_input_from_record(conversation))?;
+        }
+
+        Ok(ReadingNoteImportResult {
+            document,
+            summary_count: payload.summaries.len(),
+            annotation_count: payload.annotations.len(),
+            vibecard_count: payload.vibecards.len(),
+            flashcard_deck_count: payload.flashcard_decks.len(),
+            attention_insight_count: payload.attention_insights.len(),
+            conversation_count: payload.conversations.len(),
         })
     }
 

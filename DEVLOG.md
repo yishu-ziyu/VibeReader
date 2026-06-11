@@ -1,5 +1,32 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-11 Phase 31：Reading Note JSON Import
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-note-json-import.md`。
+- Rust `Storage::import_reading_note_json` 支持导入 `exportType: reading_note` / `schemaVersion: 1` 的 Reading Note JSON。
+- 导入会恢复 document metadata、summaries、annotations、vibecards、flashcard decks/cards、attention insights、thinking tree 和 conversations。
+- 同一文档重复导入会替换导出覆盖的文档级集合，避免重复追加 rows。
+- 新增 Tauri command `storage_import_reading_note_json`。
+- 新增前端 adapter `importPersistentReadingNoteJson`。
+
+命令：
+
+- RED：`cargo test --test storage_core import_reading_note` -> failed，`Storage` 缺少 `import_reading_note_json`。
+- RED：`npm run test -- src/services/persistentStorage.test.js` -> failed，缺少 `importPersistentReadingNoteJson`。
+- GREEN：`cargo test --test storage_core imports_reading_note_export_json_into_storage` -> pass（1 test）。
+- GREEN：`cargo test --test storage_core reading_note_json` -> pass（1 test）。
+- GREEN：`npm run test -- src/services/persistentStorage.test.js` -> pass（1 file / 5 tests）。
+- `npm run test` -> pass（49 files / 250 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（21 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 这里只完成 Rust/SQLite 导入和前端 adapter，尚未做“选择 JSON 文件并导入”的 UI。
+
 ## 2026-06-11 Phase 30：Reading Note Export Schema
 
 改动：

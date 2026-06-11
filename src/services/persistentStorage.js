@@ -443,6 +443,13 @@ export async function exportPersistentReadingNote(documentId) {
     });
 }
 
+export async function importPersistentReadingNoteJson(json) {
+    if (!isPersistentStorageAvailable()) return null;
+    return invokeStorage('storage_import_reading_note_json', {
+        json,
+    });
+}
+
 export async function savePersistentFlashcardDecks(documentId, decks = []) {
     if (!isPersistentStorageAvailable()) return [];
     return invokeStorage('storage_replace_flashcard_decks', {
