@@ -547,6 +547,14 @@ export function App() {
             runReadingAgentTask({
                 task: buildReadingAgentTask(taskType, currentDocument, { goal: agentOptions.goal }),
                 agentOptions,
+            }).then((result) => {
+                if (taskType !== 'card_generation_agent') return;
+                const content = result?.agentResult?.content || result?.task?.result?.content || '';
+                if (result?.status === 'succeeded' && content.includes('Created 3 source-grounded VibeCards.')) {
+                    antMessage.success('已创建 3 张 VibeCard');
+                } else if (content.includes('Need at least 3 source chunks')) {
+                    antMessage.warning('来源不足，未创建 VibeCard');
+                }
             }).catch((error) => {
                 console.warn('[App] Failed to start reading agent:', error);
             });

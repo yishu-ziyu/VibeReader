@@ -94,11 +94,28 @@ const agentMock = vi.hoisted(() => ({
             },
         },
     })),
-    createReadingTools: vi.fn(() => ({
+    createReadingTools: vi.fn((baseContext = {}, adapters = {}) => ({
         get_current_document: { run: vi.fn() },
         get_document_chunks: { run: vi.fn() },
         list_attention_insights: { run: vi.fn() },
-        create_vibecard: { run: vi.fn() },
+        create_vibecard: {
+            run: vi.fn(async (args = {}) => {
+                if (!adapters.createVibeCard) {
+                    throw new Error('missing createVibeCard adapter');
+                }
+                const documentId = args.documentId || baseContext.document?.id || null;
+                const card = await adapters.createVibeCard({
+                    documentId,
+                    ...(args.card || {}),
+                });
+                return {
+                    documentId,
+                    cardId: card?.id || null,
+                    status: 'created',
+                    card,
+                };
+            }),
+        },
     })),
     createLocalAttentionRouteModel: vi.fn(() => vi.fn(async () => ({
         type: 'final',
@@ -1114,6 +1131,144 @@ describe('Workspace layout', () => {
                 createVibeCard: expect.any(Function),
             })
         );
+    });
+
+    it('renders three saved VibeCards in Notes after a confirmed Create VibeCard run', async () => {
+        const cards = [
+            {
+                type: 'concept',
+                title: 'VibeCard 1: Research problem',
+                sourceText: 'The source text for the research problem.',
+                aiContent: 'Review this source-backed point: research problem.',
+                page: 1,
+                paragraphId: 'page-1-para-1',
+                tags: ['agent-generated', 'vibecard'],
+                source: {
+                    page: 1,
+                    paragraphId: 'page-1-para-1',
+                    selectedText: 'The source text for the research problem.',
+                    sourceType: 'agent-card-generation',
+                },
+                verificationStatus: 'grounded',
+            },
+            {
+                type: 'concept',
+                title: 'VibeCard 2: Method',
+                sourceText: 'The source text for the method.',
+                aiContent: 'Review this source-backed point: method.',
+                page: 2,
+                paragraphId: 'page-2-para-1',
+                tags: ['agent-generated', 'vibecard'],
+                source: {
+                    page: 2,
+                    paragraphId: 'page-2-para-1',
+                    selectedText: 'The source text for the method.',
+                    sourceType: 'agent-card-generation',
+                },
+                verificationStatus: 'grounded',
+            },
+            {
+                type: 'concept',
+                title: 'VibeCard 3: Evidence',
+                sourceText: 'The source text for the evidence.',
+                aiContent: 'Review this source-backed point: evidence.',
+                page: 3,
+                paragraphId: 'page-3-para-1',
+                tags: ['agent-generated', 'vibecard'],
+                source: {
+                    page: 3,
+                    paragraphId: 'page-3-para-1',
+                    selectedText: 'The source text for the evidence.',
+                    sourceType: 'agent-card-generation',
+                },
+                verificationStatus: 'grounded',
+            },
+        ];
+        let artifactIndex = 0;
+        artifactServiceMock.createArtifact.mockImplementation(async (artifact) => ({
+            ...artifact,
+            id: artifact.id || `agent-card-${artifactIndex += 1}`,
+        }));
+        agentMock.runReadingAgentTask.mockImplementationOnce(async ({ agentOptions }) => {
+            for (const card of cards) {
+                await agentOptions.tools.create_vibecard.run({ card });
+            }
+            return {
+                status: 'succeeded',
+                agentResult: {
+                    status: 'completed',
+                    content: '# Created VibeCards\n\nCreated 3 source-grounded VibeCards.',
+                    sourceRefs: cards.map((card) => ({
+                        documentId: 'doc-opened-md',
+                        page: card.page,
+                        paragraphId: card.paragraphId,
+                        text: card.sourceText,
+                    })),
+                },
+            };
+        });
+        documentServiceMock.fileToDocument.mockReturnValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+        });
+        documentServiceMock.fileToDocumentWithContent.mockResolvedValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+            contentText: 'The paper has enough source material for VibeCards.',
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, {
+            target: {
+                files: [new File(['# Notes'], 'opened.md', { type: 'text/markdown' })],
+            },
+        });
+
+        await waitFor(() => {
+            expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByText('Tasks'));
+        fireEvent.click(await screen.findByText('Start mocked create vibecard'));
+
+        await screen.findByTestId('mock-artifact-panel');
+        await waitFor(() => {
+            expect(artifactPanelMock.lastProps.artifacts).toHaveLength(3);
+        });
+        expect(artifactServiceMock.createArtifact).toHaveBeenCalledTimes(3);
+        expect(useUIStore.getState().rightToolTab).toBe('artifacts');
+        expect(artifactPanelMock.lastProps.artifacts).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                documentId: 'doc-opened-md',
+                goal: 'VibeCard 1: Research problem',
+                currentContent: expect.objectContaining({
+                    sourceText: 'The source text for the research problem.',
+                    aiContent: 'Review this source-backed point: research problem.',
+                }),
+                verificationStatus: 'grounded',
+            }),
+            expect.objectContaining({
+                goal: 'VibeCard 2: Method',
+                currentContent: expect.objectContaining({
+                    sourceText: 'The source text for the method.',
+                }),
+            }),
+            expect.objectContaining({
+                goal: 'VibeCard 3: Evidence',
+                currentContent: expect.objectContaining({
+                    sourceText: 'The source text for the evidence.',
+                }),
+            }),
+        ]));
     });
 
     it('saves a completed agent task result as a reading note artifact', async () => {

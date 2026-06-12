@@ -210,6 +210,47 @@ describe('ArtifactPanel', () => {
         expect(screen.getByText('P2 · page-2-para-0')).toBeTruthy();
     });
 
+    it('renders agent-generated VibeCards with readable source-grounded content', () => {
+        const artifacts = [
+            {
+                id: 'agent-card-1',
+                documentId: 'doc-1',
+                type: 'concept',
+                goal: 'VibeCard 1: Research problem',
+                verificationStatus: 'grounded',
+                source: {
+                    documentId: 'doc-1',
+                    page: 2,
+                    paragraphId: 'page-2-para-1',
+                    selectedText: 'The research problem source text.',
+                    sourceType: 'agent-card-generation',
+                },
+                currentContent: {
+                    title: 'VibeCard 1: Research problem',
+                    type: 'concept',
+                    sourceText: 'The research problem source text.',
+                    aiContent: 'Review this source-backed point: The research problem source text.',
+                    tags: ['agent-generated', 'vibecard'],
+                    source: {
+                        documentId: 'doc-1',
+                        page: 2,
+                        paragraphId: 'page-2-para-1',
+                        selectedText: 'The research problem source text.',
+                        sourceType: 'agent-card-generation',
+                    },
+                },
+            },
+        ];
+
+        render(<ArtifactPanel artifacts={artifacts} />);
+
+        expect(screen.getByText('VibeCard 1: Research problem')).toBeTruthy();
+        expect(screen.getByText('The research problem source text.')).toBeTruthy();
+        expect(screen.getByText('Review this source-backed point: The research problem source text.')).toBeTruthy();
+        expect(screen.getByText('P2 · page-2-para-1')).toBeTruthy();
+        expect(screen.getByText('grounded')).toBeTruthy();
+    });
+
     it('makes saved VibeCards draggable into Chat as a drag-inject payload', () => {
         const artifacts = [
             {

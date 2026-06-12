@@ -187,6 +187,26 @@ export function createLocalCardGenerationModel() {
         const candidates = cardCandidateChunks(chunkResult.chunks, metadata);
         const createdResults = toolResults(trace, 'create_vibecard');
 
+        if (createdResults.length === 0 && candidates.length < 3) {
+            return {
+                type: 'final',
+                content: [
+                    '# Create VibeCard needs more sources',
+                    '',
+                    `Document: ${metadata.name || 'Untitled'}`,
+                    '',
+                    `Need at least 3 source chunks to create VibeCards. Found ${candidates.length}.`,
+                    'No VibeCards were created.',
+                ].join('\n'),
+                sourceRefs: candidates.map((chunk) => ({
+                    documentId: chunk.documentId || metadata.documentId || metadata.id,
+                    page: chunk.page || null,
+                    paragraphId: chunk.paragraphId || chunk.id || null,
+                    text: overviewSnippet(chunk.text, 240),
+                })).filter((sourceRef) => sourceRef.paragraphId || sourceRef.page || sourceRef.text),
+            };
+        }
+
         if (createdResults.length < 3 && candidates[createdResults.length]) {
             return {
                 type: 'tool_call',

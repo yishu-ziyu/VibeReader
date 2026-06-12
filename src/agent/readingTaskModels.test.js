@@ -303,4 +303,65 @@ describe('local reading task models', () => {
             },
         ]);
     });
+
+    it('refuses partial VibeCard creation when fewer than three source chunks are available', async () => {
+        const model = createLocalCardGenerationModel();
+        const result = await model({
+            iteration: 3,
+            trace: [
+                {
+                    type: 'tool',
+                    toolName: 'get_current_document',
+                    result: {
+                        id: 'doc-short',
+                        documentId: 'doc-short',
+                        name: 'short.md',
+                        kind: 'markdown',
+                    },
+                },
+                {
+                    type: 'tool',
+                    toolName: 'get_document_chunks',
+                    result: {
+                        chunks: [
+                            {
+                                id: 'chunk-1',
+                                documentId: 'doc-short',
+                                page: 1,
+                                paragraphId: 'page-1-para-1',
+                                text: 'The problem is stated, but there is not enough material.',
+                            },
+                            {
+                                id: 'chunk-2',
+                                documentId: 'doc-short',
+                                page: 1,
+                                paragraphId: 'page-1-para-2',
+                                text: 'The method is mentioned briefly.',
+                            },
+                        ],
+                    },
+                },
+            ],
+        });
+
+        expect(result.type).toBe('final');
+        expect(result.content).toContain('# Create VibeCard needs more sources');
+        expect(result.content).toContain('Need at least 3 source chunks');
+        expect(result.content).not.toContain('Created 1');
+        expect(result.content).not.toContain('Created 2');
+        expect(result.sourceRefs).toEqual([
+            {
+                documentId: 'doc-short',
+                page: 1,
+                paragraphId: 'page-1-para-1',
+                text: 'The problem is stated, but there is not enough material.',
+            },
+            {
+                documentId: 'doc-short',
+                page: 1,
+                paragraphId: 'page-1-para-2',
+                text: 'The method is mentioned briefly.',
+            },
+        ]);
+    });
 });

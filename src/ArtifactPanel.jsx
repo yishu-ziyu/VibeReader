@@ -46,6 +46,9 @@ function artifactTitle(artifact = {}) {
 function artifactDragText(artifact = {}, content = {}) {
     const lines = [
         artifactTitle(artifact),
+        content.title,
+        content.sourceText,
+        content.aiContent,
         content.selectionText,
         content.question,
         content.answer,
@@ -217,6 +220,11 @@ export function LensCard({
     const claims = Array.isArray(content.claims) ? content.claims : [];
     const keyPoints = Array.isArray(content.keyPoints) ? content.keyPoints : [];
     const sourceRefs = Array.isArray(content.sourceRefs) ? content.sourceRefs : [];
+    const fallbackSource = artifact.source || content.source;
+    const visibleSourceRefs = sourceRefs.length > 0 ? sourceRefs : (fallbackSource ? [fallbackSource] : []);
+    const visibleTitle = content.title || artifactTitle(artifact);
+    const shouldShowTitle = visibleTitle && visibleTitle !== artifactTypeLabel(artifact.type)
+        && (content.sourceText || content.aiContent);
     const handleDragStart = useCallback((event) => {
         const payload = createDragInjectPayload({
             text: artifactDragText(artifact, content),
@@ -259,6 +267,15 @@ export function LensCard({
                     {artifact.verificationStatus || 'unverified'}
                 </Tag>
             </div>
+            {shouldShowTitle && (
+                <h3 className="artifact-card-goal">{visibleTitle}</h3>
+            )}
+            {content.sourceText && (
+                <blockquote className="artifact-selection">{content.sourceText}</blockquote>
+            )}
+            {content.aiContent && (
+                <p className="artifact-explanation">{content.aiContent}</p>
+            )}
             {content.selectionText && (
                 <blockquote className="artifact-selection">{content.selectionText}</blockquote>
             )}
@@ -301,9 +318,9 @@ export function LensCard({
             {artifact.type === 'reading_note' && content.body && (
                 <p className="artifact-answer">{content.body}</p>
             )}
-            {sourceRefs.length > 0 && (
+            {visibleSourceRefs.length > 0 && (
                 <div className="artifact-source-refs">
-                    {sourceRefs.map((sourceRef, index) => (
+                    {visibleSourceRefs.map((sourceRef, index) => (
                         <Tag key={sourceRef.paragraphId || `${artifact.id}-source-${index}`} color="blue">
                             {sourceRefLabel(sourceRef)}
                         </Tag>

@@ -1,5 +1,35 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-12 Phase 39：Create VibeCard E2E Acceptance
+
+改动：
+
+- 新增 `tasks/bdd-tdd-create-vibecard-e2e.md`。
+- 新增 `src/agent/cardGenerationFlow.test.js`，用真实本地 reading agent loop 验证 3 次 `create_vibecard` 写入。
+- `createLocalCardGenerationModel` 在少于 3 个 source chunks 时返回明确不足说明，并且不创建部分 VibeCard。
+- `ArtifactPanel` 支持显示 agent-generated VibeCard 的标题、原文摘录、AI 内容和来源标签。
+- `ArtifactPanel` 拖拽文本包含 agent-generated VibeCard 的标题、sourceText 和 aiContent。
+- `WorkspaceLayout.test.jsx` 覆盖确认运行后 3 张 VibeCard 写入 Notes / VibeCards 区。
+- `App` 在 `Create VibeCard` 成功创建 3 张卡时给出成功提示，来源不足时给出警告提示。
+
+命令：
+
+- RED：`npm run test -- src/agent/readingTaskModels.test.js` -> failed，短文档仍会继续调用 `create_vibecard`。
+- GREEN：`npm run test -- src/agent/readingTaskModels.test.js src/agent/cardGenerationFlow.test.js` -> pass（2 files / 5 tests）。
+- RED：`npm run test -- src/ArtifactPanel.test.jsx` -> failed，agent-generated VibeCard 只显示类型和按钮，标题/sourceText/aiContent 不可见。
+- GREEN：`npm run test -- src/ArtifactPanel.test.jsx` -> pass（1 file / 17 tests）。
+- RED：`npm run test -- src/WorkspaceLayout.test.jsx` -> failed，测试 mock 未模拟真实 `createArtifact` 自动补 id，3 次写入被同一个 undefined id 去重为 1 张。
+- GREEN：`npm run test -- src/WorkspaceLayout.test.jsx` -> pass（1 file / 16 tests）。
+- `npm run test -- src/agent/readingTaskModels.test.js src/agent/cardGenerationFlow.test.js src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（4 files / 38 tests）。
+- `npm run test` -> pass（52 files / 271 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（22 storage tests + 1 command test）。
+
+遗留风险：
+
+- 本切片仍使用 deterministic 本地 agent，不接云 planner。
+- 本切片不做卡片质量评分、间隔复习、Anki / Obsidian 新导出能力。
+
 ## 2026-06-12 Phase 38：Create VibeCard Agent Entry
 
 改动：

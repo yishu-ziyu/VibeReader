@@ -11,6 +11,25 @@
 - [x] 当前基线验证：`npm run build` 通过，有 bundle size warning
 - [x] 当前主线运行面命名为 `VibeReader Standalone Dev`，旧 `Vibero.app` 只作为历史表面对照
 
+## Phase 39：Create VibeCard E2E Acceptance
+
+- [x] 写入 BDD/TDD 规格：`tasks/bdd-tdd-create-vibecard-e2e.md`
+- [x] 覆盖真实本地 reading agent loop：`get_current_document` -> `get_document_chunks` -> 3 次 `create_vibecard`
+- [x] 少于 3 个 source chunks 时拒绝部分成功，不调用 `create_vibecard`
+- [x] `ArtifactPanel` 显示 agent-generated VibeCard 的标题、原文摘录、AI 内容和来源标签
+- [x] 确认运行 `Create VibeCard` 后，3 张卡通过 App adapter 写入 Notes / VibeCards 区
+- [x] 成功后切到 Notes / VibeCards，并给出 3 张卡创建成功反馈
+
+验收：
+
+- [x] `npm run test -- src/agent/readingTaskModels.test.js src/agent/cardGenerationFlow.test.js src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx` 通过（4 files / 38 tests）
+- [x] `npm run test -- src/ArtifactPanel.test.jsx` 通过（1 file / 17 tests）
+- [x] `npm run test -- src/WorkspaceLayout.test.jsx` 通过（1 file / 16 tests）
+- [x] `npm run test` 通过（52 files / 271 tests）
+- [x] `npm run build` 通过
+- [x] `cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过
+- [x] `git diff --check` 通过
+
 ## Phase 38：Create VibeCard Agent Entry
 
 - [x] 写入 BDD/TDD 规格：`tasks/bdd-tdd-card-generation-agent-entry.md`
