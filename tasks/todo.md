@@ -11,6 +11,24 @@
 - [x] 当前基线验证：`npm run build` 通过，有 bundle size warning
 - [x] 当前主线运行面命名为 `VibeReader Standalone Dev`，旧 `Vibero.app` 只作为历史表面对照
 
+## Phase 40：PM Manual QA Test Pack
+
+- [x] 明确当前可测形态：Tauri 桌面 App 开发版为主，Web 开发面为辅助
+- [x] 新增 PM 手动验收清单：`docs/PM_MANUAL_QA_PHASE40.md`
+- [x] 新增稳定测试文档：`demo-assets/create-vibecard-sample.md`
+- [x] 更新 demo assets 索引
+- [x] 启动 `npm run tauri:dev` 验证桌面窗口能打开
+- [x] 记录手动验收边界和剩余风险
+- [ ] commit + push
+
+验收：
+
+- [x] 产品经理能知道测哪个形态
+- [x] 产品经理能知道打开哪个文件
+- [x] 产品经理能按 Given / When / Then 验收 `Create VibeCard`
+- [x] `npm run tauri:dev` 启动成功
+- [x] `git diff --check` 通过
+
 ## Phase 39：Create VibeCard E2E Acceptance
 
 - [x] 写入 BDD/TDD 规格：`tasks/bdd-tdd-create-vibecard-e2e.md`

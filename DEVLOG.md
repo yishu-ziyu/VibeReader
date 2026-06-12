@@ -1,5 +1,33 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-12 Phase 40：PM Manual QA Test Pack
+
+改动：
+
+- 新增 `docs/PM_MANUAL_QA_PHASE40.md`，明确当前主测试形态是 Tauri 桌面 App 开发版，Web 开发面只作为辅助。
+- 新增 `demo-assets/create-vibecard-sample.md`，提供专门用于 `Create VibeCard` 验收的 Markdown 文档。
+- 更新 `demo-assets/README.md`，把新增测试文档纳入 demo assets 索引。
+- 更新 `tasks/todo.md`，记录 Phase 40 的 PM 手动验收包任务。
+
+PM 验收重点：
+
+- 能启动桌面窗口。
+- 能打开 `demo-assets/create-vibecard-sample.md`。
+- 能在 Tasks 点击 `Create VibeCard` 并看到写入确认。
+- 确认后右侧 Notes / VibeCards 区至少出现 3 张卡。
+- 每张卡包含标题、原文摘录、AI 内容和来源位置。
+
+命令：
+
+- `npm run tauri:dev` -> pass，Vite ready at `http://127.0.0.1:3217/`，Rust app `target/debug/vibereader` 已运行。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 这是一轮 PM 可测试包，不新增最终安装包。
+- 真实点击验收仍需要产品经理或本机桌面窗口确认。
+- 启动日志包含既有 AntD zIndex warning 和 macOS IMK 提示，目前不阻塞桌面窗口启动。
+
 ## 2026-06-12 Phase 39：Create VibeCard E2E Acceptance
 
 改动：
