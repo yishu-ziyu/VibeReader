@@ -25,6 +25,18 @@ describe('reading agent skills', () => {
             ],
             outputArtifactType: 'reading_note',
         }));
+        expect(skills[2]).toEqual(expect.objectContaining({
+            type: 'card_generation_agent',
+            title: 'Create VibeCard',
+            skillPath: 'docs/reading-agent-skills/card-generation.md',
+            requiredTools: [
+                'get_current_document',
+                'get_document_chunks',
+                'create_vibecard',
+            ],
+            outputArtifactType: 'vibecard',
+            maxIterations: 6,
+        }));
     });
 
     it('builds a serializable task payload from a skill and current document', () => {

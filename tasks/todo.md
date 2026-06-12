@@ -1,6 +1,6 @@
 # VibeReader Standalone 任务跟踪
 
-最后更新：2026-06-11
+最后更新：2026-06-12
 
 ## 当前决策
 
@@ -10,6 +10,25 @@
 - [x] Hackathon 格式优先级：PDF + Markdown/Text，EPUB 后置
 - [x] 当前基线验证：`npm run build` 通过，有 bundle size warning
 - [x] 当前主线运行面命名为 `VibeReader Standalone Dev`，旧 `Vibero.app` 只作为历史表面对照
+
+## Phase 38：Create VibeCard Agent Entry
+
+- [x] 写入 BDD/TDD 规格：`tasks/bdd-tdd-card-generation-agent-entry.md`
+- [x] 将 `card_generation_agent` 产品入口命名为 `Create VibeCard`
+- [x] 在 Tasks 面板暴露 `Create VibeCard`
+- [x] 运行前弹出写入确认，说明至少创建 3 张 VibeCard
+- [x] 用户取消确认时不启动 task
+- [x] 用户确认后用本次任务权限开启 `create_vibecard`
+- [x] deterministic card model 在足够 chunks 下连续创建 3 张 source-grounded VibeCards
+- [x] 通过现有 artifact/VibeCard persistence 链路保存 agent 产物
+
+验收：
+
+- [x] `npm run test -- src/agent/readingTaskModels.test.js src/agent/skills.test.js src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` 通过（4 files / 34 tests）
+- [x] `npm run test` 通过（51 files / 267 tests）
+- [x] `npm run build` 通过
+- [x] `cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过
+- [x] `git diff --check` 通过
 
 ## Phase 0：保护现场
 

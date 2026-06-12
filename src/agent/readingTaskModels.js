@@ -11,6 +11,13 @@ function overviewSnippet(text = '', maxLength = 180) {
     return `${normalized.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
+function toolResults(trace = [], toolName) {
+    return trace
+        .filter((entry) => entry?.type === 'tool' && entry.toolName === toolName)
+        .map((entry) => entry.result)
+        .filter(Boolean);
+}
+
 export function createLocalPaperOverviewModel() {
     return async ({ iteration, trace }) => {
         if (iteration === 1) {
@@ -153,6 +160,71 @@ export function createLocalAttentionRouteModel() {
     };
 }
 
+export function createLocalCardGenerationModel() {
+    return async ({ iteration, trace }) => {
+        if (iteration === 1) {
+            return {
+                type: 'tool_call',
+                toolName: 'get_current_document',
+                args: {},
+            };
+        }
+
+        if (iteration === 2) {
+            return {
+                type: 'tool_call',
+                toolName: 'get_document_chunks',
+                args: {
+                    query: 'problem method evidence result definition contribution limitation',
+                    limit: 6,
+                    maxChars: 900,
+                },
+            };
+        }
+
+        const metadata = lastToolResult(trace, 'get_current_document') || {};
+        const chunkResult = lastToolResult(trace, 'get_document_chunks') || {};
+        const candidates = cardCandidateChunks(chunkResult.chunks, metadata);
+        const createdResults = toolResults(trace, 'create_vibecard');
+
+        if (createdResults.length < 3 && candidates[createdResults.length]) {
+            return {
+                type: 'tool_call',
+                toolName: 'create_vibecard',
+                args: {
+                    card: buildVibeCard(candidates[createdResults.length], createdResults.length, metadata),
+                },
+            };
+        }
+
+        const sourceRefs = createdResults
+            .map((result) => result.card || {})
+            .map((card) => ({
+                documentId: card.documentId || metadata.documentId || metadata.id,
+                page: card.page || null,
+                paragraphId: card.paragraphId || null,
+                text: overviewSnippet(card.sourceText, 240),
+            }))
+            .filter((sourceRef) => sourceRef.paragraphId || sourceRef.page || sourceRef.text);
+
+        return {
+            type: 'final',
+            content: [
+                '# Created VibeCards',
+                '',
+                `Document: ${metadata.name || 'Untitled'}`,
+                '',
+                `Created ${createdResults.length} source-grounded VibeCards.`,
+                ...createdResults.map((result, index) => {
+                    const card = result.card || {};
+                    return `${index + 1}. ${card.title || `VibeCard ${index + 1}`}`;
+                }),
+            ].join('\n'),
+            sourceRefs,
+        };
+    };
+}
+
 function insightLocationLabel(insight = {}) {
     const location = insight.location || {};
     if (location.page) return `P${location.page}`;
@@ -162,4 +234,46 @@ function insightLocationLabel(insight = {}) {
 
 function insightDescription(insight = {}) {
     return String(insight.description || insight.title || insight.text || '').replace(/\s+/g, ' ').trim();
+}
+
+function cardCandidateChunks(chunks = [], metadata = {}) {
+    const seen = new Set();
+    return (Array.isArray(chunks) ? chunks : [])
+        .map((chunk) => ({
+            ...chunk,
+            documentId: chunk.documentId || metadata.documentId || metadata.id,
+            text: overviewSnippet(chunk.text, 900),
+        }))
+        .filter((chunk) => {
+            if (!chunk.text) return false;
+            const key = chunk.paragraphId || chunk.id || chunk.text;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+}
+
+function buildVibeCard(chunk = {}, index = 0, metadata = {}) {
+    const sourceText = overviewSnippet(chunk.text, 900);
+    const paragraphId = chunk.paragraphId || chunk.id || null;
+    const page = chunk.page || null;
+    return {
+        documentId: chunk.documentId || metadata.documentId || metadata.id,
+        type: 'concept',
+        title: `VibeCard ${index + 1}: ${overviewSnippet(sourceText, 64)}`,
+        sourceText,
+        aiContent: `Review this source-backed point: ${overviewSnippet(sourceText, 220)}`,
+        userNote: '',
+        page,
+        paragraphId,
+        tags: ['agent-generated', 'vibecard'],
+        source: {
+            documentId: chunk.documentId || metadata.documentId || metadata.id,
+            page,
+            paragraphId,
+            selectedText: sourceText,
+            sourceType: 'agent-card-generation',
+        },
+        verificationStatus: sourceText && (page || paragraphId) ? 'grounded' : 'ungrounded',
+    };
 }

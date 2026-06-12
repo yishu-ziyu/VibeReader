@@ -25,9 +25,11 @@ import {
 import { isVisionCapableByModelName } from './modelPresets';
 import {
     buildReadingAgentTask,
+    createLocalCardGenerationModel,
     createLocalAttentionRouteModel,
     createLocalPaperOverviewModel,
     createReadingTools,
+    DEFAULT_READING_PERMISSIONS,
     generateLensCardArtifact,
     getReadingAgentSkill,
     listReadingAgentSkills,
@@ -64,6 +66,7 @@ const READABLE_DOCUMENT_KINDS = ['markdown', 'text', 'html'];
 const RUNNABLE_READING_AGENT_TYPES = new Set([
     'paper_overview_agent',
     'attention_agent',
+    'card_generation_agent',
 ]);
 
 /** Simple fallback for lazy-loaded panels */
@@ -125,22 +128,40 @@ function findSectionForPage(sections = [], page = 1) {
     }) || null;
 }
 
-function createReadingAgentOptions(taskType, document) {
+function createReadingAgentOptions(taskType, document, adapters = {}) {
     const skill = getReadingAgentSkill(taskType);
     const model = taskType === 'attention_agent'
         ? createLocalAttentionRouteModel()
-        : taskType === 'paper_overview_agent'
-            ? createLocalPaperOverviewModel()
-            : null;
+        : taskType === 'card_generation_agent'
+            ? createLocalCardGenerationModel()
+            : taskType === 'paper_overview_agent'
+                ? createLocalPaperOverviewModel()
+                : null;
 
     if (!skill || !model) return null;
+
+    const permissions = taskType === 'card_generation_agent'
+        ? {
+            ...DEFAULT_READING_PERMISSIONS,
+            allowedTools: [
+                ...new Set([
+                    ...DEFAULT_READING_PERMISSIONS.allowedTools,
+                    'create_vibecard',
+                ]),
+            ],
+            canWriteVibeCards: true,
+        }
+        : DEFAULT_READING_PERMISSIONS;
+    const toolAdapters = {
+        listAttentionInsightsForDocument: listPersistentAttentionInsights,
+        ...(adapters.createVibeCard ? { createVibeCard: adapters.createVibeCard } : {}),
+    };
 
     return {
         goal: skill.goal,
         model,
-        tools: createReadingTools({ document }, {
-            listAttentionInsightsForDocument: listPersistentAttentionInsights,
-        }),
+        tools: createReadingTools({ document }, toolAdapters),
+        permissions,
         maxIterations: skill.maxIterations || 4,
         timeoutMs: 30000,
     };
@@ -162,6 +183,41 @@ function taskResultTitle(task = {}) {
 function taskResultSourceRefs(task = {}) {
     const result = task.result && typeof task.result === 'object' ? task.result : {};
     return Array.isArray(result.sourceRefs) ? result.sourceRefs.filter(Boolean) : [];
+}
+
+function cardInputToArtifact(cardInput = {}, document = {}) {
+    const documentId = cardInput.documentId || document.id;
+    const source = cardInput.source || {
+        documentId,
+        page: cardInput.page || null,
+        paragraphId: cardInput.paragraphId || null,
+        selectedText: cardInput.sourceText || '',
+        sourceType: 'agent-card-generation',
+    };
+    const content = {
+        title: cardInput.title || 'VibeCard',
+        type: cardInput.type || 'concept',
+        sourceText: cardInput.sourceText || '',
+        aiContent: cardInput.aiContent || '',
+        userNote: cardInput.userNote || '',
+        tags: cardInput.tags || [],
+        source,
+    };
+
+    return {
+        id: cardInput.id,
+        documentId,
+        type: cardInput.type || 'concept',
+        goal: cardInput.title || 'VibeCard',
+        sourceSpanIds: [cardInput.paragraphId || source.paragraphId].filter(Boolean),
+        source,
+        originalContent: content,
+        currentContent: content,
+        tags: cardInput.tags || [],
+        verificationStatus: cardInput.verificationStatus || (
+            source?.selectedText && (source?.page || source?.paragraphId) ? 'grounded' : 'ungrounded'
+        ),
+    };
 }
 
 /** 系统提示 */
@@ -472,19 +528,43 @@ export function App() {
         });
     }, []);
 
+    const createAgentVibeCard = useCallback(async (cardInput) => {
+        const saved = await createArtifact(cardInputToArtifact(cardInput, currentDocument));
+        setArtifacts((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+        setRightToolTab('artifacts');
+        return saved;
+    }, [currentDocument, setRightToolTab]);
+
     const handleStartAgentTask = useCallback((taskType) => {
         if (!currentDocument?.id) return;
 
-        const agentOptions = createReadingAgentOptions(taskType, currentDocument);
-        if (!agentOptions) return;
+        const runTask = () => {
+            const agentOptions = createReadingAgentOptions(taskType, currentDocument, {
+                createVibeCard: createAgentVibeCard,
+            });
+            if (!agentOptions) return;
 
-        runReadingAgentTask({
-            task: buildReadingAgentTask(taskType, currentDocument, { goal: agentOptions.goal }),
-            agentOptions,
-        }).catch((error) => {
-            console.warn('[App] Failed to start reading agent:', error);
-        });
-    }, [currentDocument]);
+            runReadingAgentTask({
+                task: buildReadingAgentTask(taskType, currentDocument, { goal: agentOptions.goal }),
+                agentOptions,
+            }).catch((error) => {
+                console.warn('[App] Failed to start reading agent:', error);
+            });
+        };
+
+        if (taskType === 'card_generation_agent') {
+            Modal.confirm({
+                title: 'Create VibeCard',
+                content: '此任务会为当前文档创建至少 3 张带来源的 VibeCard。确认后会写入本地卡片库。',
+                okText: 'Create VibeCard',
+                cancelText: 'Cancel',
+                onOk: runTask,
+            });
+            return;
+        }
+
+        runTask();
+    }, [createAgentVibeCard, currentDocument]);
 
     const handleRetryTask = useCallback((task) => {
         if (!currentDocument?.id || task?.documentId !== currentDocument.id) return;
@@ -496,7 +576,9 @@ export function App() {
         }
 
         if (RUNNABLE_READING_AGENT_TYPES.has(task.type)) {
-            const agentOptions = createReadingAgentOptions(task.type, currentDocument);
+            const agentOptions = createReadingAgentOptions(task.type, currentDocument, {
+                createVibeCard: createAgentVibeCard,
+            });
             if (!agentOptions) return;
 
             retryReadingAgentTask(task, {
@@ -512,7 +594,7 @@ export function App() {
                 console.warn('[App] Failed to retry agent task:', error);
             });
         }
-    }, [currentDocument]);
+    }, [createAgentVibeCard, currentDocument]);
 
     // PDF 上传处理
     const handlePdfUpload = useCallback(async (file, preparedDocument = null) => {

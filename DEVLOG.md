@@ -1,5 +1,33 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-12 Phase 38：Create VibeCard Agent Entry
+
+改动：
+
+- 新增 `tasks/bdd-tdd-card-generation-agent-entry.md`。
+- `card_generation_agent` 产品入口命名为 `Create VibeCard`。
+- `Create VibeCard` 加入当前文档 Tasks 面板可运行 agent 列表。
+- 运行前增加确认弹窗，说明会为当前文档创建至少 3 张带来源的 VibeCard。
+- 新增本地 deterministic `createLocalCardGenerationModel`，按顺序读取文档、读取 chunks、连续调用 3 次 `create_vibecard`。
+- `Create VibeCard` runtime options 只在本次任务开启 `create_vibecard` 和 `canWriteVibeCards: true`。
+- App 新增 VibeCard artifact adapter，把 agent 产出的 card payload 写入现有本地卡片链路。
+
+命令：
+
+- RED：`npm run test -- src/agent/readingTaskModels.test.js` -> failed，缺少 `createLocalCardGenerationModel`。
+- GREEN：`npm run test -- src/agent/readingTaskModels.test.js` -> pass（1 file / 3 tests）。
+- RED：`npm run test -- src/agent/skills.test.js src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> failed，入口未暴露、确认门和写权限未接入。
+- GREEN：`npm run test -- src/agent/readingTaskModels.test.js src/agent/skills.test.js src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` -> pass（4 files / 34 tests）。
+- `npm run test` -> pass（51 files / 267 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（22 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本切片仍是 deterministic 本地 agent，不接云 planner。
+- 本切片不做卡片质量评分、间隔复习、Anki / Obsidian 导出。
+
 ## 2026-06-12 Phase 37：Reading Agent Model Boundary
 
 改动：

@@ -26,7 +26,7 @@ const READING_AGENT_SKILLS = Object.freeze([
     }),
     Object.freeze({
         type: 'card_generation_agent',
-        title: 'Card generation',
+        title: 'Create VibeCard',
         skillPath: 'docs/reading-agent-skills/card-generation.md',
         goal: 'Generate source-grounded VibeCards from the current document without inventing unsupported claims.',
         requiredTools: Object.freeze([
@@ -35,7 +35,7 @@ const READING_AGENT_SKILLS = Object.freeze([
             'create_vibecard',
         ]),
         outputArtifactType: 'vibecard',
-        maxIterations: 4,
+        maxIterations: 6,
     }),
     Object.freeze({
         type: 'note_export_agent',

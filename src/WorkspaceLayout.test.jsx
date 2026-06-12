@@ -1,4 +1,5 @@
 import React from 'react';
+import { Modal } from 'antd';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useConversationStore, useDocumentStore, usePdfStore, useUIStore, useVibeStore } from './store';
@@ -25,20 +26,49 @@ const artifactServiceMock = vi.hoisted(() => ({
     deleteArtifact: vi.fn(async () => true),
 }));
 const agentMock = vi.hoisted(() => ({
+    DEFAULT_READING_PERMISSIONS: {
+        allowedTools: [
+            'get_current_document',
+            'get_document_chunks',
+            'get_page_text',
+            'search_document',
+            'list_attention_insights',
+            'extractText',
+            'navigatePage',
+            'listAnnotations',
+        ],
+        canReadDocument: true,
+        canSearchDocument: true,
+        canListAttentionInsights: true,
+        canNavigate: true,
+        canListAnnotations: true,
+        canWriteAnnotations: false,
+        canWriteVibeCards: false,
+        canExportNotes: false,
+        canUseWeb: false,
+    },
     buildReadingAgentTask: vi.fn((type, document, overrides = {}) => ({
         documentId: document?.id || null,
         type,
-        title: type === 'attention_agent' ? 'Attention route' : 'Paper overview',
+        title: type === 'attention_agent'
+            ? 'Attention route'
+            : type === 'card_generation_agent'
+                ? 'Create VibeCard'
+                : 'Paper overview',
         payload: {
             agentOptions: {
                 taskType: type,
                 documentId: document?.id || null,
                 goal: overrides.goal || (type === 'attention_agent'
                     ? 'Identify the most important source-grounded reading positions and rank them as a short reading route.'
+                    : type === 'card_generation_agent'
+                        ? 'Generate source-grounded VibeCards from the current document without inventing unsupported claims.'
                     : 'Create a concise paper overview for the current document using safe metadata and bounded source chunks.'),
-                maxIterations: 4,
+                maxIterations: type === 'card_generation_agent' ? 6 : 4,
                 skillPath: type === 'attention_agent'
                     ? 'docs/reading-agent-skills/attention-route.md'
+                    : type === 'card_generation_agent'
+                        ? 'docs/reading-agent-skills/card-generation.md'
                     : 'docs/reading-agent-skills/paper-overview.md',
                 requiredTools: type === 'attention_agent'
                     ? [
@@ -46,11 +76,21 @@ const agentMock = vi.hoisted(() => ({
                         'get_document_chunks',
                         'list_attention_insights',
                     ]
+                    : type === 'card_generation_agent'
+                        ? [
+                            'get_current_document',
+                            'get_document_chunks',
+                            'create_vibecard',
+                        ]
                     : [
                         'get_current_document',
                         'get_document_chunks',
                     ],
-                outputArtifactType: type === 'attention_agent' ? 'attention_insights' : 'reading_note',
+                outputArtifactType: type === 'attention_agent'
+                    ? 'attention_insights'
+                    : type === 'card_generation_agent'
+                        ? 'vibecard'
+                        : 'reading_note',
             },
         },
     })),
@@ -58,6 +98,7 @@ const agentMock = vi.hoisted(() => ({
         get_current_document: { run: vi.fn() },
         get_document_chunks: { run: vi.fn() },
         list_attention_insights: { run: vi.fn() },
+        create_vibecard: { run: vi.fn() },
     })),
     createLocalAttentionRouteModel: vi.fn(() => vi.fn(async () => ({
         type: 'final',
@@ -69,6 +110,11 @@ const agentMock = vi.hoisted(() => ({
         content: '# Paper overview',
         sourceRefs: [],
     }))),
+    createLocalCardGenerationModel: vi.fn(() => vi.fn(async () => ({
+        type: 'final',
+        content: '# Created VibeCards',
+        sourceRefs: [],
+    }))),
     generateLensCardArtifact: vi.fn(),
     getReadingAgentSkill: vi.fn((type) => {
         if (type === 'attention_agent') {
@@ -77,6 +123,14 @@ const agentMock = vi.hoisted(() => ({
                 title: 'Attention route',
                 goal: 'Identify the most important source-grounded reading positions and rank them as a short reading route.',
                 maxIterations: 4,
+            };
+        }
+        if (type === 'card_generation_agent') {
+            return {
+                type: 'card_generation_agent',
+                title: 'Create VibeCard',
+                goal: 'Generate source-grounded VibeCards from the current document without inventing unsupported claims.',
+                maxIterations: 6,
             };
         }
         return {
@@ -98,6 +152,12 @@ const agentMock = vi.hoisted(() => ({
             title: 'Attention route',
             goal: 'Identify the most important source-grounded reading positions and rank them as a short reading route.',
             maxIterations: 4,
+        },
+        {
+            type: 'card_generation_agent',
+            title: 'Create VibeCard',
+            goal: 'Generate source-grounded VibeCards from the current document without inventing unsupported claims.',
+            maxIterations: 6,
         },
     ]),
     retryReadingAgentTask: vi.fn(async () => ({ status: 'succeeded' })),
@@ -238,6 +298,12 @@ vi.mock('./TaskStatusPanel', () => ({
                 </button>
                 <button
                     type="button"
+                    onClick={() => props.onStartAgentTask?.('card_generation_agent')}
+                >
+                    Start mocked create vibecard
+                </button>
+                <button
+                    type="button"
                     onClick={() => props.onSaveTaskResult?.({
                         id: 'task-agent-overview-doc-opened-md',
                         documentId: 'doc-opened-md',
@@ -307,6 +373,12 @@ vi.mock('./TaskStatusPanel', () => ({
                 </button>
                 <button
                     type="button"
+                    onClick={() => props.onStartAgentTask?.('card_generation_agent')}
+                >
+                    Start mocked create vibecard
+                </button>
+                <button
+                    type="button"
                     onClick={() => props.onSaveTaskResult?.({
                         id: 'task-agent-overview-doc-opened-md',
                         documentId: 'doc-opened-md',
@@ -365,10 +437,15 @@ describe('Workspace layout', () => {
         artifactServiceMock.deleteArtifact.mockClear();
         agentMock.createReadingTools.mockClear();
         agentMock.createLocalAttentionRouteModel.mockClear();
+        agentMock.createLocalCardGenerationModel.mockClear();
         agentMock.createLocalPaperOverviewModel.mockClear();
         agentMock.generateLensCardArtifact.mockClear();
         agentMock.retryReadingAgentTask.mockClear();
         agentMock.runReadingAgentTask.mockClear();
+        vi.spyOn(Modal, 'confirm').mockImplementation((options = {}) => {
+            options.onOk?.();
+            return { destroy: vi.fn(), update: vi.fn() };
+        });
         taskStatusPanelMock.lastProps = null;
         artifactPanelMock.lastProps = null;
         window.HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -378,6 +455,7 @@ describe('Workspace layout', () => {
 
     afterEach(() => {
         cleanup();
+        vi.restoreAllMocks();
         resetStores();
         document.body.innerHTML = '';
     });
@@ -874,6 +952,168 @@ describe('Workspace layout', () => {
                 }),
             }));
         });
+    });
+
+    it('shows Create VibeCard as a runnable reading agent skill', async () => {
+        documentServiceMock.fileToDocument.mockReturnValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+        });
+        documentServiceMock.fileToDocumentWithContent.mockResolvedValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+            contentText: 'The paper has enough source material for VibeCards.',
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, {
+            target: {
+                files: [new File(['# Notes'], 'opened.md', { type: 'text/markdown' })],
+            },
+        });
+
+        await waitFor(() => {
+            expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByText('Tasks'));
+        await screen.findByTestId('mock-task-status-panel');
+
+        expect(taskStatusPanelMock.lastProps.agentSkills).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                type: 'card_generation_agent',
+                title: 'Create VibeCard',
+            }),
+        ]));
+    });
+
+    it('does not start Create VibeCard when the write confirmation is cancelled', async () => {
+        Modal.confirm.mockImplementationOnce((options = {}) => {
+            options.onCancel?.();
+            return { destroy: vi.fn(), update: vi.fn() };
+        });
+        documentServiceMock.fileToDocument.mockReturnValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+        });
+        documentServiceMock.fileToDocumentWithContent.mockResolvedValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+            contentText: 'The paper has enough source material for VibeCards.',
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, {
+            target: {
+                files: [new File(['# Notes'], 'opened.md', { type: 'text/markdown' })],
+            },
+        });
+
+        await waitFor(() => {
+            expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByText('Tasks'));
+        fireEvent.click(await screen.findByText('Start mocked create vibecard'));
+
+        expect(Modal.confirm).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Create VibeCard',
+            content: expect.stringContaining('至少 3 张'),
+        }));
+        expect(agentMock.runReadingAgentTask).not.toHaveBeenCalled();
+    });
+
+    it('starts Create VibeCard with write permission and a VibeCard adapter after confirmation', async () => {
+        documentServiceMock.fileToDocument.mockReturnValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+        });
+        documentServiceMock.fileToDocumentWithContent.mockResolvedValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+            contentText: 'The paper has enough source material for VibeCards.',
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, {
+            target: {
+                files: [new File(['# Notes'], 'opened.md', { type: 'text/markdown' })],
+            },
+        });
+
+        await waitFor(() => {
+            expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByText('Tasks'));
+        fireEvent.click(await screen.findByText('Start mocked create vibecard'));
+
+        await waitFor(() => {
+            expect(agentMock.runReadingAgentTask).toHaveBeenCalledWith(expect.objectContaining({
+                task: expect.objectContaining({
+                    documentId: 'doc-opened-md',
+                    type: 'card_generation_agent',
+                    title: 'Create VibeCard',
+                    payload: {
+                        agentOptions: expect.objectContaining({
+                            taskType: 'card_generation_agent',
+                            documentId: 'doc-opened-md',
+                            skillPath: 'docs/reading-agent-skills/card-generation.md',
+                            maxIterations: 6,
+                            requiredTools: [
+                                'get_current_document',
+                                'get_document_chunks',
+                                'create_vibecard',
+                            ],
+                            outputArtifactType: 'vibecard',
+                        }),
+                    },
+                }),
+                agentOptions: expect.objectContaining({
+                    goal: expect.stringContaining('VibeCards'),
+                    permissions: expect.objectContaining({
+                        allowedTools: expect.arrayContaining(['create_vibecard']),
+                        canWriteVibeCards: true,
+                    }),
+                    tools: expect.any(Object),
+                }),
+            }));
+        });
+        expect(agentMock.createReadingTools).toHaveBeenCalledWith(
+            expect.objectContaining({
+                document: expect.objectContaining({ id: 'doc-opened-md' }),
+            }),
+            expect.objectContaining({
+                createVibeCard: expect.any(Function),
+            })
+        );
     });
 
     it('saves a completed agent task result as a reading note artifact', async () => {

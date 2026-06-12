@@ -202,15 +202,16 @@ describe('TaskStatusPanel', () => {
         agentSkills={[
           { type: 'paper_overview_agent', title: 'Paper overview' },
           { type: 'attention_agent', title: 'Attention route' },
+          { type: 'card_generation_agent', title: 'Create VibeCard' },
         ]}
         onStartAgentTask={onStartAgentTask}
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Attention route' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create VibeCard' }));
 
     expect(onStartAgentTask).toHaveBeenCalledTimes(1);
-    expect(onStartAgentTask).toHaveBeenCalledWith('attention_agent');
+    expect(onStartAgentTask).toHaveBeenCalledWith('card_generation_agent');
   });
 
   it('does not show the paper overview entry without a current document', () => {
