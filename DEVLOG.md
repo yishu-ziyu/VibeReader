@@ -1,5 +1,33 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-12 Phase 37：Reading Agent Model Boundary
+
+改动：
+
+- 新增 `tasks/bdd-tdd-reading-agent-model-boundary.md`。
+- 新增 `src/agent/readingTaskModels.js` 和 `src/agent/readingTaskModels.test.js`。
+- 将 `paper_overview_agent` deterministic 本地模型从 `App.jsx` 抽到 agent 模块。
+- 将 `attention_agent` deterministic 本地模型从 `App.jsx` 抽到 agent 模块。
+- `App.jsx` 继续负责 document、tool adapter、task runner wiring。
+- `src/agent/index.js` 导出 reading task models。
+- `WorkspaceLayout.test.jsx` 的 `./agent` mock 同步新增模型工厂导出。
+
+命令：
+
+- RED：`npm run test -- src/agent/readingTaskModels.test.js` -> failed，缺少 `readingTaskModels` 模块。
+- GREEN：`npm run test -- src/agent/readingTaskModels.test.js` -> pass（1 file / 1 test）。
+- RED：新增 attention route 行为后，`npm run test -- src/agent/readingTaskModels.test.js` -> failed，attention model 仍返回占位 final。
+- GREEN：`npm run test -- src/agent/readingTaskModels.test.js` -> pass（1 file / 2 tests）。
+- `npm run test -- src/agent/readingTaskModels.test.js src/WorkspaceLayout.test.jsx src/TaskStatusPanel.test.jsx` -> pass（3 files / 27 tests）。
+- `npm run test` -> pass（51 files / 263 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass（22 storage tests + 1 command test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本切片只调整本地 deterministic model 边界，不新增 planner、云模型执行或 Agent 权限 UI。
+
 ## 2026-06-12 Phase 36：Attention Agent Entry
 
 改动：

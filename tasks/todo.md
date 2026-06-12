@@ -736,7 +736,31 @@
 - [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test）
 - [x] Whitespace 检查：`git diff --check` 通过
 
+## Phase 37：Reading Agent Model Boundary
+
+- [x] 新增 `tasks/bdd-tdd-reading-agent-model-boundary.md`
+- [x] 新增 `src/agent/readingTaskModels.js`
+- [x] 新增 `src/agent/readingTaskModels.test.js`
+- [x] 把 `paper_overview_agent` 本地模型从 `App.jsx` 抽到 agent 模块
+- [x] 把 `attention_agent` 本地模型从 `App.jsx` 抽到 agent 模块
+- [x] `src/agent/index.js` 导出 reading task models
+- [x] `WorkspaceLayout.test.jsx` mock 同步新增模型工厂导出
+
+验收：
+
+- [x] RED：`npm run test -- src/agent/readingTaskModels.test.js` 先失败于缺少 `readingTaskModels` 模块
+- [x] GREEN：`npm run test -- src/agent/readingTaskModels.test.js` 通过（1 file / 1 test）
+- [x] RED：新增 attention route 行为后，同一测试先失败于 attention model 仍返回占位 final
+- [x] GREEN：`npm run test -- src/agent/readingTaskModels.test.js` 通过（1 file / 2 tests）
+- [x] 定向回归：`npm run test -- src/agent/readingTaskModels.test.js src/WorkspaceLayout.test.jsx src/TaskStatusPanel.test.jsx` 通过（3 files / 27 tests）
+- [x] 全量前端测试：`npm run test` 通过（51 files / 263 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）
+- [x] 前端构建：`npm run build` 通过，保留既有 chunk size warning
+- [x] Rust 标准验证：`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test）
+- [x] Whitespace 检查：`git diff --check` 通过
+
 ## Review
+
+2026-06-12：继续推进 Phase 37，把 `paper_overview_agent` 和 `attention_agent` 的 deterministic 本地模型从 `App.jsx` 抽到 `src/agent/readingTaskModels.js`。新增 `tasks/bdd-tdd-reading-agent-model-boundary.md` 和模型行为测试，覆盖 tool 调用顺序、空/截断 fallback 继承点，以及 insight/chunk source refs 组装。`App.jsx` 现在只从 agent 模块导入模型并负责 document、tool adapter、task runner wiring；`WorkspaceLayout.test.jsx` 的 `./agent` mock 同步公开新模型工厂。验证：红灯先失败于缺少 `readingTaskModels` 模块，随后 attention 行为红灯失败于占位 final；实现后定向回归 `npm run test -- src/agent/readingTaskModels.test.js src/WorkspaceLayout.test.jsx src/TaskStatusPanel.test.jsx` 通过（3 files / 27 tests），全量 `npm run test` 通过（51 files / 263 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test），`git diff --check` 通过。剩余风险：本切片只调整本地 deterministic model 边界，不新增 planner、云模型执行或 Agent 权限 UI。
 
 2026-06-12：继续推进 Phase 36，把 registry 中的 `attention_agent` 接成第二个可运行 reading task。新增 `tasks/bdd-tdd-attention-agent-entry.md`；`TaskStatusPanel` 现在支持通过 `agentSkills` 渲染多个可启动 reading agent；`App` 将 runnable skills 限定为 `paper_overview_agent` 和 `attention_agent`，并传给 Tasks 面板。新增本地 deterministic `attention_agent` model，按顺序调用 `get_current_document`、`list_attention_insights`、`get_document_chunks`，生成 `# Attention route` task result，并保留 insight/chunk source refs。App 内 `createReadingTools` 已接入 `listPersistentAttentionInsights` adapter。验证：红灯先失败于找不到 `Attention route` 启动按钮、App 未启动 `attention_agent`；实现后 `npm run test -- src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx` 通过（2 files / 25 tests），全量 `npm run test` 通过（50 files / 261 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示），`npm run build` 通过并保留既有 chunk size warning，`cd src-tauri && cargo fmt --check && cargo check && cargo test` 通过（22 storage tests + 1 command test），`git diff --check` 通过。剩余风险：`attention_agent` 仍是本地 deterministic task，不是云模型 planner；`card_generation_agent` 和 `note_export_agent` 仍未接运行入口，需要等写入/导出权限确认 UI。
 

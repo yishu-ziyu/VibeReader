@@ -57,7 +57,18 @@ const agentMock = vi.hoisted(() => ({
     createReadingTools: vi.fn(() => ({
         get_current_document: { run: vi.fn() },
         get_document_chunks: { run: vi.fn() },
+        list_attention_insights: { run: vi.fn() },
     })),
+    createLocalAttentionRouteModel: vi.fn(() => vi.fn(async () => ({
+        type: 'final',
+        content: '# Attention route',
+        sourceRefs: [],
+    }))),
+    createLocalPaperOverviewModel: vi.fn(() => vi.fn(async () => ({
+        type: 'final',
+        content: '# Paper overview',
+        sourceRefs: [],
+    }))),
     generateLensCardArtifact: vi.fn(),
     getReadingAgentSkill: vi.fn((type) => {
         if (type === 'attention_agent') {
@@ -353,6 +364,8 @@ describe('Workspace layout', () => {
         artifactServiceMock.updateArtifact.mockClear();
         artifactServiceMock.deleteArtifact.mockClear();
         agentMock.createReadingTools.mockClear();
+        agentMock.createLocalAttentionRouteModel.mockClear();
+        agentMock.createLocalPaperOverviewModel.mockClear();
         agentMock.generateLensCardArtifact.mockClear();
         agentMock.retryReadingAgentTask.mockClear();
         agentMock.runReadingAgentTask.mockClear();
