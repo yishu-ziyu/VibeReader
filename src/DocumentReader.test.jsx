@@ -1,11 +1,16 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentReader } from './DocumentReader';
 
 describe('DocumentReader', () => {
+    beforeEach(() => {
+        window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    });
+
     afterEach(() => {
         cleanup();
+        vi.restoreAllMocks();
         window.getSelection()?.removeAllRanges();
     });
 
@@ -23,6 +28,40 @@ describe('DocumentReader', () => {
 
         expect(screen.getByRole('heading', { name: 'Research Note' })).toBeTruthy();
         expect(screen.getByText('Important')).toBeTruthy();
+    });
+
+    it('navigates readable document source refs back to chunk paragraphs', () => {
+        render(
+            <DocumentReader
+                document={{
+                    id: 'doc-md',
+                    name: 'note.md',
+                    kind: 'markdown',
+                    contentText: [
+                        '# Research Note',
+                        'Problem source paragraph.',
+                        'Method source paragraph.',
+                        'Evidence source paragraph.',
+                    ].join('\n\n'),
+                }}
+            />
+        );
+
+        window.dispatchEvent(new CustomEvent('vibereader:navigate-paragraph', {
+            detail: {
+                documentId: 'doc-md',
+                paragraphId: 'chunk-3',
+            },
+        }));
+
+        const target = document.querySelector('[data-paragraph-id="chunk-3"]');
+        expect(target).toBeTruthy();
+        expect(target.textContent).toContain('Method source paragraph.');
+        expect(target.classList.contains('paragraph-pulse-highlight')).toBe(true);
+        expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({
+            block: 'center',
+            inline: 'nearest',
+        });
     });
 
     it('renders text documents with their line breaks preserved', () => {

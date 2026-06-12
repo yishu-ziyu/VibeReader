@@ -11,6 +11,26 @@
 - [x] 当前基线验证：`npm run build` 通过，有 bundle size warning
 - [x] 当前主线运行面命名为 `VibeReader Standalone Dev`，旧 `Vibero.app` 只作为历史表面对照
 
+## Phase 41：Readable Document Source Return
+
+- [x] 定位 PM 手测反馈：Markdown 样例里点击 VibeCard `回到原文` 无反应
+- [x] 确认根因：卡片已发出 `vibereader:navigate-paragraph`，但 Markdown/Text/HTML 阅读器没有 `chunk-*` 段落锚点，也没有监听该事件
+- [x] 用 TDD 覆盖 Markdown chunk 回源行为
+- [x] 为 readable document 渲染 `chunk-1` / `chunk-2` / `chunk-3` 段落锚点
+- [x] 为 readable document 接入回源事件、滚动定位、短暂高亮和找不到来源提示
+- [x] 跑相关与全量验证
+- [x] commit + push
+
+验收：
+
+- [x] PM 点击 Markdown VibeCard 的 `回到原文` 后，阅读区应滚动到对应原文段落并短暂高亮
+- [x] 来源段落不存在时，界面提示 `未找到这张卡片的原文段落`，不再静默无反应
+- [x] `npm run test -- src/DocumentReader.test.jsx` 通过（1 file / 5 tests）
+- [x] `npm run test -- src/DocumentReader.test.jsx src/dragInject.test.js src/WorkspaceLayout.test.jsx src/ArtifactPanel.test.jsx` 通过（4 files / 41 tests）
+- [x] `npm run test` 通过（52 files / 272 tests）
+- [x] `npm run build` 通过，保留既有 chunk size warning
+- [x] `git diff --check` 通过
+
 ## Phase 40：PM Manual QA Test Pack
 
 - [x] 明确当前可测形态：Tauri 桌面 App 开发版为主，Web 开发面为辅助
@@ -19,7 +39,7 @@
 - [x] 更新 demo assets 索引
 - [x] 启动 `npm run tauri:dev` 验证桌面窗口能打开
 - [x] 记录手动验收边界和剩余风险
-- [ ] commit + push
+- [x] commit + push
 
 验收：
 

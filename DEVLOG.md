@@ -1,5 +1,38 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-12 Phase 41：Readable Document Source Return
+
+用户反馈：
+
+- 在 Phase 40 手测 `Create VibeCard` 后，点击卡片上的 `回到原文` 没有明显反应。
+
+根因：
+
+- `Create VibeCard` 已经为 Markdown 样例生成 `chunk-*` 来源位置，也已经发出 `vibereader:navigate-paragraph` 事件。
+- PDF 阅读器会响应该事件，但 Markdown/Text/HTML 的 `DocumentReader` 只渲染正文，没有 `chunk-*` 段落锚点，也没有监听回源事件。
+
+改动：
+
+- `DocumentReader` 将 Markdown/Text/HTML 正文按空行切成 readable chunks，并渲染为 `chunk-1`、`chunk-2`、`chunk-3` 等可定位段落。
+- `DocumentReader` 监听 `vibereader:navigate-paragraph`，匹配当前文档后滚动到目标段落。
+- 成功回源时给目标段落添加短暂高亮。
+- 找不到来源段落时显示 `未找到这张卡片的原文段落`，避免用户看到静默无反应。
+- `DocumentReader.test.jsx` 覆盖 Markdown 卡片来源回跳到 `chunk-3` 的行为。
+
+命令：
+
+- RED：`npm run test -- src/DocumentReader.test.jsx` -> failed，找不到 `[data-paragraph-id="chunk-3"]`。
+- GREEN：`npm run test -- src/DocumentReader.test.jsx` -> pass（1 file / 5 tests）。
+- `npm run test -- src/DocumentReader.test.jsx src/dragInject.test.js src/WorkspaceLayout.test.jsx src/ArtifactPanel.test.jsx` -> pass（4 files / 41 tests）。
+- `npm run test` -> pass（52 files / 272 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- Markdown/Text/HTML 的 chunk id 当前按空行分段，与当前本地 reading agent 的 `chunk-*` 合同保持一致。
+- 如果后续引入 Rust chunker 或更细粒度段落模型，需要继续保持前端锚点和 agent source refs 的 ID 合同一致。
+
 ## 2026-06-12 Phase 40：PM Manual QA Test Pack
 
 改动：

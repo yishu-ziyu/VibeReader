@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Empty } from 'antd';
+import { Button, Empty, message as antMessage } from 'antd';
 import { MessageOutlined } from '@ant-design/icons';
 import MarkdownRenderer from './MarkdownRenderer';
 import { sanitizeHtmlToText } from './services/documentService';
@@ -11,10 +11,18 @@ function getReadableContent(document) {
     return document.contentText;
 }
 
+function readableChunks(content = '') {
+    return String(content || '')
+        .split(/\n{2,}/)
+        .map((text) => text.trim())
+        .filter(Boolean);
+}
+
 export function DocumentReader({ document: activeDocument, onInject, style = {} }) {
     const containerRef = useRef(null);
     const [selection, setSelection] = useState(null);
     const content = useMemo(() => getReadableContent(activeDocument), [activeDocument]);
+    const chunks = useMemo(() => readableChunks(content), [content]);
 
     useEffect(() => {
         setSelection(null);
@@ -59,6 +67,34 @@ export function DocumentReader({ document: activeDocument, onInject, style = {} 
         writeDragInjectData(event.dataTransfer, payload);
     }, [activeDocument?.kind, selection]);
 
+    const highlightParagraph = useCallback((paragraphId) => {
+        const container = containerRef.current;
+        if (!container || !paragraphId) return false;
+        const target = container.querySelector(`[data-paragraph-id="${paragraphId}"]`);
+        if (!target) return false;
+
+        target.scrollIntoView({ block: 'center', inline: 'nearest' });
+        target.classList.add('paragraph-pulse-highlight');
+        window.setTimeout(() => {
+            target.classList.remove('paragraph-pulse-highlight');
+        }, 3000);
+        return true;
+    }, []);
+
+    useEffect(() => {
+        const handleNavigateParagraph = (event) => {
+            const detail = event.detail || {};
+            if (detail.documentId && activeDocument?.id && detail.documentId !== activeDocument.id) return;
+            if (!detail.paragraphId) return;
+            if (!highlightParagraph(detail.paragraphId)) {
+                antMessage.warning('未找到这张卡片的原文段落');
+            }
+        };
+
+        window.addEventListener('vibereader:navigate-paragraph', handleNavigateParagraph);
+        return () => window.removeEventListener('vibereader:navigate-paragraph', handleNavigateParagraph);
+    }, [activeDocument?.id, highlightParagraph]);
+
     if (!activeDocument || !content) {
         return (
             <div className="document-reader-empty" style={style}>
@@ -77,17 +113,41 @@ export function DocumentReader({ document: activeDocument, onInject, style = {} 
             >
                 {activeDocument.kind === 'markdown' && (
                     <div className="document-reader-markdown">
-                        <MarkdownRenderer content={content} />
+                        {chunks.map((chunk, index) => (
+                            <div
+                                key={`${activeDocument.id || 'document'}-chunk-${index + 1}`}
+                                data-paragraph-id={`chunk-${index + 1}`}
+                                className="document-reader-paragraph"
+                            >
+                                <MarkdownRenderer content={chunk} />
+                            </div>
+                        ))}
                     </div>
                 )}
                 {activeDocument.kind === 'html' && (
                     <article className="document-reader-text" data-testid="html-document-content">
-                        {content}
+                        {chunks.map((chunk, index) => (
+                            <p
+                                key={`${activeDocument.id || 'document'}-chunk-${index + 1}`}
+                                data-paragraph-id={`chunk-${index + 1}`}
+                                className="document-reader-paragraph"
+                            >
+                                {chunk}
+                            </p>
+                        ))}
                     </article>
                 )}
                 {activeDocument.kind === 'text' && (
                     <article className="document-reader-text" data-testid="text-document-content" style={{ whiteSpace: 'pre-wrap' }}>
-                        {content}
+                        {chunks.map((chunk, index) => (
+                            <p
+                                key={`${activeDocument.id || 'document'}-chunk-${index + 1}`}
+                                data-paragraph-id={`chunk-${index + 1}`}
+                                className="document-reader-paragraph"
+                            >
+                                {chunk}
+                            </p>
+                        ))}
                     </article>
                 )}
             </div>
