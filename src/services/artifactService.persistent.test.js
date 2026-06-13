@@ -76,8 +76,18 @@ describe('artifactService persistent adapter', () => {
                 documentId: 'doc-1',
                 type: 'lens_card',
                 goal: 'Explain selection',
+                sourceSpanIds: ['page-3-para-1'],
                 source: { page: 3, selectedText: 'Source text' },
-                originalContent: { explanation: 'AI explanation' },
+                originalContent: expect.objectContaining({
+                    explanation: 'AI explanation',
+                    sourceText: 'Source text',
+                    source: { page: 3, selectedText: 'Source text' },
+                }),
+                currentContent: expect.objectContaining({
+                    explanation: 'AI explanation',
+                    sourceText: 'Source text',
+                    source: { page: 3, selectedText: 'Source text' },
+                }),
                 verificationStatus: 'grounded',
             }),
         ]);

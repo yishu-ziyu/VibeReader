@@ -1,5 +1,35 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-13 Phase 42：VibeCard Persistence Restart
+
+目标：
+
+- 让 `Create VibeCard` 生成的卡片从“当前会话可用”推进到“重启/重新读取后仍完整可用”。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-vibecard-persistence-restart.md`，用 BDD/TDD 明确重启后卡片恢复、来源保留和文档隔离规则。
+- 新增 `src/services/artifactService.persistentRestart.test.js`，覆盖持久化 VibeCard record 恢复为可回源 artifact 的合同。
+- `artifactService` 从持久化 VibeCard 恢复 artifact 时，保留 `sourceText`、`aiContent`、`source` 和 `userNote`。
+- `artifactService` 从 `paragraphId` / `source.paragraphId` 回填 `sourceSpanIds`，让恢复后的卡片仍能被导出、诊断和回源链路识别为 source-grounded。
+- 更新 `src/services/artifactService.persistent.test.js`，把既有 persistent adapter 测试升级为检查恢复后的来源字段。
+
+命令：
+
+- RED：`npm run test -- src/services/artifactService.persistentRestart.test.js` -> failed，恢复后 `sourceSpanIds` 为空。
+- GREEN：`npm run test -- src/services/artifactService.persistentRestart.test.js` -> pass（1 file / 2 tests）。
+- `npm run test -- src/services/artifactService.persistentRestart.test.js src/services/artifactService.persistent.test.js src/services/artifactService.test.js` -> pass（3 files / 9 tests）。
+- `npm run test -- src/services/artifactService.persistentRestart.test.js src/services/artifactService.test.js src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx src/App.retrievalContext.test.jsx` -> pass（5 files / 47 tests）。
+- `npm run test` -> pass（53 files / 274 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `npx playwright test e2e/source-ref-navigation.spec.js --project=chromium` -> pass（1 test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本轮验证的是持久化恢复合同和浏览器/组件路径；真实 Tauri 桌面重启后点击回源仍需要 PM 按 Phase 40 文档手动复测。
+- 没有改 SQLite schema，也没有新增安装包。
+
 ## 2026-06-13 Phase 41.1：VibeCard Source Return Hardening
 
 目标：

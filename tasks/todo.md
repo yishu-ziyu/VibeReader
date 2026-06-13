@@ -11,6 +11,32 @@
 - [x] 当前基线验证：`npm run build` 通过，有 bundle size warning
 - [x] 当前主线运行面命名为 `VibeReader Standalone Dev`，旧 `Vibero.app` 只作为历史表面对照
 
+## Phase 42：VibeCard Persistence Restart
+
+- [x] 写入 BDD/TDD 规格：`tasks/bdd-tdd-vibecard-persistence-restart.md`
+- [x] 用 TDD 覆盖 Tauri 持久化恢复后的 VibeCard 来源合同
+- [x] 恢复 VibeCard 时保留 `sourceText`、`aiContent`、`source`、`userNote`
+- [x] 恢复 VibeCard 时从 `paragraphId` 回填 `sourceSpanIds`
+- [x] 覆盖 plain `aiContent` 记录，避免旧数据或导入数据恢复后只剩 `content`
+- [x] 更新 persistent adapter 既有测试，让它检查恢复后的来源字段
+- [x] 跑相关与全量验证
+- [x] commit + push
+
+验收：
+
+- [x] 应用重启/重新读取后，VibeCard 仍有标题、原文摘录、AI 内容和用户备注
+- [x] 恢复后的 VibeCard 仍有 `source`、`paragraphId` 和 `sourceSpanIds`
+- [x] 恢复后的 VibeCard 具备继续 `回到原文` 的数据基础
+- [x] `listArtifactsForDocument(documentId)` 只读取当前文档的持久化卡片
+- [x] RED：`npm run test -- src/services/artifactService.persistentRestart.test.js` 失败，恢复后 `sourceSpanIds` 为空
+- [x] GREEN：`npm run test -- src/services/artifactService.persistentRestart.test.js` 通过（1 file / 2 tests）
+- [x] `npm run test -- src/services/artifactService.persistentRestart.test.js src/services/artifactService.persistent.test.js src/services/artifactService.test.js` 通过（3 files / 9 tests）
+- [x] `npm run test -- src/services/artifactService.persistentRestart.test.js src/services/artifactService.test.js src/ArtifactPanel.test.jsx src/WorkspaceLayout.test.jsx src/App.retrievalContext.test.jsx` 通过（5 files / 47 tests）
+- [x] `npm run test` 通过（53 files / 274 tests）
+- [x] `npx playwright test e2e/source-ref-navigation.spec.js --project=chromium` 通过（1 test）
+- [x] `npm run build` 通过，保留既有 chunk size warning
+- [x] `git diff --check` 通过
+
 ## Phase 41：Readable Document Source Return
 
 - [x] 定位 PM 手测反馈：Markdown 样例里点击 VibeCard `回到原文` 无反应

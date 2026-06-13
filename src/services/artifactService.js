@@ -58,17 +58,25 @@ function artifactToVibeCard(artifact) {
 
 function vibeCardToArtifact(card) {
     const source = safeJsonParse(card.sourceJson, null);
-    const originalContent = safeJsonParse(card.aiContent, { content: card.aiContent || '' });
+    const parsedContent = safeJsonParse(card.aiContent, null);
+    const originalContent = {
+        ...(parsedContent && typeof parsedContent === 'object'
+            ? parsedContent
+            : (card.aiContent ? { aiContent: card.aiContent } : {})),
+        ...(card.sourceText ? { sourceText: card.sourceText } : {}),
+        ...(source ? { source } : {}),
+    };
     const currentContent = {
         ...originalContent,
         ...(card.userNote ? { userNote: card.userNote } : {}),
     };
+    const sourceSpanIds = [card.paragraphId || source?.paragraphId].filter(Boolean);
     return {
         id: card.id,
         documentId: card.documentId,
         type: card.type || 'reading_note',
         goal: card.title || '',
-        sourceSpanIds: [],
+        sourceSpanIds,
         ...(source ? { source } : {}),
         modelId: '',
         createdAt: card.createdAt,
