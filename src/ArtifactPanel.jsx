@@ -222,6 +222,7 @@ export function LensCard({
     const sourceRefs = Array.isArray(content.sourceRefs) ? content.sourceRefs : [];
     const fallbackSource = artifact.source || content.source;
     const visibleSourceRefs = sourceRefs.length > 0 ? sourceRefs : (fallbackSource ? [fallbackSource] : []);
+    const navigateSourceLabel = visibleSourceRefs.length > 0 ? sourceRefLabel(visibleSourceRefs[0]) : '';
     const visibleTitle = content.title || artifactTitle(artifact);
     const shouldShowTitle = visibleTitle && visibleTitle !== artifactTypeLabel(artifact.type)
         && (content.sourceText || content.aiContent);
@@ -364,6 +365,8 @@ export function LensCard({
                 <Button
                     size="small"
                     icon={<FileSearchOutlined />}
+                    aria-label={navigateSourceLabel ? `回到原文 ${navigateSourceLabel}` : '回到原文'}
+                    title={navigateSourceLabel ? `回到原文 ${navigateSourceLabel}` : '回到原文'}
                     onClick={() => onNavigateToSource?.(artifact)}
                 >
                     回到原文

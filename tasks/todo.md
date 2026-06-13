@@ -1,6 +1,6 @@
 # VibeReader Standalone 任务跟踪
 
-最后更新：2026-06-12
+最后更新：2026-06-13
 
 ## 当前决策
 
@@ -15,19 +15,28 @@
 
 - [x] 定位 PM 手测反馈：Markdown 样例里点击 VibeCard `回到原文` 无反应
 - [x] 确认根因：卡片已发出 `vibereader:navigate-paragraph`，但 Markdown/Text/HTML 阅读器没有 `chunk-*` 段落锚点，也没有监听该事件
+- [x] 写入 BDD/TDD 规格：`tasks/bdd-tdd-vibecard-source-return-hardening.md`
 - [x] 用 TDD 覆盖 Markdown chunk 回源行为
 - [x] 为 readable document 渲染 `chunk-1` / `chunk-2` / `chunk-3` 段落锚点
 - [x] 为 readable document 接入回源事件、滚动定位、短暂高亮和找不到来源提示
+- [x] 硬化卡片端回源按钮：按钮可访问名称包含具体来源，例如 `回到原文 P1 · chunk-3`
+- [x] 用 TDD 覆盖 agent-generated VibeCard 的来源标签、回源按钮来源名和点击导航回调
 - [x] 跑相关与全量验证
 - [x] commit + push
 
 验收：
 
+- [x] VibeCard 卡片继续显示来源标签，例如 `P1 · chunk-3`
+- [x] `回到原文` 按钮暴露具体来源名，便于 PM 判断点的是哪段原文
 - [x] PM 点击 Markdown VibeCard 的 `回到原文` 后，阅读区应滚动到对应原文段落并短暂高亮
 - [x] 来源段落不存在时，界面提示 `未找到这张卡片的原文段落`，不再静默无反应
+- [x] RED：`npm run test -- src/ArtifactPanel.test.jsx` 失败，缺少 `回到原文 P1 · chunk-3` 按钮名
+- [x] GREEN：`npm run test -- src/ArtifactPanel.test.jsx` 通过（1 file / 17 tests）
 - [x] `npm run test -- src/DocumentReader.test.jsx` 通过（1 file / 5 tests）
+- [x] `npm run test -- src/ArtifactPanel.test.jsx src/DocumentReader.test.jsx src/WorkspaceLayout.test.jsx src/App.retrievalContext.test.jsx` 通过（4 files / 47 tests）
 - [x] `npm run test -- src/DocumentReader.test.jsx src/dragInject.test.js src/WorkspaceLayout.test.jsx src/ArtifactPanel.test.jsx` 通过（4 files / 41 tests）
 - [x] `npm run test` 通过（52 files / 272 tests）
+- [x] `npx playwright test e2e/source-ref-navigation.spec.js --project=chromium` 通过（1 test）
 - [x] `npm run build` 通过，保留既有 chunk size warning
 - [x] `git diff --check` 通过
 

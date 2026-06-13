@@ -1,5 +1,32 @@
 # Vibero Standalone 开发日志
 
+## 2026-06-13 Phase 41.1：VibeCard Source Return Hardening
+
+目标：
+
+- 继续硬化 Phase 41 的 `回到原文` 闭环，让 PM 在卡片端能看清每个按钮指向哪个来源位置。
+
+改动：
+
+- 新增 `tasks/bdd-tdd-vibecard-source-return-hardening.md`，用 Given / When / Then 记录本轮 PM 验收规则。
+- `ArtifactPanel` 的 `回到原文` 按钮新增可访问名称和 tooltip，例如 `回到原文 P1 · chunk-3`。
+- `ArtifactPanel.test.jsx` 将 agent-generated VibeCard 的来源改为 Markdown `chunk-*` 场景，并覆盖按钮点击会把原卡片交给导航回调。
+
+命令：
+
+- RED：`npm run test -- src/ArtifactPanel.test.jsx` -> failed，缺少 `回到原文 P1 · chunk-3` 按钮名。
+- GREEN：`npm run test -- src/ArtifactPanel.test.jsx` -> pass（1 file / 17 tests）。
+- `npm run test -- src/ArtifactPanel.test.jsx src/DocumentReader.test.jsx src/WorkspaceLayout.test.jsx src/App.retrievalContext.test.jsx` -> pass（4 files / 47 tests）。
+- `npm run test` -> pass（52 files / 272 tests，含既有 AntD/jsdom `getComputedStyle` 非致命提示）。
+- `npm run build` -> pass，保留既有 chunk size warning。
+- `npx playwright test e2e/source-ref-navigation.spec.js --project=chromium` -> pass（1 test）。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本轮增强的是卡片端可判断性和自动化覆盖；Tauri 桌面真实点击仍需要 PM 按 Phase 40 手动验收路径复测。
+- `chunk-*` 仍是当前 readable document 的来源 ID 合同，后续 Rust chunker 接入时需要保持 source ref 和前端锚点一致。
+
 ## 2026-06-12 Phase 41：Readable Document Source Return
 
 用户反馈：

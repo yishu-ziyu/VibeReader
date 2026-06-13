@@ -211,6 +211,7 @@ describe('ArtifactPanel', () => {
     });
 
     it('renders agent-generated VibeCards with readable source-grounded content', () => {
+        const onNavigateToSource = vi.fn();
         const artifacts = [
             {
                 id: 'agent-card-1',
@@ -220,8 +221,8 @@ describe('ArtifactPanel', () => {
                 verificationStatus: 'grounded',
                 source: {
                     documentId: 'doc-1',
-                    page: 2,
-                    paragraphId: 'page-2-para-1',
+                    page: 1,
+                    paragraphId: 'chunk-3',
                     selectedText: 'The research problem source text.',
                     sourceType: 'agent-card-generation',
                 },
@@ -233,8 +234,8 @@ describe('ArtifactPanel', () => {
                     tags: ['agent-generated', 'vibecard'],
                     source: {
                         documentId: 'doc-1',
-                        page: 2,
-                        paragraphId: 'page-2-para-1',
+                        page: 1,
+                        paragraphId: 'chunk-3',
                         selectedText: 'The research problem source text.',
                         sourceType: 'agent-card-generation',
                     },
@@ -242,13 +243,16 @@ describe('ArtifactPanel', () => {
             },
         ];
 
-        render(<ArtifactPanel artifacts={artifacts} />);
+        render(<ArtifactPanel artifacts={artifacts} onNavigateToSource={onNavigateToSource} />);
 
         expect(screen.getByText('VibeCard 1: Research problem')).toBeTruthy();
         expect(screen.getByText('The research problem source text.')).toBeTruthy();
         expect(screen.getByText('Review this source-backed point: The research problem source text.')).toBeTruthy();
-        expect(screen.getByText('P2 · page-2-para-1')).toBeTruthy();
+        expect(screen.getByText('P1 · chunk-3')).toBeTruthy();
         expect(screen.getByText('grounded')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: '回到原文 P1 · chunk-3' }));
+        expect(onNavigateToSource).toHaveBeenCalledWith(artifacts[0]);
     });
 
     it('makes saved VibeCards draggable into Chat as a drag-inject payload', () => {
