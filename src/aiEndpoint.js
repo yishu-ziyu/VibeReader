@@ -30,6 +30,11 @@ export function resolveAiEndpointForRuntime(endpoint, origin = globalThis.locati
         return `${parsed.pathname.replace(/^\/v1/, '/api/kimi')}${parsed.search}`;
     }
 
+    // StepFun Step Plan dev proxy routing
+    if (parsed.origin === 'https://api.stepfun.com' && parsed.pathname.startsWith('/step_plan/v1/')) {
+        return `${parsed.pathname.replace(/^\/step_plan\/v1/, '/api/stepfun')}${parsed.search}`;
+    }
+
     return endpoint;
 }
 

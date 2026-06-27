@@ -1,5 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 
+import {
+    deleteConversation as browserDeleteConversation,
+    listConversations as browserListConversations,
+    loadConversation as browserLoadConversation,
+    saveConversation as browserSaveConversation,
+} from '../storage';
+
 const WEB_DOCUMENTS_KEY = 'vibereader.web.documents';
 export const TASK_UPDATED_EVENT = 'vibereader:task-updated';
 
@@ -345,11 +352,56 @@ export async function initializePersistentStorage() {
     return invokeStorage('storage_init');
 }
 
+export async function listPersistentConversations() {
+    if (!isPersistentStorageAvailable()) {
+        return browserListConversations().catch(() => []);
+    }
+    return invokeStorage('storage_list_conversations');
+}
+
+export async function loadPersistentConversation(sessionId) {
+    if (!isPersistentStorageAvailable()) {
+        const messages = await browserLoadConversation(sessionId).catch(() => null);
+        if (!messages) return null;
+        return {
+            sessionId,
+            messagesJson: JSON.stringify(messages),
+            messageCount: messages.length,
+            title: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        };
+    }
+    return invokeStorage('storage_load_conversation', { sessionId });
+}
+
+export async function savePersistentConversation(sessionId, messages, metadata = {}) {
+    if (!isPersistentStorageAvailable()) {
+        await browserSaveConversation(sessionId, messages);
+        return {
+            sessionId,
+            messagesJson: JSON.stringify(messages),
+            messageCount: messages.length,
+            title: metadata.title || extractTitleFromMessages(messages),
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        };
+    }
+    return invokeStorage('storage_upsert_conversation', {
+        input: normalizeConversationInput(sessionId, messages, metadata),
+    });
+}
+
+export async function deletePersistentConversation(sessionId) {
+    if (!isPersistentStorageAvailable()) {
+        return browserDeleteConversation(sessionId);
+    }
+    return invokeStorage('storage_delete_conversation', { sessionId });
+}
+
 export async function listPersistentDocuments() {
     if (!isPersistentStorageAvailable()) {
-        return readWebDocuments()
-            .filter((document) => document?.id)
-            .sort((a, b) => Number(b.openedAt || 0) - Number(a.openedAt || 0));
+        return readWebDocuments();
     }
     return invokeStorage('storage_list_documents');
 }
@@ -381,32 +433,6 @@ export async function loadPersistentDocumentContent(documentId) {
     if (!isPersistentStorageAvailable()) return null;
     return invokeStorage('storage_load_document_content', {
         documentId,
-    });
-}
-
-export async function savePersistentConversation(sessionId, messages, metadata = {}) {
-    if (!isPersistentStorageAvailable()) return null;
-    return invokeStorage('storage_upsert_conversation', {
-        input: normalizeConversationInput(sessionId, messages, metadata),
-    });
-}
-
-export async function loadPersistentConversation(sessionId) {
-    if (!isPersistentStorageAvailable()) return null;
-    return invokeStorage('storage_load_conversation', {
-        sessionId,
-    });
-}
-
-export async function listPersistentConversations() {
-    if (!isPersistentStorageAvailable()) return [];
-    return invokeStorage('storage_list_conversations');
-}
-
-export async function deletePersistentConversation(sessionId) {
-    if (!isPersistentStorageAvailable()) return false;
-    return invokeStorage('storage_delete_conversation', {
-        sessionId,
     });
 }
 

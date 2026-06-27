@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState, Suspense } from 'react
 import { createRoot } from 'react-dom/client';
 import { Bubble } from '@ant-design/x';
 import { Button, Flex, message as antMessage, Spin, Modal, Segmented, Slider, Tabs } from 'antd';
-import { FontSizeOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, FolderOpenOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CommentOutlined, FileTextOutlined, BookOutlined, ThunderboltOutlined, CompassOutlined, SettingOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { FontSizeOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, FolderOpenOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CommentOutlined, FileTextOutlined, BookOutlined, ThunderboltOutlined, CompassOutlined, SettingOutlined, ClockCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import ChatInput from './ChatInput';
 import aiService from './aiService';
 import { MULTIMODAL_UNSUPPORTED_CODE } from './multimodalApiError';
@@ -54,6 +54,9 @@ import {
 } from './dragInject';
 import './styles.css';
 import viberoIconPng from '../icons/vibero.png';
+import { OnboardingOverlay } from './onboarding/OnboardingOverlay';
+import { HelpGuide } from './help/HelpGuide';
+import { ModelConfigModal } from './model-config/ModelConfigModal';
 
 // Lazy-load AI panel components to reduce initial bundle size
 const SummaryPanel = React.lazy(() => import('./SummaryPanel').then(m => ({ default: m.SummaryPanel })));
@@ -325,6 +328,9 @@ export function App() {
     const [insights, setInsights] = useState([]);
     const [artifacts, setArtifacts] = useState([]);
     const [modelConfigOpenSignal, setModelConfigOpenSignal] = useState(0);
+    const [showModelConfig, setShowModelConfig] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(true);
+    const [showHelpGuide, setShowHelpGuide] = useState(false);
     const activeSection = findSectionForPage(vibeData?.sections || currentDocument?.vibeData?.sections, activeReaderPage);
 
     useEffect(() => {
@@ -1375,6 +1381,7 @@ export function App() {
     }
 
     return (
+        <>
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
             {/* 侧边栏 */}
             {!sidebarCollapsed && (
@@ -1519,6 +1526,35 @@ export function App() {
                                 />
                             </div>
                         ))}
+                    </div>
+
+                    {/* 底部：帮助 + 模型配置 */}
+                    <div style={{
+                        padding: '8px 12px',
+                        borderTop: '1px solid var(--fill-quinary)',
+                        display: 'flex',
+                        gap: 4,
+                    }}>
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<QuestionCircleOutlined />}
+                            onClick={() => setShowHelpGuide(true)}
+                            style={{ flex: 1, justifyContent: 'center' }}
+                            title="使用指南"
+                        >
+                            指南
+                        </Button>
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<SettingOutlined />}
+                            onClick={() => setShowModelConfig(true)}
+                            style={{ flex: 1, justifyContent: 'center' }}
+                            title="配置模型"
+                        >
+                            模型
+                        </Button>
                     </div>
                 </div>
             )}
@@ -1827,6 +1863,11 @@ export function App() {
                 </div>
             </div>
         </div>
+
+        <OnboardingOverlay onDismiss={() => setShowOnboarding(false)} />
+        <HelpGuide open={showHelpGuide} onClose={() => setShowHelpGuide(false)} />
+        <ModelConfigModal open={showModelConfig} onClose={() => setShowModelConfig(false)} onSaved={() => {}} />
+        </>
     );
 }
 

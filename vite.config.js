@@ -22,6 +22,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/kimi/, '/v1'),
       },
+      '/api/stepfun': {
+        target: 'https://api.stepfun.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/stepfun/, '/step_plan/v1'),
+      },
     },
   },
   build: {
