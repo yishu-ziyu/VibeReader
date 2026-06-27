@@ -1579,15 +1579,6 @@ export function App() {
                     />
                     <div style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>Workspace</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
-                        <Button
-                            size="small"
-                            type={modelConfigReady ? 'default' : 'primary'}
-                            icon={<SettingOutlined />}
-                            onClick={handleOpenModelConfig}
-                            title={modelConfigReady ? modelConfigButtonLabel : modelConfigValidation.message}
-                        >
-                            {modelConfigButtonLabel}
-                        </Button>
                         {rightToolTab === 'chat' && (
                             <>
                                 <Button
