@@ -209,6 +209,8 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
             content: `删除「${config.modelName || config.name}」？`,
             okText: '删除',
             okType: 'danger',
+            getContainer: document.body,
+            zIndex: 10002,
             onOk: () => {
                 const next = customConfigs.filter(c => c.id !== config.id);
                 saveModelConfigs(next);
