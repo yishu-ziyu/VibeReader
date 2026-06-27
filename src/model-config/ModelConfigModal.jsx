@@ -341,6 +341,7 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
             {/* Toolbar: import / export */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                 <Button size="small" icon={<ImportOutlined />} onClick={handleImport}>导入</Button>
+                <span style={{ fontSize: 11, color: '#999', cursor: 'help' }} title="导入 VibeReader 导出的 JSON 配置文件">?</span>
                 <Button size="small" icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
             </div>
 
