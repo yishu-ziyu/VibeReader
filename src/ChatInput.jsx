@@ -717,7 +717,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                                             minWidth: 0,
                                         }}
                                     >
-                                        {displayModel}
+                                        {'模型：'}{displayModel}
                                     </span>
                                 </span>
                                 <DownOutlined style={{ fontSize: 12, flexShrink: 0 }} />

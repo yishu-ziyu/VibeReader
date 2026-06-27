@@ -1551,9 +1551,9 @@ export function App() {
                             icon={<SettingOutlined />}
                             onClick={() => setShowModelConfig(true)}
                             style={{ flex: 1, justifyContent: 'center' }}
-                            title="配置模型"
+                            title="配置模型服务"
                         >
-                            模型
+                            配置
                         </Button>
                     </div>
                 </div>
