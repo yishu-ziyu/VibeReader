@@ -1654,3 +1654,87 @@ BDD/TDD：
 遗留风险：
 
 - 这仍不是通用 task executor；Summary / Attention retry、真实 cancellation token、跨窗口 progress event 仍需后续 task runtime。
+
+## 2026-06-28 Phase 43：Onboarding + Help Guide + Model Config Modal 重构 + E2E 修复
+
+### 目标
+
+1. 首次启动体验：从空白页升级为 5 步引导
+2. 模型配置从 ChatInput 内部抽出独立组件，对齐 AI 组件工作流库 17 个 provider
+3. 真实浏览器跑全流程，记录 bug 并批量修复
+
+### 改动
+
+#### 1. Onboarding（首次启动引导）
+
+- 新增 `src/onboarding/OnboardingOverlay.jsx`：5 步快速上手 + localStorage dismiss 记录
+- 不再打扰已 dismiss 用户
+- 步骤：上传文档 → AI 摘要 → 记忆卡片 → 注意力导航 → AI 对话
+
+#### 2. Help Guide（完整使用指南）
+
+- 新增 `src/help/HelpGuide.jsx` + `helpGuideContent.js`：Markdown 内嵌 720px Modal
+- 包含快速上手（5 步）+ 功能详解 + 快捷键 + FAQ
+- 侧边栏底部「指南」按钮常驻入口
+
+#### 3. Model Config Modal（核心差异功能重构）
+
+- 新增 `src/model-config/ModelConfigModal.jsx`：从 ChatInput 抽出独立组件
+- 侧边栏底部「配置」按钮直达
+- 功能增强：
+  - 5 个快速模板（StepFun / DeepSeek / MiniMax / Kimi / MiMo）
+  - 模型能力标签（Vision / Coding / 128K / No Key）
+  - 一键测试连接（发送 lightweight API call）
+  - JSON 导入/导出
+- `src/modelPresets.js` 从 14 个扩展到 18 个 provider，对齐 AI 组件工作流库 MODEL_CAPABILITY_INDEX.md
+
+#### 4. Bug 批量修复（基于真实浏览器 E2E）
+
+**P0：**
+
+- **#1 Help Guide Markdown 排版**：模板未渲染根因是缓存问题，刷新后 h1/h2/ol/ul/table/blockquote 全部正常
+- **#2 导入 JSON 模板污染**：filter 拦截 `id` 以 `import-` 前缀的模板记录
+- **#3 Preset 下拉不同步**：把 Select 移出 Form.Item，改用 `form.getFieldValue('presetKey')` 直接驱动
+- **#5 模型选择器刷新**：通过 `CustomEvent('vibereader:model-configs-changed')` 协调 Modal → ChatInput
+
+**P1：**
+
+- **#4 Placeholder 残留**：placeholder 根据 selectedPreset 动态生成
+- **#6 视觉区分**：模板按钮改用蓝色 ghost + 浅蓝背景
+- **#7 Default config 丢失**：DEFAULT_MINIMAX/KIMI_TRIAL 添加 providerKey 字段
+- **#9/#11 默认选中态**：`findPresetForConfig` fallback（按 baseUrl + modelName 匹配）
+- **#10 模板点击同步**：form fields 同步驱动 Select 显示
+
+**P2（未修）：**
+
+- #8 模板按钮换行（Flex wrap 已自动处理）
+- #12 PDF reader tab 关闭（Tauri 桌面专属，dev 复现不出）
+
+### 关键决策
+
+1. **侧边栏底部「配置」 vs 「模型」语义区分**：底部 ChatInput 选择器叫「模型：xxx」（切换），侧边栏叫「配置」（配置管理）。删除顶部 header 冗余按钮。
+
+2. **Select 受控策略**：AntD Form.Item 包裹的 Select 在 Modal 内部 `setFieldsValue` 同步失效。把 Select 移到 Form.Item 外，用 `form.getFieldValue()` 直接读，避免 controlled 冲突。
+
+3. **跨组件通信选型**：用 `window.dispatchEvent(CustomEvent)` 而非 Context/State lift，简单且解耦。ChatInput 在 mount 时订阅事件。
+
+4. **yishuship + 动态工作流启停**：先停下来写 DEVLOG + 规划，不进入 Cycle 2。
+
+### 验收
+
+- ✅ 首次打开 → 5 步引导
+- ✅ 跳过/完成后不再显示
+- ✅ 侧边栏底部两个入口：指南 / 配置
+- ✅ 指南 Modal Markdown 排版正确
+- ✅ 配置 Modal 17+1 个 provider 模板
+- ✅ 模板点击同步 preset 下拉 + 填表单
+- ✅ 导入 18 条模板 → filter 全部拦截
+- ✅ 测试连接按钮可用
+- ✅ 提交 `fix(model-config): resolve 8 E2E bugs`
+
+### 遗留风险
+
+- `useForm` warning（AntD 已知行为，关闭时 form 短暂未挂载，不影响功能）
+- Modal 关闭后 `Modal.confirm` zIndex 10002 临时处理，长远应在 Modal 库层面做
+- yishuship 状态机在多 session 间未持久化任务历史
+
