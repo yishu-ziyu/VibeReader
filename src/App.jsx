@@ -330,6 +330,7 @@ export function App() {
     const [modelConfigOpenSignal, setModelConfigOpenSignal] = useState(0);
     const [showModelConfig, setShowModelConfig] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(true);
+    const [modelConfigsVersion, setModelConfigsVersion] = useState(0);
     const [showHelpGuide, setShowHelpGuide] = useState(false);
     const activeSection = findSectionForPage(vibeData?.sections || currentDocument?.vibeData?.sections, activeReaderPage);
 
@@ -1857,7 +1858,7 @@ export function App() {
 
         <OnboardingOverlay onDismiss={() => setShowOnboarding(false)} />
         <HelpGuide open={showHelpGuide} onClose={() => setShowHelpGuide(false)} />
-        <ModelConfigModal open={showModelConfig} onClose={() => setShowModelConfig(false)} onSaved={() => {}} />
+        <ModelConfigModal open={showModelConfig} onClose={() => setShowModelConfig(false)} onSaved={() => setModelConfigsVersion(v => v + 1)} />
         </>
     );
 }

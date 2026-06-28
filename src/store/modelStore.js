@@ -11,6 +11,7 @@ const DEFAULT_MINIMAX_CONFIG = {
   modelName: 'MiniMax-M2.7',
   apiFormat: 'anthropic',
   apiKey: '',
+  providerKey: 'minimax',
 };
 
 /** Kimi Priority Trial 默认配置 */
@@ -21,6 +22,7 @@ const DEFAULT_KIMI_TRIAL_CONFIG = {
   apiFormat: 'openai',
   apiKey: '',
   requiresApiKey: false,
+  providerKey: 'kimi-free-trial',
 };
 
 function resolveInitialModel() {

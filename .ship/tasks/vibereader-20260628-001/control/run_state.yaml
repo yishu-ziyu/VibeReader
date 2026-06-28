@@ -1,0 +1,39 @@
+# Task: vibereader-20260628-001
+# State machine for E2E bug fixes
+
+phase: loop
+activeTask: vibereader-20260628-001
+iteration: 1
+maxIterations: 5
+stopReason: null
+status: pending
+blocked: []
+completedMilestones:
+  - project-init
+
+# P0 (must fix)
+p0:
+  - bug_01_help_guide_markdown_rendering
+  - bug_02_import_should_skip_template_records
+  - bug_03_preset_dropdown_not_synced_after_import
+  - bug_05_bottom_model_selector_not_refreshed
+
+# P1 (should fix)
+p1:
+  - bug_04_form_placeholders_residual
+  - bug_06_template_vs_saved_visual_distinction
+  - bug_07_existing_configs_disappeared
+  - bug_09_default_selects_first_provider_not_active
+  - bug_10_template_does_not_sync_preset_dropdown
+  - bug_11_apiFormat_placeholder_when_filled
+
+# P2 (nice to have)
+p2:
+  - bug_08_template_button_wrapping
+  - bug_12_pdf_reader_tab_close
+
+stopConditions:
+  - max_iterations: 5
+  - same_failure_2x: stop
+  - regression: stop
+  - no_progress_2x: split

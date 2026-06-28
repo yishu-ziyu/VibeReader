@@ -116,16 +116,40 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
     const [addFormFlash, setAddFormFlash] = useState(false);
     const [form] = Form.useForm();
 
+    // Find preset by providerKey, or by baseUrl+modelName as fallback for legacy configs
+    const findPresetForConfig = useCallback((config) => {
+        if (!config) return null;
+        const byKey = findPreset(config.providerKey || config.presetKey || '');
+        if (byKey) return byKey;
+        // Fallback: match by baseUrl + modelName against all presets
+        const all = (typeof getProviderOptions === 'function') ? getProviderOptions() : [];
+        for (const opt of all) {
+            const p = findPreset(opt.key);
+            if (p && p.baseUrl === (config.baseUrl || config.baseURL || '')) {
+                // Check if modelName matches one of preset's models
+                const modelMatch = p.models?.some(m => m.id === config.modelName || m.name === config.modelName);
+                if (modelMatch) return p;
+                // Last resort: match by url prefix
+                if (config.baseUrl && p.baseUrl && config.baseUrl.includes(p.baseUrl.replace(/\/v\d+$/, '').replace(/\/$/, ''))) {
+                    return p;
+                }
+            }
+        }
+        return null;
+    }, []);
+
     const syncFormFromConfig = useCallback((config) => {
-        const preset = findPreset(config.providerKey || config.presetKey || '');
+        const preset = findPresetForConfig(config);
         setSelectedPresetKey(preset?.id || null);
         form.setFieldsValue({
             baseUrl: config.baseUrl || config.baseURL || '',
             apiKey: config.apiKey || '',
             modelName: config.modelName || config.name || '',
             apiFormat: preset ? (preset.apiType === 'anthropic-compatible' ? 'anthropic' : 'openai') : (config.apiFormat || 'openai'),
+            presetKey: preset?.id || config.providerKey || undefined,
+            presetModel: config.modelName || config.name || undefined,
         });
-    }, [form]);
+    }, [form, findPresetForConfig]);
 
     // Open modal: select existing config or reset to blank
     const handleOpenConfig = useCallback((config) => {
@@ -154,26 +178,35 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
     });
 
     const handlePresetChange = useCallback((providerKey) => {
-        setSelectedPresetKey(providerKey);
         const preset = findPreset(providerKey);
+        setSelectedPresetKey(providerKey || null);
+        form.setFieldsValue({ presetKey: providerKey || undefined, presetModel: undefined });
         if (preset) {
             const model = preset.models[0];
             form.setFieldsValue({
                 baseUrl: preset.baseUrl,
                 modelName: model ? model.id : '',
                 apiFormat: preset.apiType === 'anthropic-compatible' ? 'anthropic' : 'openai',
+                presetKey: providerKey,
+                presetModel: model?.id,
             });
         }
     }, [form]);
 
     const handlePresetModelChange = useCallback((modelId) => {
-        form.setFieldsValue({ modelName: modelId });
+        form.setFieldsValue({ modelName: modelId, presetModel: modelId });
     }, [form]);
+
+    // Emit change event so other components (ChatInput) can refresh
+    const emitConfigsChanged = useCallback(() => {
+        window.dispatchEvent(new CustomEvent('vibereader:model-configs-changed'));
+    }, []);
 
     const handleSaveConfig = useCallback(() => {
         form.validateFields().then((values) => {
             const configs = [...customConfigs];
-            const preset = findPreset(selectedPresetKey);
+            const presetKey = values.presetKey || selectedPresetKey;
+            const preset = findPreset(presetKey);
             const record = {
                 id: editingConfigId || `custom-${Date.now()}`,
                 baseUrl: normalizeBaseUrl(values.baseUrl),
@@ -181,7 +214,7 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                 modelName: values.modelName,
                 name: values.modelName,
                 apiFormat: values.apiFormat || 'openai',
-                providerKey: selectedPresetKey || '',
+                providerKey: presetKey || '',
                 requiresApiKey: preset ? preset.requiresApiKey !== false : true,
                 authType: preset?.authType || 'bearer',
                 createdAt: editingConfigId ? (configs.find(c => c.id === editingConfigId)?.createdAt || Date.now()) : Date.now(),
@@ -198,10 +231,11 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
             saveModelConfigs(configs);
             setCustomConfigs(configs);
             setSelectedConfigId(record.id);
+            emitConfigsChanged();
             onSaved?.();
             message.success(editingConfigId ? '配置已更新' : '配置已添加');
         });
-    }, [customConfigs, editingConfigId, selectedPresetKey, form, onSaved]);
+    }, [customConfigs, editingConfigId, selectedPresetKey, form, onSaved, emitConfigsChanged]);
 
     const handleDeleteConfig = useCallback((config) => {
         Modal.confirm({
@@ -215,6 +249,7 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                 const next = customConfigs.filter(c => c.id !== config.id);
                 saveModelConfigs(next);
                 setCustomConfigs(next);
+                emitConfigsChanged();
                 if (editingConfigId === config.id) {
                     setEditingConfigId(null);
                     form.resetFields();
@@ -291,7 +326,7 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
         message.success('配置已导出');
     }, [customConfigs]);
 
-    // Import
+    // Import — skip template records (id starting with 'import-')
     const handleImport = useCallback(() => {
         const input = document.createElement('input');
         input.type = 'file';
@@ -303,12 +338,22 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                 const text = await file.text();
                 const imported = JSON.parse(text);
                 if (!Array.isArray(imported)) throw new Error('格式错误');
-                const merged = [...imported, ...customConfigs.filter(
-                    c => !imported.some(i => i.id === c.id)
-                )];
+                // Filter out template/sample records (id starts with 'import-' or apiKey empty)
+                const userConfigs = imported.filter(
+                    c => !(c.id?.startsWith('import-') || (!c.apiKey && c.id?.startsWith('import-')))
+                );
+                if (!userConfigs.length) {
+                    message.warning('导入文件中没有有效的用户配置（检测到的可能是模板示例）');
+                    return;
+                }
+                const merged = [
+                    ...userConfigs,
+                    ...customConfigs.filter(c => !userConfigs.some(i => i.id === c.id))
+                ];
                 saveModelConfigs(merged);
                 setCustomConfigs(merged);
-                message.success(`已导入 ${imported.length} 条配置`);
+                emitConfigsChanged();
+                message.success(`已导入 ${userConfigs.length} 条配置`);
             } catch {
                 message.error('导入失败：请选择有效的 JSON 文件');
             }
@@ -347,22 +392,29 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
 
             {/* Templates */}
             {!editingConfigId && (
-                <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>快速模板</div>
+                <div style={{ marginBottom: 16, padding: 12, background: 'rgba(43,127,216,0.04)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 13, color: '#2B7FD8', marginBottom: 8, fontWeight: 500 }}>快速模板（点击填入表单）</div>
                     <Flex gap="small" wrap="wrap">
                         {CONFIG_TEMPLATES.map((tpl) => (
                             <Button
                                 key={tpl.id}
                                 size="small"
+                                type="primary"
+                                ghost
                                 onClick={() => {
                                     const preset = findPreset(tpl.providerKey);
                                     setSelectedPresetKey(preset?.id || null);
-                                    form.setFieldsValue({
+                                    const newValues = {
                                         baseUrl: tpl.baseUrl,
                                         apiKey: '',
                                         modelName: tpl.modelName,
                                         apiFormat: tpl.apiFormat,
-                                    });
+                                        presetKey: preset?.id || tpl.providerKey,
+                                        presetModel: tpl.modelName,
+                                    };
+                                    form.setFieldsValue(newValues);
+                                    // Force re-render of Select to pick up the new value
+                                    setTimeout(() => form.setFieldsValue(newValues), 0);
                                 }}
                                 style={{ borderRadius: 6 }}
                             >
@@ -422,28 +474,35 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                     {/* Preset quick-pick */}
                     <div style={{ marginBottom: 12, padding: 10, background: '#f6f6f6', borderRadius: 6 }}>
                         <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 6 }}>选择预设</div>
-                        <Flex gap="small">
-                            <Select
-                                style={{ flex: 1 }}
-                                placeholder="提供商"
-                                value={selectedPresetKey}
-                                onChange={handlePresetChange}
-                                options={providerOptions.map(p => ({ value: p.key, label: p.label }))}
-                                allowClear
-                            />
-                            <Select
-                                style={{ flex: 1 }}
-                                placeholder="模型"
-                                value={form.getFieldValue('modelName')}
-                                onChange={handlePresetModelChange}
-                                options={presetModelOptions.map(m => ({ value: m.id, label: m.name }))}
-                                disabled={!selectedPreset}
-                                allowClear
-                            />
-                        </Flex>
-                        {selectedPreset && (
-                            <CapabilityTags providerKey={selectedPresetKey} modelId={form.getFieldValue('modelName')} />
-                        )}
+                        <Select
+                            style={{ marginBottom: 8, width: '100%' }}
+                            placeholder="提供商"
+                            value={form.getFieldValue('presetKey') || undefined}
+                            onChange={handlePresetChange}
+                            options={providerOptions.map(p => ({ value: p.key, label: p.label }))}
+                            popupMatchSelectWidth={300}
+                            getPopupContainer={trigger => trigger.parentNode}
+                            allowClear
+                        />
+                        <Select
+                            style={{ width: '100%' }}
+                            placeholder="模型"
+                            value={form.getFieldValue('presetModel') || undefined}
+                            onChange={handlePresetModelChange}
+                            options={(() => {
+                                const cur = form.getFieldValue('presetKey');
+                                const p = cur ? findPreset(cur) : null;
+                                return p ? p.models.map(m => ({ value: m.id, label: m.name })) : [];
+                            })()}
+                            popupMatchSelectWidth={300}
+                            getPopupContainer={trigger => trigger.parentNode}
+                            allowClear
+                        />
+                        {(() => {
+                            const cur = form.getFieldValue('presetKey');
+                            const p = cur ? findPreset(cur) : null;
+                            return p ? <CapabilityTags providerKey={cur} modelId={form.getFieldValue('presetModel')} /> : null;
+                        })()}
                     </div>
 
                     {/* Form */}
@@ -455,13 +514,13 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                             ]} />
                         </Form.Item>
                         <Form.Item name="baseUrl" label="API Base URL" rules={[{ required: true }]}>
-                            <Input placeholder="https://api.openai.com/v1" />
+                            <Input placeholder={selectedPreset?.baseUrl || 'https://api.openai.com/v1'} />
                         </Form.Item>
                         <Form.Item name="apiKey" label="API Key">
-                            <Input.Password placeholder={selectedPreset && findPreset(selectedPresetKey)?.requiresApiKey === false ? '无需 Key' : '粘贴服务商提供的 API Key'} />
+                            <Input.Password placeholder={selectedPreset && findPreset(selectedPresetKey)?.requiresApiKey === false ? '无需 Key (体验版)' : (selectedPreset?.apiKeyPlaceholder || '粘贴服务商提供的 API Key')} />
                         </Form.Item>
                         <Form.Item name="modelName" label="模型名称" rules={[{ required: true }]}>
-                            <Input placeholder="如 deepseek-chat" />
+                            <Input placeholder={selectedPreset?.models[0]?.id || '如 deepseek-chat'} />
                         </Form.Item>
                     </Form>
 

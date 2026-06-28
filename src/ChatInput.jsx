@@ -58,9 +58,22 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
 
     // 预设选择
     const [selectedPresetKey, setSelectedPresetKey] = useState(null);
+    const [configsVersion, setConfigsVersion] = useState(0);
 
     const apiFormatWatched = Form.useWatch('apiFormat', form);
     const apiFormatForUrlPlaceholder = apiFormatWatched ?? 'openai';
+
+    // Re-read when model config modal signals a save or external change
+    useEffect(() => {
+        if (!configOpenSignal) return;
+        setConfigsVersion(v => v + 1);
+    }, [configOpenSignal]);
+
+    useEffect(() => {
+        const handler = () => setConfigsVersion(v => v + 1);
+        window.addEventListener('vibereader:model-configs-changed', handler);
+        return () => window.removeEventListener('vibereader:model-configs-changed', handler);
+    }, []);
 
     // 读取所有自定义模型配置
     const getCustomModelConfigs = useCallback(() => {
@@ -71,7 +84,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
             console.warn('[ChatInput] Failed to get custom model configs:', e);
             return [];
         }
-    }, []);
+    }, [configsVersion]);
 
     // 根据 configId 获取单条配置（兼容旧数据 baseURL → baseUrl）
     const getCustomModelConfigById = useCallback((configId) => {
