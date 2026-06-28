@@ -105,8 +105,9 @@ export const PROVIDER_PRESETS = [
     apiType: 'anthropic-compatible',
     region: 'china',
     baseUrl: 'https://api.minimaxi.com/anthropic',
-    defaultModel: 'MiniMax-M2.7',
+    defaultModel: 'MiniMax-M3',
     models: [
+      { id: 'MiniMax-M3', name: 'MiniMax-M3', vision: false },
       { id: 'MiniMax-M2.7', name: 'MiniMax-M2.7', vision: false },
       { id: 'MiniMax-M2.7-highspeed', name: 'MiniMax-M2.7 Highspeed', vision: false },
     ],

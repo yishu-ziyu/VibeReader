@@ -46,7 +46,7 @@ const CONFIG_TEMPLATES = [
         icon: '💎',
         baseUrl: 'https://api.minimaxi.com/anthropic',
         apiFormat: 'anthropic',
-        modelName: 'MiniMax-M2.7',
+        modelName: 'MiniMax-M3',
         providerKey: 'minimax',
         description: 'Token Plan，Coding 强',
     },

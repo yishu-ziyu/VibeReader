@@ -1,6 +1,6 @@
 [
   {
-    "id": "import-anthropic-1782607133209",
+    "id": "import-anthropic-1782607291698",
     "name": "claude-opus-4-8",
     "modelName": "claude-opus-4-8",
     "providerKey": "anthropic",
@@ -8,11 +8,11 @@
     "apiFormat": "anthropic",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133209,
-    "updatedAt": 1782607133209
+    "createdAt": 1782607291698,
+    "updatedAt": 1782607291698
   },
   {
-    "id": "import-openai-1782607133210",
+    "id": "import-openai-1782607291699",
     "name": "gpt-5.5",
     "modelName": "gpt-5.5",
     "providerKey": "openai",
@@ -20,11 +20,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133210,
-    "updatedAt": 1782607133210
+    "createdAt": 1782607291699,
+    "updatedAt": 1782607291699
   },
   {
-    "id": "import-gemini-1782607133211",
+    "id": "import-gemini-1782607291700",
     "name": "gemini-3.5-flash",
     "modelName": "gemini-3.5-flash",
     "providerKey": "gemini",
@@ -32,11 +32,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133211,
-    "updatedAt": 1782607133211
+    "createdAt": 1782607291700,
+    "updatedAt": 1782607291700
   },
   {
-    "id": "import-stepfun-1782607133212",
+    "id": "import-stepfun-1782607291701",
     "name": "step-3.7-flash",
     "modelName": "step-3.7-flash",
     "providerKey": "stepfun",
@@ -44,11 +44,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133212,
-    "updatedAt": 1782607133212
+    "createdAt": 1782607291701,
+    "updatedAt": 1782607291701
   },
   {
-    "id": "import-deepseek-1782607133213",
+    "id": "import-deepseek-1782607291702",
     "name": "deepseek-v4-pro",
     "modelName": "deepseek-v4-pro",
     "providerKey": "deepseek",
@@ -56,23 +56,23 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133213,
-    "updatedAt": 1782607133213
+    "createdAt": 1782607291702,
+    "updatedAt": 1782607291702
   },
   {
-    "id": "import-minimax-1782607133214",
-    "name": "MiniMax-M2.7",
-    "modelName": "MiniMax-M2.7",
+    "id": "import-minimax-1782607291703",
+    "name": "MiniMax-M3",
+    "modelName": "MiniMax-M3",
     "providerKey": "minimax",
     "baseUrl": "https://api.minimaxi.com/anthropic",
     "apiFormat": "anthropic",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133214,
-    "updatedAt": 1782607133214
+    "createdAt": 1782607291703,
+    "updatedAt": 1782607291703
   },
   {
-    "id": "import-mimo-1782607133215",
+    "id": "import-mimo-1782607291704",
     "name": "mimo-v2.5-pro",
     "modelName": "mimo-v2.5-pro",
     "providerKey": "mimo",
@@ -80,11 +80,11 @@
     "apiFormat": "anthropic",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133215,
-    "updatedAt": 1782607133215
+    "createdAt": 1782607291704,
+    "updatedAt": 1782607291704
   },
   {
-    "id": "import-kimi-1782607133216",
+    "id": "import-kimi-1782607291705",
     "name": "kimi-k2.6",
     "modelName": "kimi-k2.6",
     "providerKey": "kimi",
@@ -92,11 +92,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133216,
-    "updatedAt": 1782607133216
+    "createdAt": 1782607291705,
+    "updatedAt": 1782607291705
   },
   {
-    "id": "import-kimi-free-trial-1782607133217",
+    "id": "import-kimi-free-trial-1782607291706",
     "name": "moonshot-v1-8k",
     "modelName": "moonshot-v1-8k",
     "providerKey": "kimi-free-trial",
@@ -104,11 +104,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": false,
-    "createdAt": 1782607133217,
-    "updatedAt": 1782607133217
+    "createdAt": 1782607291706,
+    "updatedAt": 1782607291706
   },
   {
-    "id": "import-agnes-1782607133218",
+    "id": "import-agnes-1782607291707",
     "name": "agnes-2.0-flash",
     "modelName": "agnes-2.0-flash",
     "providerKey": "agnes",
@@ -116,11 +116,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133218,
-    "updatedAt": 1782607133218
+    "createdAt": 1782607291707,
+    "updatedAt": 1782607291707
   },
   {
-    "id": "import-zhipu-1782607133219",
+    "id": "import-zhipu-1782607291708",
     "name": "glm-5",
     "modelName": "glm-5",
     "providerKey": "zhipu",
@@ -128,11 +128,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133219,
-    "updatedAt": 1782607133219
+    "createdAt": 1782607291708,
+    "updatedAt": 1782607291708
   },
   {
-    "id": "import-volcengine-1782607133220",
+    "id": "import-volcengine-1782607291709",
     "name": "doubao-pro-128k",
     "modelName": "doubao-pro-128k",
     "providerKey": "volcengine",
@@ -140,11 +140,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133220,
-    "updatedAt": 1782607133220
+    "createdAt": 1782607291709,
+    "updatedAt": 1782607291709
   },
   {
-    "id": "import-aliyun-bailian-1782607133221",
+    "id": "import-aliyun-bailian-1782607291710",
     "name": "qwen-max",
     "modelName": "qwen-max",
     "providerKey": "aliyun-bailian",
@@ -152,11 +152,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133221,
-    "updatedAt": 1782607133221
+    "createdAt": 1782607291710,
+    "updatedAt": 1782607291710
   },
   {
-    "id": "import-qwen-1782607133222",
+    "id": "import-qwen-1782607291711",
     "name": "qwen-max",
     "modelName": "qwen-max",
     "providerKey": "qwen",
@@ -164,11 +164,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133222,
-    "updatedAt": 1782607133222
+    "createdAt": 1782607291711,
+    "updatedAt": 1782607291711
   },
   {
-    "id": "import-siliconflow-1782607133223",
+    "id": "import-siliconflow-1782607291712",
     "name": "deepseek-ai/DeepSeek-V3",
     "modelName": "deepseek-ai/DeepSeek-V3",
     "providerKey": "siliconflow",
@@ -176,11 +176,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133223,
-    "updatedAt": 1782607133223
+    "createdAt": 1782607291712,
+    "updatedAt": 1782607291712
   },
   {
-    "id": "import-360-1782607133224",
+    "id": "import-360-1782607291713",
     "name": "360gpt-pro",
     "modelName": "360gpt-pro",
     "providerKey": "360",
@@ -188,11 +188,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133224,
-    "updatedAt": 1782607133224
+    "createdAt": 1782607291713,
+    "updatedAt": 1782607291713
   },
   {
-    "id": "import-antigravity-1782607133225",
+    "id": "import-antigravity-1782607291714",
     "name": "gemini-3-flash",
     "modelName": "gemini-3-flash",
     "providerKey": "antigravity",
@@ -200,11 +200,11 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133225,
-    "updatedAt": 1782607133225
+    "createdAt": 1782607291714,
+    "updatedAt": 1782607291714
   },
   {
-    "id": "import-doubao-1782607133226",
+    "id": "import-doubao-1782607291715",
     "name": "doubao-pro-128k",
     "modelName": "doubao-pro-128k",
     "providerKey": "doubao",
@@ -212,7 +212,7 @@
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
-    "createdAt": 1782607133226,
-    "updatedAt": 1782607133226
+    "createdAt": 1782607291715,
+    "updatedAt": 1782607291715
   }
 ]
