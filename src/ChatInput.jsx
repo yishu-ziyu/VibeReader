@@ -24,6 +24,34 @@ import {
 const MENU_SLOT_PX = 20;
 const TOOLBAR_ICON_PX = 18;
 
+function getPresetKey(preset, fallback = '') {
+    return preset?.providerKey || preset?.id || fallback || '';
+}
+
+function getPresetApiFormat(preset, fallback = 'openai') {
+    if (!preset) return fallback;
+    if (preset.apiType === 'anthropic-compatible') return 'anthropic';
+    if (Array.isArray(preset.apiFormats) && preset.apiFormats.length) return preset.apiFormats[0];
+    return fallback;
+}
+
+function findPresetForConfig(config) {
+    if (!config) return null;
+    const byKey = findPreset(config.providerKey || config.presetKey || '');
+    if (byKey) return byKey;
+
+    const baseUrl = config.baseUrl || config.baseURL || '';
+    const modelName = config.modelName || config.name || '';
+    for (const option of getProviderOptions()) {
+        const preset = findPreset(option.key);
+        if (!preset) continue;
+        const modelMatch = preset.models?.some((model) => model.id === modelName || model.name === modelName);
+        const baseMatch = baseUrl && preset.baseUrl && baseUrl.includes(preset.baseUrl.replace(/\/v\d+$/, '').replace(/\/$/, ''));
+        if (modelMatch && (baseUrl === preset.baseUrl || baseMatch)) return preset;
+    }
+    return null;
+}
+
 // 叶子节点渲染器
 const Leaf = ({ attributes, children }) => {
     return <span {...attributes}>{children}</span>;
@@ -62,6 +90,19 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
 
     const apiFormatWatched = Form.useWatch('apiFormat', form);
     const apiFormatForUrlPlaceholder = apiFormatWatched ?? 'openai';
+    const modelNameWatched = Form.useWatch('modelName', form);
+
+    const syncFormFromConfig = useCallback((config) => {
+        const preset = findPresetForConfig(config);
+        const presetKey = getPresetKey(preset, config?.providerKey || config?.presetKey || '');
+        setSelectedPresetKey(presetKey || null);
+        form.setFieldsValue({
+            baseUrl: config?.baseUrl || config?.baseURL || '',
+            apiKey: config?.apiKey || '',
+            modelName: config?.modelName || config?.name || '',
+            apiFormat: getPresetApiFormat(preset, config?.apiFormat || 'openai')
+        });
+    }, [form]);
 
     // Re-read when model config modal signals a save or external change
     useEffect(() => {
@@ -120,13 +161,8 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
         const prefId = getSelectedConfigId();
         const pick = list.find(c => c.id === prefId) || list[0];
         setEditingConfigId(pick.id);
-        form.setFieldsValue({
-            baseUrl: pick.baseUrl || pick.baseURL || '',
-            apiKey: pick.apiKey,
-            modelName: pick.modelName,
-            apiFormat: pick.apiFormat || 'openai'
-        });
-    }, [isConfigModalOpen, getCustomModelConfigs, form]);
+        syncFormFromConfig(pick);
+    }, [isConfigModalOpen, getCustomModelConfigs, form, syncFormFromConfig]);
 
     useEffect(() => {
         if (!configOpenSignal || configOpenSignal === lastConfigOpenSignalRef.current) return;
@@ -144,6 +180,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                 apiKey,
                 modelName,
                 apiFormat: apiFormat || 'openai',
+                providerKey: selectedPresetKey || '',
                 requiresApiKey: selectedPreset ? selectedPreset.requiresApiKey !== false : true,
                 authType: selectedPreset?.authType || 'bearer',
             };
@@ -168,14 +205,10 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                     : configs[configs.length - 1];
                 if (target) {
                     setEditingConfigId(target.id);
-                    form.setFieldsValue({
-                        baseUrl: target.baseUrl,
-                        apiKey: target.apiKey,
-                        modelName: target.modelName,
-                        apiFormat: target.apiFormat || 'openai'
-                    });
+                    syncFormFromConfig(target);
                 } else {
                     setEditingConfigId(null);
+                    setSelectedPresetKey(null);
                     form.resetFields();
                     form.setFieldsValue({ apiFormat: 'openai' });
                 }
@@ -221,12 +254,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                         } else {
                             const next = configs[0];
                             setEditingConfigId(next.id);
-                            form.setFieldsValue({
-                                baseUrl: next.baseUrl,
-                                apiKey: next.apiKey,
-                                modelName: next.modelName,
-                                apiFormat: next.apiFormat || 'openai'
-                            });
+                            syncFormFromConfig(next);
                         }
                     }
                     antMessage.success(t('vibe-ai-chat-config-deleted'));
@@ -252,27 +280,23 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
 
     const handleSelectConfigToEdit = (config) => {
         setEditingConfigId(config.id);
-        setSelectedPresetKey(null);
-        form.setFieldsValue({
-            baseUrl: config.baseUrl || config.baseURL || '',
-            apiKey: config.apiKey,
-            modelName: config.modelName,
-            apiFormat: config.apiFormat || 'openai'
-        });
+        syncFormFromConfig(config);
     };
 
     // 预设选择处理
     const handlePresetChange = (providerKey) => {
-        setSelectedPresetKey(providerKey);
+        setSelectedPresetKey(providerKey || null);
         const preset = findPreset(providerKey);
         if (preset) {
             const model = preset.models[0];
             form.setFieldsValue({
                 baseUrl: preset.baseUrl,
                 modelName: model ? model.id : '',
-                apiFormat: preset.apiFormats[0] || 'openai',
+                apiFormat: getPresetApiFormat(preset),
                 authType: preset.authType || 'bearer',
             });
+        } else {
+            form.setFieldsValue({ modelName: undefined });
         }
     };
 
@@ -283,7 +307,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
             form.setFieldsValue({
                 baseUrl: preset.baseUrl,
                 modelName: modelId,
-                apiFormat: preset.apiFormats[0] || 'openai'
+                apiFormat: getPresetApiFormat(preset)
             });
         }
     };
@@ -822,7 +846,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                                 <Select
                                     style={{ flex: 1 }}
                                     placeholder={t('ai-chat-preset-model')}
-                                    value={form.getFieldValue('modelName')}
+                                    value={modelNameWatched || undefined}
                                     onChange={handlePresetModelChange}
                                     options={presetModelOptions.map(m => ({ value: m.id, label: m.name }))}
                                     disabled={!selectedPreset}
@@ -832,11 +856,11 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                             {selectedPreset && (
                                 <div style={{ fontSize: 12, color: '#666' }}>
                                     <div style={{ marginBottom: 4 }}>
-                                        {t('ai-chat-plan-coding')}: {selectedPreset.models.find(m => m.id === form.getFieldValue('modelName'))?.codingPlan
+                                        {t('ai-chat-plan-coding')}: {selectedPreset.models.find(m => m.id === modelNameWatched)?.codingPlan
                                             ? t('ai-chat-plan-supported')
                                             : t('ai-chat-plan-unsupported')}
                                         {' | '}
-                                        {t('ai-chat-plan-token')}: {selectedPreset.models.find(m => m.id === form.getFieldValue('modelName'))?.tokenPlan
+                                        {t('ai-chat-plan-token')}: {selectedPreset.models.find(m => m.id === modelNameWatched)?.tokenPlan
                                             ? t('ai-chat-plan-supported')
                                             : t('ai-chat-plan-unsupported')}
                                     </div>
@@ -883,10 +907,7 @@ function ChatInput({ currentModel, onModelChange, onSubmit, onStop, loading, vis
                                 tooltip={t('vibe-ai-chat-api-key-tooltip')}
                             >
                                 <Input.Password 
-                                    placeholder={selectedPreset && selectedPreset.requiresApiKey === false
-                                        ? '无需 API Key (体验版)'
-                                        : t('vibe-ai-chat-api-key-placeholder')
-                                    } 
+                                    placeholder={selectedPreset?.apiKeyPlaceholder || t('vibe-ai-chat-api-key-placeholder')}
                                 />
                             </Form.Item>
                             <Form.Item

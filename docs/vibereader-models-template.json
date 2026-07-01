@@ -60,14 +60,28 @@
     "updatedAt": 1782607291702
   },
   {
-    "id": "import-minimax-1782607291703",
-    "name": "MiniMax-M3",
+    "id": "import-minimax-token-plan-1782607291703",
+    "name": "MiniMax Token Plan",
     "modelName": "MiniMax-M3",
     "providerKey": "minimax",
     "baseUrl": "https://api.minimaxi.com/anthropic",
     "apiFormat": "anthropic",
     "apiKey": "",
     "requiresApiKey": true,
+    "credentialMode": "token-plan",
+    "createdAt": 1782607291703,
+    "updatedAt": 1782607291703
+  },
+  {
+    "id": "import-minimax-api-1782607291703b",
+    "name": "MiniMax API",
+    "modelName": "MiniMax-M3",
+    "providerKey": "minimax-api",
+    "baseUrl": "https://api.minimaxi.com/anthropic",
+    "apiFormat": "anthropic",
+    "apiKey": "",
+    "requiresApiKey": true,
+    "credentialMode": "pay-as-you-go-api",
     "createdAt": 1782607291703,
     "updatedAt": 1782607291703
   },
@@ -88,24 +102,12 @@
     "name": "kimi-k2.6",
     "modelName": "kimi-k2.6",
     "providerKey": "kimi",
-    "baseUrl": "https://api.moonshot.ai/v1",
+    "baseUrl": "https://api.moonshot.cn/v1",
     "apiFormat": "openai",
     "apiKey": "",
     "requiresApiKey": true,
     "createdAt": 1782607291705,
     "updatedAt": 1782607291705
-  },
-  {
-    "id": "import-kimi-free-trial-1782607291706",
-    "name": "moonshot-v1-8k",
-    "modelName": "moonshot-v1-8k",
-    "providerKey": "kimi-free-trial",
-    "baseUrl": "https://api.moonshot.cn/v1",
-    "apiFormat": "openai",
-    "apiKey": "",
-    "requiresApiKey": false,
-    "createdAt": 1782607291706,
-    "updatedAt": 1782607291706
   },
   {
     "id": "import-agnes-1782607291707",

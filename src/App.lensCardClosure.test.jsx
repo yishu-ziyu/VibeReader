@@ -264,8 +264,8 @@ describe('App Lens Card closure', () => {
         fireEvent.click(modelConfigButton);
 
         await waitFor(() => {
-            expect(useUIStore.getState().rightToolTab).toBe('chat');
-            expect(screen.getByText(/自定义模型设置|Custom Model Settings/i)).toBeTruthy();
+            expect(useUIStore.getState().rightToolTab).toBe('artifacts');
+            expect(screen.getByText(/模型配置|Model Configuration/i)).toBeTruthy();
         });
     });
 });

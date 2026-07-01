@@ -10,16 +10,18 @@ const {
 } = require('../scripts/modelConfigSeed.cjs');
 
 describe('model config seed helper', () => {
-  it('builds a no-key local test config by default', () => {
+  it('builds the owned MiniMax M3 config by default', () => {
     const config = buildSeedModelConfig({});
 
     expect(config).toMatchObject({
-      id: 'preset-kimi-free-trial',
-      baseUrl: 'https://api.moonshot.cn/v1',
-      modelName: 'moonshot-v1-8k',
-      apiFormat: 'openai',
+      id: 'preset-minimax-default',
+      baseUrl: 'https://api.minimaxi.com/anthropic',
+      modelName: 'MiniMax-M3',
+      apiFormat: 'anthropic',
       apiKey: '',
-      requiresApiKey: false,
+      requiresApiKey: true,
+      providerKey: 'minimax',
+      credentialMode: 'token-plan',
     });
   });
 
@@ -28,17 +30,19 @@ describe('model config seed helper', () => {
       VIBEREADER_TEST_MODEL_ID: 'qa-moonshot',
       VIBEREADER_TEST_BASE_URL: 'https://api.moonshot.cn/v1',
       VIBEREADER_TEST_API_KEY: 'local-secret',
-      VIBEREADER_TEST_MODEL: 'moonshot-v1-32k',
+      VIBEREADER_TEST_MODEL: 'kimi-k2.6',
       VIBEREADER_TEST_API_FORMAT: 'openai',
+      VIBEREADER_TEST_PROVIDER_KEY: 'kimi',
     });
 
     expect(config).toMatchObject({
       id: 'qa-moonshot',
       baseUrl: 'https://api.moonshot.cn/v1',
       apiKey: 'local-secret',
-      modelName: 'moonshot-v1-32k',
+      modelName: 'kimi-k2.6',
       apiFormat: 'openai',
       requiresApiKey: true,
+      providerKey: 'kimi',
     });
   });
 
@@ -56,6 +60,7 @@ describe('model config seed helper', () => {
       modelName: 'step-3.7-flash',
       apiFormat: 'openai',
       requiresApiKey: true,
+      providerKey: 'stepfun',
     });
   });
 
@@ -73,6 +78,7 @@ describe('model config seed helper', () => {
       modelName: 'mimo-v2.5-pro',
       apiFormat: 'anthropic',
       requiresApiKey: true,
+      providerKey: 'mimo',
     });
   });
 
@@ -80,16 +86,51 @@ describe('model config seed helper', () => {
     const config = buildSeedModelConfig({
       MINIMAX_TOKEN_PLAN_KEY: 'minimax-token-secret',
       MINIMAX_BASE_URL: 'https://api.minimaxi.com/anthropic',
-      MINIMAX_MODEL: 'MiniMax-M2.7',
+      MINIMAX_MODEL: 'MiniMax-M3',
     });
 
     expect(config).toMatchObject({
-      id: 'qa-env-minimax',
+      id: 'qa-env-minimax-token-plan',
       baseUrl: 'https://api.minimaxi.com/anthropic',
       apiKey: 'minimax-token-secret',
-      modelName: 'MiniMax-M2.7',
+      modelName: 'MiniMax-M3',
       apiFormat: 'anthropic',
       requiresApiKey: true,
+      providerKey: 'minimax',
+      credentialMode: 'token-plan',
+    });
+  });
+
+  it('uses MiniMax API mode for pay-as-you-go API keys', () => {
+    const config = buildSeedModelConfig({
+      MINIMAX_API_KEY: 'minimax-api-secret',
+    });
+
+    expect(config).toMatchObject({
+      id: 'qa-env-minimax-api',
+      baseUrl: 'https://api.minimaxi.com/anthropic',
+      apiKey: 'minimax-api-secret',
+      modelName: 'MiniMax-M3',
+      apiFormat: 'anthropic',
+      requiresApiKey: true,
+      providerKey: 'minimax-api',
+      credentialMode: 'pay-as-you-go-api',
+    });
+  });
+
+  it('uses current Kimi model naming when a Moonshot key is explicitly provided', () => {
+    const config = buildSeedModelConfig({
+      MOONSHOT_API_KEY: 'moonshot-secret',
+    });
+
+    expect(config).toMatchObject({
+      id: 'qa-env-moonshot',
+      baseUrl: 'https://api.moonshot.cn/v1',
+      apiKey: 'moonshot-secret',
+      modelName: 'kimi-k2.6',
+      apiFormat: 'openai',
+      requiresApiKey: true,
+      providerKey: 'kimi',
     });
   });
 

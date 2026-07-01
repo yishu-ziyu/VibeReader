@@ -64,6 +64,37 @@ describe('DocumentReader', () => {
         });
     });
 
+    it('falls back to citation text when source paragraph ids use index naming', () => {
+        render(
+            <DocumentReader
+                document={{
+                    id: 'doc-md',
+                    name: 'note.md',
+                    kind: 'markdown',
+                    contentText: [
+                        '# Research Note',
+                        'Problem source paragraph.',
+                        'Method source paragraph.',
+                        'Evidence source paragraph.',
+                    ].join('\n\n'),
+                }}
+            />
+        );
+
+        window.dispatchEvent(new CustomEvent('vibereader:navigate-paragraph', {
+            detail: {
+                documentId: 'doc-md',
+                paragraphId: 'page-1-para-1',
+                text: 'Method source paragraph.',
+            },
+        }));
+
+        const target = document.querySelector('[data-paragraph-id="chunk-3"]');
+        expect(target).toBeTruthy();
+        expect(target.textContent).toContain('Method source paragraph.');
+        expect(target.classList.contains('paragraph-pulse-highlight')).toBe(true);
+    });
+
     it('renders text documents with their line breaks preserved', () => {
         render(
             <DocumentReader

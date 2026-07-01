@@ -377,7 +377,11 @@ export async function loadPersistentConversation(sessionId) {
 
 export async function savePersistentConversation(sessionId, messages, metadata = {}) {
     if (!isPersistentStorageAvailable()) {
-        await browserSaveConversation(sessionId, messages);
+        try {
+            await browserSaveConversation(sessionId, messages);
+        } catch (_) {
+            return null;
+        }
         return {
             sessionId,
             messagesJson: JSON.stringify(messages),
@@ -394,7 +398,7 @@ export async function savePersistentConversation(sessionId, messages, metadata =
 
 export async function deletePersistentConversation(sessionId) {
     if (!isPersistentStorageAvailable()) {
-        return browserDeleteConversation(sessionId);
+        return browserDeleteConversation(sessionId).catch(() => false);
     }
     return invokeStorage('storage_delete_conversation', { sessionId });
 }

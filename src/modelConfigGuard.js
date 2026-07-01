@@ -1,3 +1,12 @@
+function isLocalEndpoint(baseUrl) {
+    try {
+        const parsed = new URL(baseUrl);
+        return ['127.0.0.1', 'localhost', '::1'].includes(parsed.hostname);
+    } catch (_) {
+        return false;
+    }
+}
+
 export function validateRunnableModelConfig(config) {
     if (!config) {
         return {
@@ -13,11 +22,9 @@ export function validateRunnableModelConfig(config) {
     const apiFormat = config.apiFormat || (config.apiType === 'anthropic-compatible' ? 'anthropic' : 'openai');
     const apiType = apiFormat === 'anthropic' ? 'anthropic-compatible' : 'openai-compatible';
 
-    const requiresApiKey = config.requiresApiKey !== false &&
-                           config.id !== 'preset-kimi-free-trial' &&
-                           config.id !== 'kimi-free-trial' &&
-                           !String(config.id || '').includes('free-trial') &&
-                           !String(config.model || config.modelName || config.name || '').includes('free-trial');
+    const authType = config.authType || 'bearer';
+    const canSkipApiKey = config.requiresApiKey === false && (authType === 'none' || isLocalEndpoint(baseUrl));
+    const requiresApiKey = !canSkipApiKey;
 
     if (requiresApiKey && !apiKey) {
         return {
@@ -52,7 +59,9 @@ export function validateRunnableModelConfig(config) {
             modelName: model,
             apiFormat,
             apiType,
-            ...(config.authType ? { authType: config.authType } : {}),
+            requiresApiKey,
+            authType,
+            ...(config.providerKey ? { providerKey: config.providerKey } : {}),
         },
     };
 }

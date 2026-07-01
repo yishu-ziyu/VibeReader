@@ -2,52 +2,63 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getModelConfigs, saveModelConfigs, getSelectedConfigId, setSelectedConfigId } from '../storage';
 import { isVisionCapable } from '../modelPresets';
+import { normalizeModelConfigRecord, shouldDropModelConfigRecord } from '../modelConfigMigration';
 import { formatCustomModelLabel } from '../i18n';
 
 /** MiniMax Token Plan 默认配置 */
 const DEFAULT_MINIMAX_CONFIG = {
   id: 'preset-minimax-default',
   baseUrl: 'https://api.minimaxi.com/anthropic',
-  modelName: 'MiniMax-M2.7',
+  modelName: 'MiniMax-M3',
   apiFormat: 'anthropic',
   apiKey: '',
   providerKey: 'minimax',
+  credentialMode: 'token-plan',
 };
 
-/** Kimi Priority Trial 默认配置 */
-const DEFAULT_KIMI_TRIAL_CONFIG = {
-  id: 'preset-kimi-free-trial',
-  baseUrl: 'https://api.moonshot.cn/v1',
-  modelName: 'moonshot-v1-8k',
-  apiFormat: 'openai',
-  apiKey: '',
-  requiresApiKey: false,
-  providerKey: 'kimi-free-trial',
-};
+function modelSupportsVision(config) {
+  if (!config?.modelName) return true;
+  return isVisionCapable(config.providerKey, config.modelName);
+}
+
+function normalizeSelectedModel(selectedModel) {
+  if (!selectedModel?.config) return selectedModel;
+  if (shouldDropModelConfigRecord(selectedModel.config)) return null;
+  const config = normalizeModelConfigRecord(selectedModel.config);
+  return {
+    ...selectedModel,
+    label: formatCustomModelLabel(config.modelName || config.name),
+    configId: selectedModel.configId || config.id,
+    config,
+  };
+}
 
 function resolveInitialModel() {
   try {
     let configs = getModelConfigs();
-    // 首次使用：自动创建 Kimi 体验和 MiniMax 默认配置
+    // 首次使用：只创建我们真实用于开发验证的 MiniMax M3 配置模板。
+    // Kimi 没有本机 Key 时不能作为默认或测试链路。
     if (!Array.isArray(configs) || configs.length === 0) {
       configs = [
-        { ...DEFAULT_KIMI_TRIAL_CONFIG },
         { ...DEFAULT_MINIMAX_CONFIG }
       ];
       saveModelConfigs(configs);
-      setSelectedConfigId(DEFAULT_KIMI_TRIAL_CONFIG.id);
+      setSelectedConfigId(DEFAULT_MINIMAX_CONFIG.id);
       return {
         key: 'custom',
-        label: formatCustomModelLabel(DEFAULT_KIMI_TRIAL_CONFIG.modelName),
-        configId: DEFAULT_KIMI_TRIAL_CONFIG.id,
-        config: DEFAULT_KIMI_TRIAL_CONFIG,
+        label: formatCustomModelLabel(DEFAULT_MINIMAX_CONFIG.modelName),
+        configId: DEFAULT_MINIMAX_CONFIG.id,
+        config: DEFAULT_MINIMAX_CONFIG,
       };
     }
     const selectedId = getSelectedConfigId();
     const cfg = selectedId
-      ? configs.find((c) => c.id === selectedId)
+      ? (configs.find((c) => c.id === selectedId) || configs[0])
       : configs[0];
     if (cfg) {
+      if (selectedId && cfg.id !== selectedId) {
+        setSelectedConfigId(cfg.id);
+      }
       return {
         key: 'custom',
         label: formatCustomModelLabel(cfg.modelName || cfg.name),
@@ -71,9 +82,7 @@ function resolveInitialModel() {
 
 function resolveInitialVisionCapable() {
   const initialModel = resolveInitialModel();
-  return initialModel?.config?.modelName
-    ? isVisionCapable(initialModel.config.modelName)
-    : true;
+  return modelSupportsVision(initialModel?.config);
 }
 
 export const useModelStore = create(
@@ -93,10 +102,9 @@ export const useModelStore = create(
 
       // Actions - computed / helpers
       selectModel: (model) => {
-        const visionCapable = model?.config?.modelName
-          ? isVisionCapable(model.config.modelName)
-          : true;
-        set({ selectedModel: model, visionCapable });
+        const selectedModel = normalizeSelectedModel(model);
+        const visionCapable = modelSupportsVision(selectedModel?.config);
+        set({ selectedModel, visionCapable });
       },
 
       getCurrentModelName: () => {
@@ -108,8 +116,7 @@ export const useModelStore = create(
       },
 
       isCurrentModelVisionCapable: () => {
-        const modelName = get().selectedModel?.config?.modelName;
-        return modelName ? isVisionCapable(modelName) : true;
+        return modelSupportsVision(get().selectedModel?.config);
       },
 
       hasValidConfig: () => {
@@ -122,6 +129,19 @@ export const useModelStore = create(
         selectedModel: state.selectedModel,
         selectedConfigId: state.selectedConfigId,
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState && typeof persistedState === 'object'
+          ? persistedState
+          : {};
+        const selectedModel = normalizeSelectedModel(persisted.selectedModel) || currentState.selectedModel;
+        return {
+          ...currentState,
+          ...persisted,
+          selectedModel,
+          selectedConfigId: persisted.selectedConfigId || selectedModel?.configId || currentState.selectedConfigId,
+          visionCapable: modelSupportsVision(selectedModel?.config),
+        };
+      },
     }
   )
 );

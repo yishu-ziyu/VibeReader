@@ -89,8 +89,8 @@ The `validateRunnableModelConfig` helper validates configurations prior to initi
 
 1. **Safety Checks**: Validates that `baseUrl`, `model`, and `apiKey` are populated and non-empty.
 2. **Key Exposing Mitigation**: Validation messages never echo private endpoints or API key fragments in console errors or UI dialogs.
-3. **Kimi Priority Trial Key Bypass**:
-   `requiresApiKey: false` configurations (specifically the free-trial preset `preset-kimi-free-trial`) bypass the client-side API key check. The frontend resolves this preset as a valid runnable configuration, deferring credential handling to the backend proxy.
+3. **External Provider API Key Guard**:
+   External provider configurations must provide a real API key or server-side proxy. Legacy `preset-kimi-free-trial` records are no longer accepted as runnable keyless configs.
 
 > [!TIP]
 > This guard successfully addresses the risk of infinite loading state or raw network stack dumps. If a configuration is invalid, `App.jsx` intercepts the submit action, throws a localized `antMessage.error` warning, and retains the user's input intact inside the input text field.
@@ -115,8 +115,8 @@ graph TD
 
 ### Production Edge Proxies (`proxy/api/`)
 To eliminate CORS limitations in browser environments and avoid compiling API keys inside the application, Vercel Edge Function proxies have been created:
-- `proxy/api/kimi.js`: Forwards completions to `https://api.moonshot.cn/v1/chat/completions` using the server-side `KIMI_API_KEY` environment variable.
-- `proxy/api/minimax.js`: Forwards to `https://api.minimaxi.com/anthropic/v1/messages` using the server-side `MINIMAX_API_KEY` environment variable.
+- `proxy/api/kimi.js`: Optional only when a real server-side `KIMI_API_KEY` is present; forwards completions to `https://api.moonshot.cn/v1/chat/completions`.
+- `proxy/api/minimax.js`: Forwards to `https://api.minimaxi.com/anthropic/v1/messages`; Token Plan should use `MINIMAX_TOKEN_PLAN_KEY`, while pay-as-you-go API mode should use `MINIMAX_API_KEY`.
 
 ### Production Path Evaluation
 - **Pros**: Fully resolves CORS without modifying client bundles, keeps API keys completely secure outside the client source code, and permits a uniform streaming interface.

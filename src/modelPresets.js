@@ -101,22 +101,39 @@ export const PROVIDER_PRESETS = [
   },
   {
     id: 'minimax',
-    name: 'MiniMax',
+    name: 'MiniMax Token Plan',
     apiType: 'anthropic-compatible',
     region: 'china',
     baseUrl: 'https://api.minimaxi.com/anthropic',
     defaultModel: 'MiniMax-M3',
     models: [
       { id: 'MiniMax-M3', name: 'MiniMax-M3', vision: false },
-      { id: 'MiniMax-M2.7', name: 'MiniMax-M2.7', vision: false },
-      { id: 'MiniMax-M2.7-highspeed', name: 'MiniMax-M2.7 Highspeed', vision: false },
     ],
     doc: 'https://platform.minimaxi.com/docs/token-plan/quickstart',
-    apiKeyPlaceholder: 'Token Plan Key',
+    apiKeyPlaceholder: 'Token Plan 订阅 Key（sk-cp-...）',
     requiresApiKey: true,
     codingPlan: true,
     tokenPlan: true,
-    notes: 'Token Plan 使用 Anthropic 兼容端点 (/anthropic)',
+    credentialMode: 'token-plan',
+    notes: '本机默认模型服务；订阅 Key 与按量付费 API Key 不互通',
+  },
+  {
+    id: 'minimax-api',
+    name: 'MiniMax API',
+    apiType: 'anthropic-compatible',
+    region: 'china',
+    baseUrl: 'https://api.minimaxi.com/anthropic',
+    defaultModel: 'MiniMax-M3',
+    models: [
+      { id: 'MiniMax-M3', name: 'MiniMax-M3', vision: false },
+    ],
+    doc: 'https://platform.minimaxi.com/docs/api-reference/text-anthropic-api',
+    apiKeyPlaceholder: '按量付费 API Key（sk-...）',
+    requiresApiKey: true,
+    codingPlan: true,
+    tokenPlan: false,
+    credentialMode: 'pay-as-you-go-api',
+    notes: '按量付费 API Key，与 Token Plan 订阅 Key 不互通',
   },
   {
     id: 'mimo',
@@ -142,11 +159,12 @@ export const PROVIDER_PRESETS = [
     name: 'Kimi (Moonshot)',
     apiType: 'openai-compatible',
     region: 'china',
-    baseUrl: 'https://api.moonshot.ai/v1',
-    defaultModel: 'kimi-latest',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    defaultModel: 'kimi-k2.6',
     models: [
+      { id: 'kimi-k2.7-code', name: 'Kimi K2.7 Code', vision: false },
       { id: 'kimi-k2.6', name: 'Kimi K2.6', vision: false },
-      { id: 'kimi-latest', name: 'Kimi Latest', vision: false },
+      { id: 'kimi-k2.5', name: 'Kimi K2.5', vision: true },
     ],
     doc: 'https://platform.moonshot.cn/docs/intro',
     apiKeyPlaceholder: 'sk-...',
@@ -157,22 +175,22 @@ export const PROVIDER_PRESETS = [
   },
   {
     id: 'kimi-free-trial',
-    name: 'Kimi 免费体验 (免 Key)',
+    name: 'Kimi 旧体验配置（需 Key）',
     apiType: 'openai-compatible',
     region: 'china',
     baseUrl: 'https://api.moonshot.cn/v1',
-    defaultModel: 'moonshot-v1-8k',
+    defaultModel: 'kimi-k2.6',
     models: [
-      { id: 'moonshot-v1-8k', name: 'Kimi k1-8K', vision: false },
-      { id: 'moonshot-v1-32k', name: 'Kimi k1-32K', vision: false },
-      { id: 'moonshot-v1-128k', name: 'Kimi k1-128K', vision: false },
+      { id: 'kimi-k2.7-code', name: 'Kimi K2.7 Code', vision: false },
+      { id: 'kimi-k2.6', name: 'Kimi K2.6', vision: false },
     ],
     doc: 'https://platform.moonshot.cn/docs/intro',
-    apiKeyPlaceholder: '无需 API Key (体验版)',
-    requiresApiKey: false,
+    apiKeyPlaceholder: 'sk-...',
+    requiresApiKey: true,
     codingPlan: true,
     tokenPlan: true,
-    notes: '体验通道：由后端代理提供支持',
+    hiddenFromPicker: true,
+    notes: '历史兼容项：旧免 Key 配置会迁移到 Kimi provider 并要求 API Key',
   },
   {
     id: 'agnes',
@@ -439,8 +457,10 @@ export function resolveApiType(presetOrConfig) {
  */
 function transformToOldFormat(preset) {
   return {
+    id: preset.id,
     provider: preset.name,
     providerKey: preset.id,
+    apiType: preset.apiType,
     apiFormats: preset.apiType === 'anthropic-compatible' ? ['anthropic'] : ['openai'],
     baseUrl: preset.baseUrl,
     authType: preset.authType || 'bearer',
@@ -454,6 +474,10 @@ function transformToOldFormat(preset) {
     docs: preset.doc ? { api: preset.doc } : {},
     notes: preset.notes || '',
     requiresApiKey: preset.requiresApiKey !== false,
+    codingPlan: !!preset.codingPlan,
+    tokenPlan: !!preset.tokenPlan,
+    credentialMode: preset.credentialMode || '',
+    hiddenFromPicker: !!preset.hiddenFromPicker,
   };
 }
 
@@ -477,7 +501,7 @@ export function findPreset(providerKey) {
  * @returns {Array<{key, label}>}
  */
 export function getProviderOptions() {
-  return MODEL_PRESETS.map((p) => ({
+  return MODEL_PRESETS.filter((p) => !p.hiddenFromPicker).map((p) => ({
     key: p.providerKey,
     label: p.provider,
   }));

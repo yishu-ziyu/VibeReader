@@ -10,7 +10,6 @@ import {
     BookOutlined,
     MessageOutlined,
     CompassOutlined,
-    SettingOutlined,
 } from '@ant-design/icons';
 import MarkdownRenderer from '../MarkdownRenderer';
 import viberoIconPng from '../../icons/vibero.png';
@@ -27,23 +26,23 @@ const STEPS = [
     },
     {
         icon: <ThunderboltOutlined style={{ fontSize: 40, color: '#2B7FD8' }} />,
-        title: 'AI 摘要',
-        desc: '右侧点击「摘要」标签，AI 自动分析文档结构并生成章节摘要。',
-    },
-    {
-        icon: <BookOutlined style={{ fontSize: 40, color: '#2B7FD8' }} />,
-        title: '记忆卡片',
-        desc: '点击「卡片」标签，一键从论文生成闪卡，支持翻转学习。',
+        title: '开始精读',
+        desc: '打开文档后点击顶部「开始精读」，AI 会启动论文总览、阅读路线和带原文依据的卡片生成。',
     },
     {
         icon: <CompassOutlined style={{ fontSize: 40, color: '#2B7FD8' }} />,
-        title: '注意力导航',
-        desc: '「导航」标签自动提取关键段落，点击跳转到原文对应位置。',
+        title: '跟随阅读路线',
+        desc: '「阅读路线」会标出最值得先看的位置。点击路线项回到原文，逐段确认 AI 的判断。',
+    },
+    {
+        icon: <BookOutlined style={{ fontSize: 40, color: '#2B7FD8' }} />,
+        title: '沉淀阅读卡片',
+        desc: '把关键段落、AI 回答和路线洞察保存成卡片，每张卡片都能回到原文依据。',
     },
     {
         icon: <MessageOutlined style={{ fontSize: 40, color: '#2B7FD8' }} />,
-        title: 'AI 对话',
-        desc: '切换到「对话」标签，用自然语言提问。选中 PDF 段落拖入输入框即可引用。',
+        title: '继续追问 AI',
+        desc: '在「对话」里围绕当前页、当前章节或选中段落提问，让回答始终贴着你的阅读现场。',
     },
 ];
 

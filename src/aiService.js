@@ -216,6 +216,7 @@ class AIService {
             apiKey: '',
             model: '',
             apiType: 'openai-compatible',
+            requiresApiKey: true,
         };
         this.conversationHistory = [];
         this.paperContext = null;
@@ -378,8 +379,8 @@ class AIService {
                 );
                 headers = {
                     'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
                     'anthropic-version': '2023-06-01',
+                    ...(apiKey ? { 'x-api-key': apiKey } : {}),
                 };
             } else {
                 endpoint = formatOpenAIUrl(baseUrl);
@@ -424,9 +425,9 @@ class AIService {
                 const isApiKeyAuth = this.config.authType === 'api-key';
                 headers = {
                     'Content-Type': 'application/json',
-                    ...(isApiKeyAuth
-                        ? { 'api-key': apiKey }
-                        : { Authorization: `Bearer ${apiKey}` }),
+                    ...(apiKey
+                        ? (isApiKeyAuth ? { 'api-key': apiKey } : { Authorization: `Bearer ${apiKey}` })
+                        : {}),
                 };
             }
 

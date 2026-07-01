@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Checkbox, Empty, Input, Spin, Tag, message as antMessage } from 'antd';
 import {
     CloseOutlined,
@@ -15,14 +15,24 @@ import {
     importPersistentReadingNoteJson,
 } from './services/persistentStorage';
 import { createDragInjectPayload, writeDragInjectData } from './dragInject';
+import MarkdownRenderer from './MarkdownRenderer';
 
 function artifactTypeLabel(type) {
-    if (type === 'lens_card') return 'Lens Card';
-    if (type === 'explain_card') return 'Explain Card';
-    if (type === 'evidence_card') return 'Evidence Card';
-    if (type === 'concept_card') return 'Concept Card';
-    if (type === 'reading_note') return 'Reading Note';
-    return type || 'Artifact';
+    if (type === 'lens_card') return '阅读卡片';
+    if (type === 'explain_card') return '解释卡片';
+    if (type === 'evidence_card') return '证据卡片';
+    if (type === 'concept_card') return '概念卡片';
+    if (type === 'reading_note') return '阅读笔记';
+    if (type === 'concept') return '概念卡片';
+    return type || '卡片';
+}
+
+function verificationStatusLabel(status = '') {
+    if (status === 'grounded') return '有原文依据';
+    if (status === 'contains_inference') return '含推断';
+    if (status === 'ungrounded') return '未溯源';
+    if (status === 'unverified') return '未验证';
+    return status || '未验证';
 }
 
 function artifactContent(artifact) {
@@ -62,6 +72,15 @@ function artifactDragText(artifact = {}, content = {}) {
     return lines
         .filter((line) => typeof line === 'string' && line.trim())
         .join('\n');
+}
+
+function ArtifactMarkdown({ content }) {
+    if (!content || !String(content).trim()) return null;
+    return (
+        <div className="artifact-markdown">
+            <MarkdownRenderer content={String(content)} />
+        </div>
+    );
 }
 
 function selectedSourceLabels(artifact = {}, content = {}) {
@@ -254,7 +273,7 @@ export function LensCard({
     }, [artifact, onArtifactDeleted]);
 
     return (
-        <article className="artifact-card" draggable onDragStart={handleDragStart}>
+        <article className="artifact-card" data-artifact-id={artifact.id} draggable onDragStart={handleDragStart}>
             <div className="artifact-card-header">
                 <div className="artifact-card-title">
                     <Checkbox
@@ -265,7 +284,7 @@ export function LensCard({
                     <strong>{artifactTypeLabel(artifact.type)}</strong>
                 </div>
                 <Tag color={artifact.verificationStatus === 'grounded' ? 'green' : 'gold'}>
-                    {artifact.verificationStatus || 'unverified'}
+                    {verificationStatusLabel(artifact.verificationStatus)}
                 </Tag>
             </div>
             {shouldShowTitle && (
@@ -275,31 +294,31 @@ export function LensCard({
                 <blockquote className="artifact-selection">{content.sourceText}</blockquote>
             )}
             {content.aiContent && (
-                <p className="artifact-explanation">{content.aiContent}</p>
+                <ArtifactMarkdown content={content.aiContent} />
             )}
             {content.selectionText && (
                 <blockquote className="artifact-selection">{content.selectionText}</blockquote>
             )}
             {content.explanation && (
-                <p className="artifact-explanation">{content.explanation}</p>
+                <ArtifactMarkdown content={content.explanation} />
             )}
             {artifact.type === 'explain_card' && content.question && (
                 <div className="artifact-question">
-                    <span>Question</span>
+                    <span>问题</span>
                     <p>{content.question}</p>
                 </div>
             )}
             {artifact.type === 'explain_card' && content.answer && (
-                <p className="artifact-answer">{content.answer}</p>
+                <ArtifactMarkdown content={content.answer} />
             )}
             {artifact.type === 'concept_card' && content.sectionTitle && (
                 <div className="artifact-question">
-                    <span>Section</span>
+                    <span>章节</span>
                     <p>{content.sectionTitle}</p>
                 </div>
             )}
             {artifact.type === 'concept_card' && content.summary && (
-                <p className="artifact-answer">{content.summary}</p>
+                <ArtifactMarkdown content={content.summary} />
             )}
             {artifact.type === 'concept_card' && keyPoints.length > 0 && (
                 <ul className="artifact-claims">
@@ -312,12 +331,12 @@ export function LensCard({
             )}
             {artifact.type === 'reading_note' && content.title && (
                 <div className="artifact-question">
-                    <span>Note</span>
+                    <span>笔记</span>
                     <p>{content.title}</p>
                 </div>
             )}
             {artifact.type === 'reading_note' && content.body && (
-                <p className="artifact-answer">{content.body}</p>
+                <ArtifactMarkdown content={content.body} />
             )}
             {visibleSourceRefs.length > 0 && (
                 <div className="artifact-source-refs">
@@ -347,7 +366,7 @@ export function LensCard({
             {content.userNote && !isEditing && (
                 <div className="artifact-user-note">
                     <span>备注</span>
-                    <p>{content.userNote}</p>
+                    <ArtifactMarkdown content={content.userNote} />
                 </div>
             )}
             {isEditing && (
@@ -431,6 +450,31 @@ export function ArtifactPanel({
     const selectedArtifacts = artifacts.filter((artifact) => selectedArtifactIds.has(artifact.id));
     const exportBaseName = documentName || documentId || 'document';
 
+    useEffect(() => {
+        const handleNavigateArtifact = (event) => {
+            const artifactId = event?.detail?.artifactId;
+            if (!artifactId) return;
+
+            window.setTimeout(() => {
+                const target = Array.from(document.querySelectorAll('[data-artifact-id]'))
+                    .find((element) => element.getAttribute('data-artifact-id') === String(artifactId));
+                if (!target) {
+                    antMessage.warning('未找到这条记忆卡片');
+                    return;
+                }
+
+                target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+                target.classList.add('artifact-pulse-highlight');
+                window.setTimeout(() => {
+                    target.classList.remove('artifact-pulse-highlight');
+                }, 3000);
+            }, 0);
+        };
+
+        window.addEventListener('vibereader:navigate-artifact', handleNavigateArtifact);
+        return () => window.removeEventListener('vibereader:navigate-artifact', handleNavigateArtifact);
+    }, []);
+
     const handleSelectedChange = useCallback((artifactId, checked) => {
         setSelectedArtifactIds((current) => {
             const next = new Set(current);
@@ -507,7 +551,7 @@ export function ArtifactPanel({
                 antMessage.warning('当前运行环境暂不支持本地 JSON 导入');
                 return;
             }
-            antMessage.success('Reading Note JSON 已导入');
+            antMessage.success('阅读笔记 JSON 已导入');
             setImportJson('');
             setImportPanelOpen(false);
             onReadingNoteImported?.(result);
@@ -563,7 +607,7 @@ export function ArtifactPanel({
                     loading={exporting}
                     onClick={handlePreviewExport}
                 >
-                    Preview Export
+                    预览导出
                 </Button>
                 {exportPreview && (
                     <>
@@ -572,14 +616,14 @@ export function ArtifactPanel({
                             icon={<DownloadOutlined />}
                             onClick={handleDownloadMarkdown}
                         >
-                            Markdown
+                            下载 Markdown
                         </Button>
                         <Button
                             size="small"
                             icon={<DownloadOutlined />}
                             onClick={handleDownloadJson}
                         >
-                            JSON
+                            下载 JSON
                         </Button>
                     </>
                 )}
@@ -588,7 +632,7 @@ export function ArtifactPanel({
                     icon={<UploadOutlined />}
                     onClick={() => setImportPanelOpen((current) => !current)}
                 >
-                    Import JSON
+                    导入 JSON
                 </Button>
                 <Button
                     size="small"
@@ -596,7 +640,7 @@ export function ArtifactPanel({
                     disabled={artifacts.length === 0}
                     onClick={handlePreviewSelectedExport}
                 >
-                    Export Selected
+                    导出所选
                 </Button>
                 {selectedExportMarkdown && (
                     <Button
@@ -604,7 +648,7 @@ export function ArtifactPanel({
                         icon={<DownloadOutlined />}
                         onClick={handleDownloadSelectedMarkdown}
                     >
-                        Selected Markdown
+                        下载 Markdown
                     </Button>
                 )}
                 <Button
@@ -621,7 +665,7 @@ export function ArtifactPanel({
                         icon={<DownloadOutlined />}
                         onClick={handleDownloadSelectedObsidianMarkdown}
                     >
-                        Obsidian Markdown
+                        下载 Obsidian Markdown
                     </Button>
                 )}
             </div>
@@ -632,13 +676,13 @@ export function ArtifactPanel({
                         aria-label="Reading Note JSON"
                         rows={4}
                         value={importJson}
-                        placeholder="Paste exported Reading Note JSON here"
+                        placeholder="粘贴导出的阅读笔记 JSON"
                         onChange={(event) => setImportJson(event.target.value)}
                     />
                     <div className="artifact-import-actions">
                         <label className="artifact-import-file">
                             <UploadOutlined />
-                            <span>Choose JSON file</span>
+                            <span>选择 JSON 文件</span>
                             <input
                                 aria-label="Reading Note JSON file"
                                 type="file"
@@ -652,7 +696,7 @@ export function ArtifactPanel({
                             loading={importing}
                             onClick={handleImportJson}
                         >
-                            Import Reading Note
+                            导入阅读笔记
                         </Button>
                     </div>
                 </div>

@@ -2,18 +2,19 @@
  * Model configuration modal — standalone component.
  * Extracted from ChatInput.jsx. Manages AI provider configs.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Modal, Button, Form, Input, Select, Flex, message } from 'antd';
 import {
     DeleteOutlined, PlusOutlined, CheckOutlined, CloseOutlined,
     ExportOutlined, ImportOutlined, ThunderboltOutlined, EyeOutlined,
-    CodeOutlined, ExpandOutlined, LinkOutlined,
+    CodeOutlined, ExpandOutlined,
 } from '@ant-design/icons';
 import {
     findPreset, getProviderOptions, getModelOptions, normalizeBaseUrl,
     isVisionCapable, PROVIDER_PRESETS,
 } from '../modelPresets';
 import { saveModelConfigs, getModelConfigs, getSelectedConfigId, setSelectedConfigId } from '../storage';
+import { resolveAiEndpointForRuntime } from '../aiEndpoint';
 
 const { TextArea } = Input;
 
@@ -41,25 +42,34 @@ const CONFIG_TEMPLATES = [
         description: '低成本中文推理',
     },
     {
-        id: 'minimax',
+        id: 'minimax-token-plan',
         label: 'MiniMax Token Plan',
         icon: '💎',
         baseUrl: 'https://api.minimaxi.com/anthropic',
         apiFormat: 'anthropic',
         modelName: 'MiniMax-M3',
         providerKey: 'minimax',
-        description: 'Token Plan，Coding 强',
+        description: '订阅 Key（sk-cp-...），与 API Key 不互通',
     },
     {
-        id: 'kimi-free',
-        label: 'Kimi 免费体验',
+        id: 'minimax-api',
+        label: 'MiniMax API',
+        icon: '〽️',
+        baseUrl: 'https://api.minimaxi.com/anthropic',
+        apiFormat: 'anthropic',
+        modelName: 'MiniMax-M3',
+        providerKey: 'minimax-api',
+        description: '按量付费 API Key（sk-...）',
+    },
+    {
+        id: 'kimi',
+        label: 'Kimi API',
         icon: '🌙',
         baseUrl: 'https://api.moonshot.cn/v1',
         apiFormat: 'openai',
-        modelName: 'moonshot-v1-8k',
-        providerKey: 'kimi-free-trial',
-        requiresApiKey: false,
-        description: '免 Key，快速试用',
+        modelName: 'kimi-k2.6',
+        providerKey: 'kimi',
+        description: 'OpenAI 兼容，需要 Moonshot API Key',
     },
     {
         id: 'mimo',
@@ -87,9 +97,6 @@ function CapabilityTags({ providerKey, modelId }) {
     if (preset?.tokenPlan) {
         tags.push({ icon: <ExpandOutlined />, label: '128K', color: '#722ed1' });
     }
-    if (preset?.notes?.includes('免 Key')) {
-        tags.push({ icon: <LinkOutlined />, label: 'No Key', color: '#faad14' });
-    }
     if (!tags.length) return null;
     return (
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
@@ -106,15 +113,50 @@ function CapabilityTags({ providerKey, modelId }) {
     );
 }
 
+function getPresetKey(preset, fallback = '') {
+    return preset?.providerKey || preset?.id || fallback || '';
+}
+
+function getPresetApiFormat(preset, fallback = 'openai') {
+    if (!preset) return fallback;
+    if (preset.apiType === 'anthropic-compatible') return 'anthropic';
+    if (Array.isArray(preset.apiFormats) && preset.apiFormats.length) return preset.apiFormats[0];
+    return fallback;
+}
+
+function normalizeFormBaseUrl(baseUrl, apiFormat, preset) {
+    const trimmed = String(baseUrl || '').trim().replace(/\/+$/, '');
+    const isAnthropicCompatible =
+        apiFormat === 'anthropic' ||
+        preset?.apiType === 'anthropic-compatible' ||
+        preset?.apiFormats?.includes?.('anthropic');
+    return isAnthropicCompatible ? trimmed : normalizeBaseUrl(trimmed);
+}
+
+function formatAnthropicEndpoint(baseUrl) {
+    const normalized = String(baseUrl || '').trim().replace(/\/+$/, '');
+    if (normalized.endsWith('/messages')) return normalized;
+    if (/\/v\d+$/.test(normalized)) return `${normalized}/messages`;
+    return `${normalized}/v1/messages`;
+}
+
+function formatOpenAIEndpoint(baseUrl) {
+    const normalized = normalizeBaseUrl(baseUrl);
+    if (normalized.endsWith('/chat/completions')) return normalized;
+    return `${normalized}/chat/completions`;
+}
+
 // ========== Main Modal ==========
 
 export function ModelConfigModal({ open, onClose, onSaved }) {
     const [customConfigs, setCustomConfigs] = useState(() => getModelConfigs() || []);
     const [editingConfigId, setEditingConfigId] = useState(null);
     const [selectedPresetKey, setSelectedPresetKey] = useState(null);
+    const [selectedPresetModel, setSelectedPresetModel] = useState(null);
     const [testing, setTesting] = useState(false);
     const [addFormFlash, setAddFormFlash] = useState(false);
     const [form] = Form.useForm();
+    const openInitializedRef = useRef(false);
 
     // Find preset by providerKey, or by baseUrl+modelName as fallback for legacy configs
     const findPresetForConfig = useCallback((config) => {
@@ -140,13 +182,15 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
 
     const syncFormFromConfig = useCallback((config) => {
         const preset = findPresetForConfig(config);
-        setSelectedPresetKey(preset?.id || null);
+        const presetKey = getPresetKey(preset, config.providerKey || config.presetKey || '');
+        setSelectedPresetKey(presetKey || null);
+        setSelectedPresetModel(config.modelName || config.name || null);
         form.setFieldsValue({
             baseUrl: config.baseUrl || config.baseURL || '',
             apiKey: config.apiKey || '',
             modelName: config.modelName || config.name || '',
-            apiFormat: preset ? (preset.apiType === 'anthropic-compatible' ? 'anthropic' : 'openai') : (config.apiFormat || 'openai'),
-            presetKey: preset?.id || config.providerKey || undefined,
+            apiFormat: getPresetApiFormat(preset, config.apiFormat || 'openai'),
+            presetKey: presetKey || undefined,
             presetModel: config.modelName || config.name || undefined,
         });
     }, [form, findPresetForConfig]);
@@ -159,6 +203,7 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
         } else {
             setEditingConfigId(null);
             setSelectedPresetKey(null);
+            setSelectedPresetModel(null);
             form.resetFields();
             form.setFieldsValue({ apiFormat: 'openai' });
             setAddFormFlash(true);
@@ -170,23 +215,37 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
         }
     }, [form, syncFormFromConfig]);
 
-    // When modal opens, refresh configs
-    useState(() => {
-        if (open) {
-            setCustomConfigs(getModelConfigs() || []);
+    useEffect(() => {
+        if (!open) {
+            openInitializedRef.current = false;
+            return;
         }
-    });
+        if (openInitializedRef.current) return;
+        openInitializedRef.current = true;
+
+        const next = getModelConfigs() || [];
+        setCustomConfigs(next);
+        if (next.length) {
+            const active = getSelectedConfigId();
+            const pick = next.find(c => c.id === active) || next[0];
+            handleOpenConfig(pick);
+        } else {
+            handleOpenConfig(null);
+        }
+    }, [open, handleOpenConfig]);
 
     const handlePresetChange = useCallback((providerKey) => {
         const preset = findPreset(providerKey);
         setSelectedPresetKey(providerKey || null);
+        setSelectedPresetModel(null);
         form.setFieldsValue({ presetKey: providerKey || undefined, presetModel: undefined });
         if (preset) {
             const model = preset.models[0];
+            setSelectedPresetModel(model?.id || null);
             form.setFieldsValue({
                 baseUrl: preset.baseUrl,
                 modelName: model ? model.id : '',
-                apiFormat: preset.apiType === 'anthropic-compatible' ? 'anthropic' : 'openai',
+                apiFormat: getPresetApiFormat(preset),
                 presetKey: providerKey,
                 presetModel: model?.id,
             });
@@ -194,6 +253,7 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
     }, [form]);
 
     const handlePresetModelChange = useCallback((modelId) => {
+        setSelectedPresetModel(modelId || null);
         form.setFieldsValue({ modelName: modelId, presetModel: modelId });
     }, [form]);
 
@@ -207,16 +267,18 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
             const configs = [...customConfigs];
             const presetKey = values.presetKey || selectedPresetKey;
             const preset = findPreset(presetKey);
+            const apiFormat = values.apiFormat || getPresetApiFormat(preset);
             const record = {
                 id: editingConfigId || `custom-${Date.now()}`,
-                baseUrl: normalizeBaseUrl(values.baseUrl),
+                baseUrl: normalizeFormBaseUrl(values.baseUrl, apiFormat, preset),
                 apiKey: values.apiKey || '',
                 modelName: values.modelName,
                 name: values.modelName,
-                apiFormat: values.apiFormat || 'openai',
+                apiFormat,
                 providerKey: presetKey || '',
                 requiresApiKey: preset ? preset.requiresApiKey !== false : true,
                 authType: preset?.authType || 'bearer',
+                credentialMode: preset?.credentialMode || '',
                 createdAt: editingConfigId ? (configs.find(c => c.id === editingConfigId)?.createdAt || Date.now()) : Date.now(),
                 updatedAt: Date.now(),
             };
@@ -254,45 +316,44 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                     setEditingConfigId(null);
                     form.resetFields();
                     setSelectedPresetKey(null);
+                    setSelectedPresetModel(null);
                 }
                 message.success('配置已删除');
             },
         });
     }, [customConfigs, editingConfigId, form]);
 
-    // Detect preset from existing config on open
-    const handleOpenModal = useCallback(() => {
-        const next = getModelConfigs() || [];
-        setCustomConfigs(next);
-        if (next.length && !editingConfigId) {
-            const active = getSelectedConfigId();
-            const pick = next.find(c => c.id === active) || next[0];
-            handleOpenConfig(pick);
-        } else if (!next.length) {
-            handleOpenConfig(null);
-        }
-        // else: keep current editing state
-    }, [editingConfigId, handleOpenConfig]);
-
     // Test connection
     const handleTestConnection = useCallback(async () => {
         const values = form.getFieldsValue();
-        const baseUrl = normalizeBaseUrl(values.baseUrl);
+        const presetKey = values.presetKey || selectedPresetKey;
+        const preset = findPreset(presetKey);
+        const apiFormat = values.apiFormat || getPresetApiFormat(preset);
+        const baseUrl = normalizeFormBaseUrl(values.baseUrl, apiFormat, preset);
         const apiKey = values.apiKey || '';
         const model = values.modelName || '';
+        const requiresApiKey = preset ? preset.requiresApiKey !== false : true;
         if (!baseUrl || !model) {
             message.warning('请先填写 Base URL 和模型名称');
             return;
         }
+        if (requiresApiKey && !apiKey) {
+            message.warning('请先填写该服务商的 API Key');
+            return;
+        }
         setTesting(true);
         try {
-            const endpoint = baseUrl.endsWith('/messages')
-                ? baseUrl
-                : `${baseUrl}/chat/completions`;
-            const isAnthropic = (values.apiFormat || 'openai') === 'anthropic';
+            const isAnthropic = apiFormat === 'anthropic';
+            const rawEndpoint = isAnthropic
+                ? formatAnthropicEndpoint(baseUrl)
+                : formatOpenAIEndpoint(baseUrl);
+            const endpoint = resolveAiEndpointForRuntime(rawEndpoint);
+            const authType = preset?.authType || 'bearer';
             const headers = {
                 'Content-Type': 'application/json',
-                ...(isAnthropic ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' } : { 'Authorization': `Bearer ${apiKey}` }),
+                ...(isAnthropic
+                    ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+                    : (authType === 'api-key' ? { 'api-key': apiKey } : { Authorization: `Bearer ${apiKey}` })),
             };
             const body = isAnthropic
                 ? { model, max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }
@@ -380,7 +441,6 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
             getContainer={document.body}
             wrapClassName="ai-chat-modal"
             width={680}
-            afterOpenChange={handleOpenModal}
             styles={{ body: { maxHeight: '70vh', overflowY: 'auto', padding: 24 } }}
         >
             {/* Toolbar: import / export */}
@@ -403,13 +463,14 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                                 ghost
                                 onClick={() => {
                                     const preset = findPreset(tpl.providerKey);
-                                    setSelectedPresetKey(preset?.id || null);
+                                    setSelectedPresetKey(getPresetKey(preset, tpl.providerKey) || null);
+                                    setSelectedPresetModel(tpl.modelName);
                                     const newValues = {
                                         baseUrl: tpl.baseUrl,
                                         apiKey: '',
                                         modelName: tpl.modelName,
                                         apiFormat: tpl.apiFormat,
-                                        presetKey: preset?.id || tpl.providerKey,
+                                        presetKey: getPresetKey(preset, tpl.providerKey),
                                         presetModel: tpl.modelName,
                                     };
                                     form.setFieldsValue(newValues);
@@ -477,7 +538,7 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                         <Select
                             style={{ marginBottom: 8, width: '100%' }}
                             placeholder="提供商"
-                            value={form.getFieldValue('presetKey') || undefined}
+                            value={selectedPresetKey || undefined}
                             onChange={handlePresetChange}
                             options={providerOptions.map(p => ({ value: p.key, label: p.label }))}
                             popupMatchSelectWidth={300}
@@ -487,10 +548,10 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                         <Select
                             style={{ width: '100%' }}
                             placeholder="模型"
-                            value={form.getFieldValue('presetModel') || undefined}
+                            value={selectedPresetModel || undefined}
                             onChange={handlePresetModelChange}
                             options={(() => {
-                                const cur = form.getFieldValue('presetKey');
+                                const cur = selectedPresetKey;
                                 const p = cur ? findPreset(cur) : null;
                                 return p ? p.models.map(m => ({ value: m.id, label: m.name })) : [];
                             })()}
@@ -499,9 +560,9 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                             allowClear
                         />
                         {(() => {
-                            const cur = form.getFieldValue('presetKey');
+                            const cur = selectedPresetKey;
                             const p = cur ? findPreset(cur) : null;
-                            return p ? <CapabilityTags providerKey={cur} modelId={form.getFieldValue('presetModel')} /> : null;
+                            return p ? <CapabilityTags providerKey={cur} modelId={selectedPresetModel} /> : null;
                         })()}
                     </div>
 
@@ -517,7 +578,7 @@ export function ModelConfigModal({ open, onClose, onSaved }) {
                             <Input placeholder={selectedPreset?.baseUrl || 'https://api.openai.com/v1'} />
                         </Form.Item>
                         <Form.Item name="apiKey" label="API Key">
-                            <Input.Password placeholder={selectedPreset && findPreset(selectedPresetKey)?.requiresApiKey === false ? '无需 Key (体验版)' : (selectedPreset?.apiKeyPlaceholder || '粘贴服务商提供的 API Key')} />
+                            <Input.Password placeholder={selectedPreset?.apiKeyPlaceholder || '粘贴服务商提供的 API Key'} />
                         </Form.Item>
                         <Form.Item name="modelName" label="模型名称" rules={[{ required: true }]}>
                             <Input placeholder={selectedPreset?.models[0]?.id || '如 deepseek-chat'} />

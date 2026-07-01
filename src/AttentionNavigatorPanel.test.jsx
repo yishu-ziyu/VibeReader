@@ -83,7 +83,7 @@ describe('AttentionNavigatorPanel', () => {
     const onInsightsChange = vi.fn();
     render(<AttentionNavigatorPanel documentId="doc-1" onInsightsChange={onInsightsChange} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /分析关键位置/ }));
+    fireEvent.click(screen.getByRole('button', { name: /生成阅读路线/ }));
 
     await waitFor(() => {
       expect(persistentMock.savePersistentAttentionInsights).toHaveBeenCalledWith(
@@ -119,7 +119,7 @@ describe('AttentionNavigatorPanel', () => {
     render(<AttentionNavigatorPanel documentId="doc-1" onInsightsChange={onInsightsChange} />);
 
     expect(await screen.findByText('Persisted location')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /分析关键位置/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /生成阅读路线/ })).toBeNull();
     expect(onInsightsChange).toHaveBeenCalledWith([
       expect.objectContaining({
         id: 'attention-saved',
@@ -287,7 +287,7 @@ describe('AttentionNavigatorPanel', () => {
   it('records attention analysis task state when analysis succeeds', async () => {
     render(<AttentionNavigatorPanel documentId="doc-1" />);
 
-    fireEvent.click(screen.getByRole('button', { name: /分析关键位置/ }));
+    fireEvent.click(screen.getByRole('button', { name: /生成阅读路线/ }));
 
     await screen.findByText('Method location');
     expect(persistentMock.savePersistentTask).toHaveBeenCalledWith(expect.objectContaining({
@@ -311,7 +311,7 @@ describe('AttentionNavigatorPanel', () => {
     analyzeMock.mockRejectedValueOnce(new Error('model timeout'));
     render(<AttentionNavigatorPanel documentId="doc-1" />);
 
-    fireEvent.click(screen.getByRole('button', { name: /分析关键位置/ }));
+    fireEvent.click(screen.getByRole('button', { name: /生成阅读路线/ }));
 
     await waitFor(() => {
       expect(persistentMock.savePersistentTask).toHaveBeenCalledWith(expect.objectContaining({
@@ -323,7 +323,7 @@ describe('AttentionNavigatorPanel', () => {
       }));
     });
     await waitFor(() => {
-      expect(screen.queryByText('正在分析关键位置...')).toBeNull();
+      expect(screen.queryByText('正在生成阅读路线...')).toBeNull();
     });
   });
 });

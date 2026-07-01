@@ -3,8 +3,9 @@
 ## 演示前 30 分钟
 
 ### 环境检查
-- [ ] 网络连接稳定（Kimi 免 Key 需要联网）
-- [ ] MiniMax Token Plan 作为备用已配置
+- [ ] 网络连接稳定（MiniMax Token Plan 需要联网）
+- [ ] MiniMax Token Plan 已配置真实 `MINIMAX_TOKEN_PLAN_KEY`
+- [ ] 当前模型配置符合 `docs/LOCAL_MODEL_SERVICES.md`
 - [ ] `demo-assets/` 文件夹在桌面可快速访问
 - [ ] 备用回答文件 `demo-fallback-answer.md` 已准备
 
@@ -19,7 +20,7 @@
 
 ### 备用方案
 - [ ] 网络失败时：使用 `demo-fallback-answer.md` 中的预设回答
-- [ ] Kimi 失效时：切换到 MiniMax Token Plan
+- [ ] MiniMax 失效时：切换到 fallback 回答，不临时宣称 Kimi 可用
 - [ ] PDF 渲染慢时：使用 `wonderland_short.pdf`（仅 29 页）
 
 ## 演示路径（严格计时）
@@ -53,11 +54,11 @@
 1. 提前在后台打开应用并加载好 PDF
 2. 或者使用 `wonderland_short.pdf`（小文件，加载快）
 
-### 风险 3：Kimi 免 Key 失效
+### 风险 3：MiniMax Token Plan 失效
 **现象**：AI 返回 401 / 403
 **应对**：
-1. 切换到 MiniMax Token Plan（已预配置）
-2. 或直接使用 fallback 回答
+1. 检查 `MINIMAX_TOKEN_PLAN_KEY` 是否注入运行环境
+2. 直接使用 fallback 回答，避免现场改接未验证模型服务
 
 ### 风险 4：演示超时
 **现象**：时间超过 3 分钟

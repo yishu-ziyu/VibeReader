@@ -165,6 +165,11 @@
     color: #1a1a1a;
 }
 
+.textLayer ::selection {
+    background: rgba(244, 215, 88, 0.68);
+    color: transparent;
+}
+
 /* AI Chat Container */
 .ai-chat-container {
     display: flex;
@@ -347,6 +352,15 @@
     margin-bottom: 0;
 }
 
+.workspace-deep-read-panel {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--material-sidepane);
+}
+
 .artifact-panel,
 .artifact-panel-empty {
     flex: 1;
@@ -439,6 +453,12 @@
     box-shadow: var(--glow-card);
 }
 
+.artifact-pulse-highlight {
+    animation: artifact-pulse 1s ease-in-out 3;
+    border-color: rgba(65, 145, 90, 0.5);
+    box-shadow: 0 0 0 3px rgba(65, 145, 90, 0.12), var(--glow-card);
+}
+
 .artifact-card-header,
 .artifact-card-footer {
     display: flex;
@@ -475,6 +495,55 @@
     color: var(--fill-primary);
     font-size: 14px;
     line-height: 1.65;
+}
+
+.artifact-markdown {
+    margin: 0 0 10px;
+}
+
+.artifact-markdown .markdown-content {
+    color: var(--fill-primary);
+    font-size: 13px;
+    line-height: 1.62;
+}
+
+.artifact-markdown .markdown-content h1,
+.artifact-markdown .markdown-content h2,
+.artifact-markdown .markdown-content h3 {
+    margin: 8px 0 6px;
+    font-family: 'Fraunces', 'Noto Serif SC', 'Huiwen Mincho', serif;
+    font-size: 16px;
+    line-height: 1.35;
+}
+
+.artifact-markdown .markdown-content h4,
+.artifact-markdown .markdown-content h5,
+.artifact-markdown .markdown-content h6 {
+    margin: 8px 0 4px;
+    font-size: 14px;
+}
+
+.artifact-markdown .markdown-content p {
+    margin: 0 0 8px;
+}
+
+.artifact-markdown .markdown-content ul,
+.artifact-markdown .markdown-content ol {
+    margin: 0 0 8px;
+    padding-left: 18px;
+}
+
+.artifact-markdown .markdown-content blockquote {
+    margin: 0 0 8px;
+    padding: 7px 10px;
+    border-left: 3px solid var(--accent-yellow);
+    border-radius: 8px;
+    background: var(--material-sidepane);
+    color: var(--fill-secondary);
+}
+
+.artifact-markdown .markdown-content code.inline-code {
+    font-size: 12px;
 }
 
 .artifact-question {
@@ -630,25 +699,28 @@
     z-index: 100;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     width: max-content;
-    max-width: min(368px, calc(100% - 16px));
-    padding: 6px 8px;
-    border: 1px solid var(--fill-quinary);
-    border-radius: 10px;
+    max-width: min(304px, calc(100% - 16px));
+    padding: 4px;
+    border: 1px solid rgba(26, 26, 46, 0.12);
+    border-radius: 999px;
     background: var(--material-background);
-    box-shadow: var(--glow-card-hover);
+    box-shadow: 0 8px 24px rgba(26, 26, 46, 0.14);
     pointer-events: auto;
     white-space: nowrap;
 }
 
-.pdf-annotation-preview {
-    max-width: 120px;
-    overflow: hidden;
-    color: #666;
-    font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.pdf-annotation-toolbar .ant-btn-sm.ant-btn-icon-only {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+}
+
+.pdf-annotation-note-input {
+    width: 116px;
+    border-radius: 999px;
 }
 
 .pdf-annotation-list {
@@ -779,6 +851,18 @@
 
 .assistant-source-ref-button:active {
     transform: scale(0.98);
+}
+
+.assistant-source-ref-button.memory {
+    border-color: rgba(65, 145, 90, 0.26);
+    color: #2f7d46;
+    background: rgba(65, 145, 90, 0.08);
+}
+
+.assistant-source-ref-button.memory:hover,
+.assistant-source-ref-button.memory:focus {
+    border-color: rgba(65, 145, 90, 0.42);
+    background: rgba(65, 145, 90, 0.13);
 }
 
 .assistant-message-actions {
@@ -2021,6 +2105,15 @@
     border-radius: 2px;
 }
 
+@keyframes artifact-pulse {
+    0%, 100% {
+        background-color: var(--material-background);
+    }
+    50% {
+        background-color: rgba(65, 145, 90, 0.09);
+    }
+}
+
 /* ========== Flashcard ========== */
 
 .flashcard-container {
@@ -2183,6 +2276,14 @@
     font-size: 24px;
 }
 
+.attention-navigator-generate-copy {
+    max-width: 320px;
+    color: var(--fill-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: center;
+}
+
 .attention-navigator-muted {
     color: var(--fill-tertiary);
     font-size: 13px;
@@ -2281,6 +2382,13 @@
     background: var(--material-sidepane);
 }
 
+.task-status-panel-compact {
+    height: auto;
+    max-height: 36%;
+    border-top: 1px solid var(--fill-quinary);
+    background: rgba(255, 255, 255, 0.62);
+}
+
 .task-status-header {
     display: flex;
     align-items: center;
@@ -2289,6 +2397,10 @@
     padding: 12px 16px;
     border-bottom: 1px solid var(--fill-quinary);
     flex-shrink: 0;
+}
+
+.task-status-panel-compact .task-status-header {
+    padding: 8px 12px;
 }
 
 .task-status-title {
@@ -2300,12 +2412,22 @@
     font-weight: 600;
 }
 
+.task-status-panel-compact .task-status-title {
+    font-size: 12px;
+}
+
 .task-status-agent-actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 6px;
     min-width: 0;
+}
+
+.task-status-panel-compact .task-status-agent-actions .ant-btn {
+    height: 24px;
+    padding: 0 8px;
+    font-size: 12px;
 }
 
 .task-status-empty {
@@ -2316,11 +2438,22 @@
     padding: 20px;
 }
 
+.task-status-panel-compact .task-status-empty {
+    flex: 0 0 auto;
+    padding: 14px 12px;
+}
+
 .task-status-list {
     flex: 1;
     min-height: 0;
     overflow: auto;
     padding: 12px;
+}
+
+.task-status-panel-compact .task-status-list {
+    flex: 0 1 auto;
+    max-height: 220px;
+    padding: 8px 12px 12px;
 }
 
 .task-status-item {

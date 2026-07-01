@@ -10,7 +10,7 @@ describe('reading artifacts', () => {
             id: 'artifact-1',
             documentId: 'doc-1',
             goal: 'Explain this passage.',
-            modelId: 'MiniMax-M2.7',
+            modelId: 'MiniMax-M3',
             createdAt: '2026-06-02T10:00:00.000Z',
             selection: {
                 spanId: 'span-12',
@@ -31,7 +31,7 @@ describe('reading artifacts', () => {
             type: 'lens_card',
             goal: 'Explain this passage.',
             sourceSpanIds: ['span-12'],
-            modelId: 'MiniMax-M2.7',
+            modelId: 'MiniMax-M3',
             createdAt: '2026-06-02T10:00:00.000Z',
             originalContent: {
                 selectionText: 'The paper claims local reading should preserve source spans.',
@@ -97,7 +97,7 @@ describe('reading artifacts', () => {
             documentId: 'doc-1',
             type: 'evidence_table',
             goal: 'Separate evidence from interpretation.',
-            modelId: 'MiniMax-M2.7',
+            modelId: 'MiniMax-M3',
             createdAt: '2026-06-02T10:05:00.000Z',
             originalContent: {
                 claims: [

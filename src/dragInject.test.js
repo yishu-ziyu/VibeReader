@@ -128,7 +128,7 @@ describe('Drag-to-Inject', () => {
         const { App } = await import('./App.jsx');
         render(React.createElement(App));
 
-        await screen.findByText('Workspace');
+        await screen.findByText('工作台');
 
         act(() => {
             useDocumentStore.getState().addDocument({

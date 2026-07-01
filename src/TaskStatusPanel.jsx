@@ -11,17 +11,63 @@ const STATUS_COLORS = {
   cancelled: 'warning',
 };
 
+const KNOWN_TASK_TITLE_LABELS = {
+  'Paper overview': '论文总览',
+  'Attention route': '阅读路线',
+  'Create VibeCard': '生成卡片',
+  'Note export': '导出笔记',
+};
+
 function taskTypeLabel(type = '') {
   switch (type) {
     case 'source_index':
-      return 'Source index';
+      return '文档索引';
+    case 'knowledge_ingest':
+      return '知识入库';
+    case 'saved_memory_ingest':
+      return '记忆沉淀';
     case 'section_summary':
-      return 'Summary';
+      return '章节摘要';
     case 'attention_analysis':
-      return 'Attention';
+      return '注意力路线';
+    case 'paper_overview_agent':
+      return '论文总览';
+    case 'attention_agent':
+      return '阅读路线';
+    case 'card_generation_agent':
+      return '生成卡片';
+    case 'note_export_agent':
+      return '导出笔记';
     default:
-      return type || 'Task';
+      return type || '任务';
   }
+}
+
+function taskStatusLabel(status = '') {
+  switch (status) {
+    case 'pending':
+      return '等待中';
+    case 'running':
+      return '运行中';
+    case 'succeeded':
+      return '已完成';
+    case 'failed':
+      return '失败';
+    case 'cancelled':
+      return '已取消';
+    default:
+      return status || '等待中';
+  }
+}
+
+function agentSkillLabel(skill = {}) {
+  if (skill.type) return taskTypeLabel(skill.type);
+  return skill.title || '任务';
+}
+
+function taskTitleLabel(task = {}) {
+  if (task.title && KNOWN_TASK_TITLE_LABELS[task.title]) return KNOWN_TASK_TITLE_LABELS[task.title];
+  return task.title || taskTypeLabel(task.type);
 }
 
 function sortTasks(tasks = []) {
@@ -34,7 +80,7 @@ function sortTasks(tasks = []) {
 function canRetryTask(task = {}) {
   const statusRetryable = ['failed', 'cancelled'].includes(task.status);
   const type = String(task.type || '');
-  return statusRetryable && (type === 'source_index' || type.endsWith('_agent'));
+  return statusRetryable && (type === 'source_index' || type === 'knowledge_ingest' || type.endsWith('_agent'));
 }
 
 function taskResultText(task = {}) {
@@ -56,7 +102,7 @@ function canSaveTaskResult(task = {}) {
 }
 
 const DEFAULT_AGENT_SKILLS = Object.freeze([
-  Object.freeze({ type: 'paper_overview_agent', title: 'Paper overview' }),
+  Object.freeze({ type: 'paper_overview_agent', title: '论文总览' }),
 ]);
 
 function visibleAgentSkills(agentSkills) {
@@ -69,6 +115,7 @@ function visibleAgentSkills(agentSkills) {
 export function TaskStatusPanel({
   documentId,
   agentSkills,
+  compact = false,
   onRetryTask,
   onStartAgentTask,
   onSaveTaskResult,
@@ -120,24 +167,24 @@ export function TaskStatusPanel({
   const visibleTasks = useMemo(() => sortTasks(tasks), [tasks]);
 
   return (
-    <div className="task-status-panel" style={style}>
+    <div className={`task-status-panel${compact ? ' task-status-panel-compact' : ''}`} style={style}>
       <div className="task-status-header">
         <div className="task-status-title">
           <ClockCircleOutlined />
-          <span>Reading Tasks</span>
+          <span>{compact ? '精读进度' : '阅读任务'}</span>
         </div>
         {documentId && typeof onStartAgentTask === 'function' && (
           <div className="task-status-agent-actions">
             {visibleAgentSkills(agentSkills).map((skill) => (
               <Button
-                aria-label={skill.title}
+                aria-label={agentSkillLabel(skill)}
                 icon={<ThunderboltOutlined />}
                 key={skill.type}
                 size="small"
                 type={skill.type === 'paper_overview_agent' ? 'primary' : 'default'}
                 onClick={() => onStartAgentTask(skill.type)}
               >
-                {skill.title}
+                {agentSkillLabel(skill)}
               </Button>
             ))}
           </div>
@@ -154,7 +201,7 @@ export function TaskStatusPanel({
         <div className="task-status-empty">
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="No reading tasks yet"
+            description={compact ? '精读流程尚未启动' : '暂无阅读任务'}
           />
         </div>
       )}
@@ -171,10 +218,10 @@ export function TaskStatusPanel({
                 <div className="task-status-item-main">
                   <div className="task-status-item-topline">
                     <span className="task-status-item-title">
-                      {task.title || taskTypeLabel(task.type)}
+                      {taskTitleLabel(task)}
                     </span>
                     <Tag color={STATUS_COLORS[task.status] || 'default'}>
-                      {task.status || 'pending'}
+                      {taskStatusLabel(task.status)}
                     </Tag>
                   </div>
                   <div className="task-status-item-meta">
@@ -202,20 +249,20 @@ export function TaskStatusPanel({
                         type="link"
                         onClick={() => onRetryTask(task)}
                       >
-                        Retry
+                        重试
                       </Button>
                     </div>
                   )}
                   {canSaveTaskResult(task) && typeof onSaveTaskResult === 'function' && (
                     <div className="task-status-actions">
                       <Button
-                        aria-label="Save to Notes"
+                        aria-label="保存到笔记"
                         icon={<SaveOutlined />}
                         size="small"
                         type="link"
                         onClick={() => onSaveTaskResult(task)}
                       >
-                        Save to Notes
+                        保存到笔记
                       </Button>
                     </div>
                   )}

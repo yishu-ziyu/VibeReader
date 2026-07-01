@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     buildIndexedRetrievalContext,
     clearSourceIndexCache,
+    groundSourceRefsForDocument,
     indexDocumentSourceSpans,
     sourceSpansFromChunks,
 } from './sourceIndexService';
@@ -72,6 +73,80 @@ describe('sourceIndexService', () => {
                 text: 'The identification strategy uses matched controls.',
                 metadata: expect.objectContaining({
                     documentName: 'Indexed Paper.pdf',
+                }),
+            }),
+        ]);
+    });
+
+    it('grounds UniRAG citations to the closest local paragraph span', () => {
+        const grounded = groundSourceRefsForDocument([
+            {
+                id: 'remote-citation-1',
+                chunkId: 'paper.pdf:2',
+                documentId: 'paper.pdf',
+                documentName: 'paper.pdf',
+                page: 2,
+                paragraphId: 'paper.pdf:2',
+                label: 'P2',
+                text: 'identification strategy uses matched controls',
+            },
+        ], document, { maxCharsPerChunk: 240 });
+
+        expect(grounded).toEqual([
+            expect.objectContaining({
+                documentId: 'doc-index',
+                documentName: 'Indexed Paper.pdf',
+                page: 2,
+                paragraphId: 'page-2-para-0',
+                originalDocumentId: 'paper.pdf',
+                originalParagraphId: 'paper.pdf:2',
+                grounding: expect.objectContaining({
+                    precision: 'paragraph',
+                    matchedBy: 'text',
+                }),
+            }),
+        ]);
+    });
+
+    it('keeps page-level grounding when citation text cannot be matched', () => {
+        const grounded = groundSourceRefsForDocument([
+            {
+                id: 'remote-citation-2',
+                documentId: 'paper.pdf',
+                page: 3,
+                label: 'P3',
+                text: 'unrelated hallucinated wording',
+            },
+        ], document, { maxCharsPerChunk: 240 });
+
+        expect(grounded).toEqual([
+            expect.objectContaining({
+                documentId: 'doc-index',
+                page: 3,
+                paragraphId: '',
+                grounding: expect.objectContaining({
+                    precision: 'page',
+                }),
+            }),
+        ]);
+    });
+
+    it('marks citations without page or text match as document-level evidence', () => {
+        const grounded = groundSourceRefsForDocument([
+            {
+                id: 'remote-citation-3',
+                documentId: 'paper.pdf',
+                label: '来源 1',
+            },
+        ], document, { maxCharsPerChunk: 240 });
+
+        expect(grounded).toEqual([
+            expect.objectContaining({
+                documentId: 'doc-index',
+                paragraphId: '',
+                label: '来源 1',
+                grounding: expect.objectContaining({
+                    precision: 'document',
                 }),
             }),
         ]);
@@ -207,6 +282,11 @@ describe('sourceIndexService', () => {
 
         expect(context.prompt).toContain('[source:doc-index:p2:page-2-para-0]');
         expect(context.prompt).toContain('matched controls');
+        expect(context.ragEngine).toEqual(expect.objectContaining({
+            engine: 'local-keyword',
+            available: true,
+            degraded: false,
+        }));
         expect(persistentStorageMock.replacePersistentSourceSpans).not.toHaveBeenCalled();
         expect(persistentStorageMock.searchPersistentSourceSpans).not.toHaveBeenCalled();
         expect(persistentStorageMock.listPersistentSourceSpans).not.toHaveBeenCalled();

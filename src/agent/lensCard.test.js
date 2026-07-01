@@ -27,7 +27,7 @@ describe('lensCard agent flow', () => {
                 kind: 'pdf',
                 outline: [{ title: 'Introduction', page: 1 }],
             },
-            modelId: 'MiniMax-M2.7',
+            modelId: 'MiniMax-M3',
             createdAt: '2026-06-02T10:00:00.000Z',
             generateText,
         });
@@ -38,7 +38,7 @@ describe('lensCard agent flow', () => {
             documentId: 'doc-1',
             type: 'lens_card',
             sourceSpanIds: ['span-3'],
-            modelId: 'MiniMax-M2.7',
+            modelId: 'MiniMax-M3',
             verificationStatus: 'grounded',
         }));
         expect(artifact.originalContent).toEqual(expect.objectContaining({

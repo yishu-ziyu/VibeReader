@@ -1,6 +1,5 @@
 import {
     buildDocumentChunks,
-    buildRetrievalContext,
     buildRetrievalContextFromChunks,
     sourceIdForChunk,
 } from '../retrievalContext';
@@ -13,9 +12,11 @@ import {
     savePersistentTask,
     searchPersistentSourceSpans,
 } from './persistentStorage';
+import { buildLocalKeywordRetrievalContext } from './ragEngineAdapter';
 
 const DEFAULT_MAX_CHUNKS = 4;
 const DEFAULT_MAX_CHARS_PER_CHUNK = 900;
+const MIN_TEXT_MATCH_SCORE = 0.35;
 const indexedDocumentSignatures = new Map();
 
 function signatureTextForDocument(document = {}) {
@@ -94,6 +95,41 @@ function parseJsonObject(value) {
     }
 }
 
+function normalizeComparableText(value = '') {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function comparableTokens(value = '') {
+    return normalizeComparableText(value)
+        .split(' ')
+        .filter((token) => token.length >= 2);
+}
+
+function textMatchScore(needle = '', haystack = '') {
+    const normalizedNeedle = normalizeComparableText(needle);
+    const normalizedHaystack = normalizeComparableText(haystack);
+    if (!normalizedNeedle || !normalizedHaystack) return 0;
+    if (normalizedHaystack.includes(normalizedNeedle)) return 1;
+    if (normalizedNeedle.includes(normalizedHaystack) && normalizedHaystack.length >= 24) return 0.9;
+
+    const needleTokens = new Set(comparableTokens(normalizedNeedle));
+    if (needleTokens.size === 0) return 0;
+    const haystackTokens = new Set(comparableTokens(normalizedHaystack));
+    let overlap = 0;
+    needleTokens.forEach((token) => {
+        if (haystackTokens.has(token)) overlap += 1;
+    });
+    return overlap / needleTokens.size;
+}
+
+function sourceRefCitationText(sourceRef = {}) {
+    return sourceRef.text || sourceRef.sourceText || sourceRef.selectedText || sourceRef.excerpt || '';
+}
+
 function chunkFromSourceSpan(span = {}, fallbackDocument = {}) {
     const metadata = parseJsonObject(span.metadataJson);
     const chunk = {
@@ -160,6 +196,96 @@ export function sourceSpansFromChunks(chunks = [], metadata = {}) {
                 documentName: chunk.documentName || metadata.documentName,
             },
         }));
+}
+
+export function groundSourceRefsForDocument(sourceRefs = [], document = {}, options = {}) {
+    if (!Array.isArray(sourceRefs) || sourceRefs.length === 0 || !document?.id) {
+        return Object.freeze([]);
+    }
+
+    const chunks = buildDocumentChunks(document, {
+        maxCharsPerChunk: options.maxCharsPerChunk || DEFAULT_MAX_CHARS_PER_CHUNK,
+    });
+    const documentName = document.name || document.title || 'Untitled';
+
+    return Object.freeze(sourceRefs.map((sourceRef, index) => {
+        const page = Number(sourceRef.page || 0);
+        const citationText = sourceRefCitationText(sourceRef);
+        const samePageChunks = page > 0 ? chunks.filter((chunk) => chunk.page === page) : [];
+        const candidates = samePageChunks.length > 0 ? samePageChunks : chunks;
+        const exactParagraph = sourceRef.paragraphId
+            ? chunks.find((chunk) => chunk.paragraphId === sourceRef.paragraphId)
+            : null;
+
+        let best = exactParagraph ? { chunk: exactParagraph, score: 1, matchedBy: 'paragraphId' } : null;
+        if (!best && citationText) {
+            best = candidates
+                .map((chunk) => ({
+                    chunk,
+                    score: textMatchScore(citationText, chunk.text),
+                    matchedBy: 'text',
+                }))
+                .filter((item) => item.score >= MIN_TEXT_MATCH_SCORE)
+                .sort((a, b) => b.score - a.score || a.chunk.order - b.chunk.order)[0] || null;
+        }
+
+        if (best?.chunk) {
+            return Object.freeze({
+                ...sourceRef,
+                id: best.chunk.id || sourceRef.id,
+                chunkId: best.chunk.chunkId || sourceRef.chunkId,
+                originalDocumentId: sourceRef.documentId,
+                originalParagraphId: sourceRef.paragraphId,
+                documentId: document.id,
+                documentName,
+                page: best.chunk.page,
+                paragraphId: best.chunk.paragraphId,
+                label: sourceRef.label || `P${best.chunk.page || 1}`,
+                text: citationText || best.chunk.text,
+                matchedText: best.chunk.text,
+                grounding: Object.freeze({
+                    precision: 'paragraph',
+                    matchedBy: best.matchedBy,
+                    score: Number(best.score.toFixed(3)),
+                }),
+            });
+        }
+
+        if (page > 0) {
+            return Object.freeze({
+                ...sourceRef,
+                originalDocumentId: sourceRef.documentId,
+                originalParagraphId: sourceRef.paragraphId,
+                documentId: document.id,
+                documentName,
+                page,
+                paragraphId: '',
+                label: sourceRef.label || `P${page}`,
+                text: citationText,
+                grounding: Object.freeze({
+                    precision: 'page',
+                    matchedBy: samePageChunks.length > 0 ? 'page' : 'citation-page',
+                    score: 0,
+                }),
+            });
+        }
+
+        return Object.freeze({
+            ...sourceRef,
+            originalDocumentId: sourceRef.documentId,
+            originalParagraphId: sourceRef.paragraphId,
+            documentId: document.id,
+            documentName,
+            paragraphId: '',
+            label: sourceRef.label || `来源 ${index + 1}`,
+            text: citationText,
+            grounding: Object.freeze({
+                precision: 'document',
+                matchedBy: 'document',
+                score: 0,
+            }),
+        });
+    }));
 }
 
 export async function indexDocumentSourceSpans(document = {}, options = {}) {
@@ -278,7 +404,7 @@ async function indexedChunksForInput(input = {}) {
 
 export async function buildIndexedRetrievalContext(input = {}) {
     if (!isPersistentStorageAvailable()) {
-        return buildRetrievalContext(input);
+        return buildLocalKeywordRetrievalContext(input);
     }
 
     try {
@@ -290,5 +416,5 @@ export async function buildIndexedRetrievalContext(input = {}) {
         console.warn('[sourceIndexService] Falling back to JS retrieval:', error);
     }
 
-    return buildRetrievalContext(input);
+    return buildLocalKeywordRetrievalContext(input);
 }

@@ -34,3 +34,21 @@ Use a real PDF file for manual PDF QA:
 `/Users/mahaoxuan/Desktop/黑客松/Vibero/test/tests/data/wonderland_short.pdf`
 
 Avoid selecting paths that only end in `.pdf` but are actually directories.
+
+## Local model services
+
+Use `docs/LOCAL_MODEL_SERVICES.md` before changing model defaults, QA seed configs, or provider templates.
+
+Current default QA path is MiniMax Token Plan:
+
+- Model: `MiniMax-M3`
+- Protocol: Anthropic-compatible
+- Base URL: `https://api.minimaxi.com/anthropic`
+- Env var: `MINIMAX_TOKEN_PLAN_KEY`
+
+MiniMax API is a separate choice for pay-as-you-go API keys:
+
+- Provider key: `minimax-api`
+- Env var: `MINIMAX_API_KEY`
+
+Kimi/Moonshot is optional only when a real key is present. Do not restore keyless Kimi free-trial behavior.

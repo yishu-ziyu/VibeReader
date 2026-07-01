@@ -19,6 +19,33 @@ const sourceIndexServiceMock = vi.hoisted(() => ({
     buildIndexedRetrievalContext: vi.fn(async () => null),
     indexDocumentSourceSpans: vi.fn(async () => []),
 }));
+const ragEngineAdapterMock = vi.hoisted(() => ({
+    createUniRagHttpAdapter: vi.fn(() => ({
+        health: vi.fn(async () => ({
+            available: true,
+            engine: 'uni-rag',
+            adapter: 'uni-rag',
+            degraded: false,
+            baseUrl: 'http://127.0.0.1:8766',
+        })),
+    })),
+}));
+const documentKnowledgeServiceMock = vi.hoisted(() => ({
+    loadDocumentKnowledgeLink: vi.fn(() => null),
+    startDocumentKnowledgeIngest: vi.fn(async ({ document, onStatus }) => {
+        onStatus?.({
+            status: 'running',
+            documentId: document?.id,
+            percent: 42,
+            message: '正在送入知识引擎',
+        });
+        return {
+            status: 'running',
+            documentId: document?.id,
+            percent: 42,
+        };
+    }),
+}));
 const artifactServiceMock = vi.hoisted(() => ({
     createArtifact: vi.fn(async (artifact) => artifact),
     listArtifactsForDocument: vi.fn(async () => []),
@@ -239,6 +266,17 @@ vi.mock('./services/persistentStorage', () => ({
 
 vi.mock('./services/sourceIndexService', () => sourceIndexServiceMock);
 
+vi.mock('./services/ragEngineAdapter', () => ({
+    DEFAULT_UNI_RAG_BASE_URL: 'http://127.0.0.1:8766',
+    createUniRagHttpAdapter: ragEngineAdapterMock.createUniRagHttpAdapter,
+}));
+
+vi.mock('./services/documentKnowledgeService', () => ({
+    KNOWLEDGE_INGEST_TASK_TYPE: 'knowledge_ingest',
+    loadDocumentKnowledgeLink: documentKnowledgeServiceMock.loadDocumentKnowledgeLink,
+    startDocumentKnowledgeIngest: documentKnowledgeServiceMock.startDocumentKnowledgeIngest,
+}));
+
 vi.mock('./agent', () => agentMock);
 
 vi.mock('@ant-design/x', () => ({
@@ -448,6 +486,9 @@ describe('Workspace layout', () => {
         documentServiceMock.openTauriDocument.mockReset();
         sourceIndexServiceMock.buildIndexedRetrievalContext.mockClear();
         sourceIndexServiceMock.indexDocumentSourceSpans.mockClear();
+        ragEngineAdapterMock.createUniRagHttpAdapter.mockClear();
+        documentKnowledgeServiceMock.loadDocumentKnowledgeLink.mockClear();
+        documentKnowledgeServiceMock.startDocumentKnowledgeIngest.mockClear();
         artifactServiceMock.createArtifact.mockClear();
         artifactServiceMock.listArtifactsForDocument.mockClear();
         artifactServiceMock.updateArtifact.mockClear();
@@ -481,19 +522,19 @@ describe('Workspace layout', () => {
         const { App } = await import('./App.jsx');
         render(<App />);
 
-        await screen.findByText('Workspace');
+        await screen.findByText('工作台');
 
         const readingSurface = document.querySelector('.workspace-reading-surface');
-        const skimMap = document.querySelector('.workspace-skim-map-pane[aria-label="Skim Map"]');
+        const skimMap = document.querySelector('.workspace-skim-map-pane[aria-label="阅读地图"]');
         const reader = document.querySelector('.workspace-reader-pane');
         const notesTab = screen.getByText(/Notes|笔记/).closest('[role="tab"]');
-        const tasksTab = screen.getByText('Tasks').closest('[role="tab"]');
+        const tasksTab = screen.queryByText('任务');
 
         expect(readingSurface).toBeTruthy();
         expect(skimMap).toBeTruthy();
         expect(reader).toBeTruthy();
         expect(notesTab).toBeTruthy();
-        expect(tasksTab).toBeTruthy();
+        expect(tasksTab).toBeNull();
         expect(screen.queryByText('Artifacts')).toBeNull();
         expect(readingSurface.contains(skimMap)).toBe(true);
         expect(readingSurface.contains(reader)).toBe(true);
@@ -513,7 +554,7 @@ describe('Workspace layout', () => {
         const { App } = await import('./App.jsx');
         render(<App />);
 
-        await screen.findByText('Recent documents');
+        await screen.findByText('最近文档');
         expect(screen.getByText('Saved Paper.pdf')).toBeTruthy();
         expect(useDocumentStore.getState().currentDocument).toBeNull();
     });
@@ -554,6 +595,44 @@ describe('Workspace layout', () => {
                 })
             );
         });
+    });
+
+    it('starts visible UniRAG knowledge ingest after a readable document is opened', async () => {
+        documentServiceMock.fileToDocument.mockReturnValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+        });
+        documentServiceMock.fileToDocumentWithContent.mockResolvedValue({
+            id: 'doc-opened-md',
+            name: 'opened.md',
+            kind: 'markdown',
+            source: 'browser-upload',
+            openedAt: 100,
+            contentText: 'The identification strategy uses matched controls.',
+        });
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, {
+            target: {
+                files: [new File(['# Methods'], 'opened.md', { type: 'text/markdown' })],
+            },
+        });
+
+        await screen.findByText('知识入库：42%');
+        expect(documentKnowledgeServiceMock.startDocumentKnowledgeIngest).toHaveBeenCalledWith(
+            expect.objectContaining({
+                document: expect.objectContaining({
+                    id: 'doc-opened-md',
+                    contentText: expect.stringContaining('identification strategy'),
+                }),
+            })
+        );
     });
 
     it('persists readable document content after it is opened into the workspace', async () => {
@@ -772,7 +851,6 @@ describe('Workspace layout', () => {
         });
         sourceIndexServiceMock.indexDocumentSourceSpans.mockClear();
 
-        fireEvent.click(screen.getByText('Tasks'));
         fireEvent.click(await screen.findByText('Retry mocked source index'));
 
         await waitFor(() => {
@@ -817,7 +895,6 @@ describe('Workspace layout', () => {
         });
         sourceIndexServiceMock.indexDocumentSourceSpans.mockClear();
 
-        fireEvent.click(screen.getByText('Tasks'));
         fireEvent.click(await screen.findByText('Retry mocked agent'));
 
         await waitFor(() => {
@@ -870,7 +947,6 @@ describe('Workspace layout', () => {
             expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
         });
 
-        fireEvent.click(screen.getByText('Tasks'));
         fireEvent.click(await screen.findByText('Start mocked paper overview'));
 
         await waitFor(() => {
@@ -941,7 +1017,6 @@ describe('Workspace layout', () => {
             expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
         });
 
-        fireEvent.click(screen.getByText('Tasks'));
         fireEvent.click(await screen.findByText('Start mocked attention route'));
 
         await waitFor(() => {
@@ -1002,7 +1077,6 @@ describe('Workspace layout', () => {
             expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
         });
 
-        fireEvent.click(screen.getByText('Tasks'));
         await screen.findByTestId('mock-task-status-panel');
 
         expect(taskStatusPanelMock.lastProps.agentSkills).toEqual(expect.arrayContaining([
@@ -1048,11 +1122,10 @@ describe('Workspace layout', () => {
             expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
         });
 
-        fireEvent.click(screen.getByText('Tasks'));
         fireEvent.click(await screen.findByText('Start mocked create vibecard'));
 
         expect(Modal.confirm).toHaveBeenCalledWith(expect.objectContaining({
-            title: 'Create VibeCard',
+            title: '生成阅读卡片',
             content: expect.stringContaining('至少 3 张'),
         }));
         expect(agentMock.runReadingAgentTask).not.toHaveBeenCalled();
@@ -1089,7 +1162,6 @@ describe('Workspace layout', () => {
             expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
         });
 
-        fireEvent.click(screen.getByText('Tasks'));
         fireEvent.click(await screen.findByText('Start mocked create vibecard'));
 
         await waitFor(() => {
@@ -1237,7 +1309,6 @@ describe('Workspace layout', () => {
             expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
         });
 
-        fireEvent.click(screen.getByText('Tasks'));
         fireEvent.click(await screen.findByText('Start mocked create vibecard'));
 
         await screen.findByTestId('mock-artifact-panel');
@@ -1302,7 +1373,6 @@ describe('Workspace layout', () => {
             expect(sourceIndexServiceMock.indexDocumentSourceSpans).toHaveBeenCalled();
         });
 
-        fireEvent.click(screen.getByText('Tasks'));
         fireEvent.click(await screen.findByText('Save mocked task result'));
 
         await waitFor(() => {

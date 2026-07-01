@@ -57,7 +57,7 @@ describe('validateRunnableModelConfig', () => {
             apiKey: 'sk-ant-test-key',
             modelName: 'claude-3-5-sonnet-latest',
             apiFormat: 'anthropic',
-        })).toEqual({
+        })).toMatchObject({
             ok: true,
             config: {
                 baseUrl: 'https://api.anthropic.com',
@@ -78,7 +78,7 @@ describe('validateRunnableModelConfig', () => {
             apiFormat: 'openai',
             authType: 'api-key',
             requiresApiKey: true,
-        })).toEqual({
+        })).toMatchObject({
             ok: true,
             config: {
                 baseUrl: 'https://example.test/v1',
@@ -92,27 +92,28 @@ describe('validateRunnableModelConfig', () => {
         });
     });
 
-    it('bypasses API key validation when requiresApiKey is false', () => {
+    it('allows no-key local endpoints when requiresApiKey is false', () => {
         expect(validateRunnableModelConfig({
-            baseUrl: 'https://api.moonshot.cn/v1',
-            modelName: 'moonshot-v1-8k',
+            baseUrl: 'http://127.0.0.1:8317/v1',
+            modelName: 'local-model',
             apiFormat: 'openai',
             apiKey: '',
             requiresApiKey: false,
-        })).toEqual({
+        })).toMatchObject({
             ok: true,
             config: {
-                baseUrl: 'https://api.moonshot.cn/v1',
+                baseUrl: 'http://127.0.0.1:8317/v1',
                 apiKey: '',
-                model: 'moonshot-v1-8k',
-                modelName: 'moonshot-v1-8k',
+                model: 'local-model',
+                modelName: 'local-model',
                 apiFormat: 'openai',
                 apiType: 'openai-compatible',
+                requiresApiKey: false,
             },
         });
     });
 
-    it('bypasses API key validation for Kimi Priority Trial presets', () => {
+    it('does not bypass API key validation for external Kimi presets', () => {
         expect(validateRunnableModelConfig({
             id: 'preset-kimi-free-trial',
             baseUrl: 'https://api.moonshot.cn/v1',
@@ -120,15 +121,9 @@ describe('validateRunnableModelConfig', () => {
             apiFormat: 'openai',
             apiKey: '  ',
         })).toEqual({
-            ok: true,
-            config: {
-                baseUrl: 'https://api.moonshot.cn/v1',
-                apiKey: '',
-                model: 'moonshot-v1-8k',
-                modelName: 'moonshot-v1-8k',
-                apiFormat: 'openai',
-                apiType: 'openai-compatible',
-            },
+            ok: false,
+            code: 'missing_api_key',
+            message: expect.any(String),
         });
     });
 });

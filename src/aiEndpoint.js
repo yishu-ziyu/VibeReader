@@ -16,7 +16,10 @@ export function resolveAiEndpointForRuntime(endpoint, origin = globalThis.locati
     }
 
     // MiniMax dev proxy routing
-    if (parsed.origin === 'https://api.minimaxi.com' && parsed.pathname.startsWith('/anthropic/')) {
+    if (
+        (parsed.origin === 'https://api.minimax.io' || parsed.origin === 'https://api.minimaxi.com') &&
+        parsed.pathname.startsWith('/anthropic/')
+    ) {
         return `${parsed.pathname.replace(/^\/anthropic/, '/api/minimax')}${parsed.search}`;
     }
 

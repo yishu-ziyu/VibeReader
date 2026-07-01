@@ -1,5 +1,34 @@
 # Vibero Standalone 开发日志
 
+## 2026-07-01 Phase 50：对标 Vibero 后的精读主流程收束
+
+背景：
+
+- 对比 Vibero 后确认当前差距不在单点 AI 能力，而在产品心智仍像工具集合。
+- 本轮把主入口收束为“开始精读”，让用户围绕阅读路线、原文依据和卡片沉淀完成闭环。
+
+改动：
+
+- 顶部新增“开始精读”主按钮，顺序启动论文总览、阅读路线和阅读卡片 agent。
+- 右侧主标签从“摘要 / 卡片 / 导航 / 笔记 / 任务 / 对话”收束为“阅读路线 / 卡片 / 笔记 / 对话”。
+- “任务”降级为阅读路线页内的“精读进度”，保留单项补跑、失败重试和结果保存能力。
+- 打开 PDF、Markdown、文本、HTML 文档后默认进入“阅读路线”，避免用户从笔记页开始迷失。
+- 将“注意力导航 / 分析关键位置”改为“阅读路线 / 生成阅读路线”，并补充更用户化的空状态说明。
+- 修复右侧残留英文 UI：Sources、Context、Relevant、Current page、Current section、Selected paragraph 等改为中文。
+- 更新 onboarding，让新用户按“上传文档 -> 开始精读 -> 跟随阅读路线 -> 沉淀阅读卡片 -> 继续追问 AI”的主流程理解产品。
+
+命令：
+
+- `pnpm test -- --reporter=dot` -> pass（54 files / 287 tests）。
+- `pnpm build` -> pass，保留既有 chunk size warning。
+- 系统 Chrome + Playwright 回退验证 `http://127.0.0.1:3217/` -> pass：首屏出现“开始精读”和“阅读路线”，上传 `demo-assets/wonderland_short.pdf` 后“开始精读”可用，旧“任务”主标签不存在。
+- `git diff --check` -> pass。
+
+遗留风险：
+
+- 本轮只收束主流程和信息架构，没有重做阅读路线生成质量。
+- `开始精读` 当前串行触发已有 agent，后续需要更精细的任务编排、取消、队列状态和失败恢复体验。
+
 ## 2026-06-13 Phase 42：VibeCard Persistence Restart
 
 目标：
@@ -1738,3 +1767,387 @@ BDD/TDD：
 - Modal 关闭后 `Modal.confirm` zIndex 10002 临时处理，长远应在 Modal 库层面做
 - yishuship 状态机在多 session 间未持久化任务历史
 
+## 2026-07-01 Phase 44：Project Intake + Test Harness Stabilization
+
+### 目标
+
+1. 接手 `/Users/mahaoxuan/Desktop/黑客松/阅读器` 项目，确认当前开发主线。
+2. 清理继续开发前的测试地基问题，避免后续改动被 jsdom/AntD 环境噪声挡住。
+3. 修复 Notes 等非 Chat 面板下模型服务配置不可达的问题。
+
+### 项目判断
+
+- 当前主线是 `ai-chat-standalone`：React 18 + Vite + Tauri v2 的 VibeReader 独立桌面阅读器。
+- 同级 `Vibero` 是历史 Zotero fork / 参考仓库，且当前工作树有未提交改动；除非要做 Zotero 集成，否则不要把它当主开发面。
+- `ai-chat-standalone/CODEX.md`、`PROJECT_MAP.md`、`docs/current-state.md` 是后续 agent 接手时应优先读取的项目地图。
+
+### 改动
+
+- 新增 `src/test/setup.js`，为 Vitest/jsdom 统一补齐 `matchMedia`、`ResizeObserver`、`IntersectionObserver`、`scrollIntoView`，并包裹 `getComputedStyle` 以避开 AntD pseudo-element 环境缺口。
+- `vitest.config.js` 接入全局 setup，避免每个测试文件重复补浏览器 API。
+- `persistentStorage` 在非 Tauri 且 IndexedDB 不可用时，对 conversation save/delete 做安全兜底，保持“浏览器受限环境不崩溃”的产品契约。
+- `App` 顶部工作区增加全局模型服务入口；在 Notes / Tasks / Summary 等面板也能直接进入 Chat 并打开模型配置。
+- 顶部模型服务入口增加最大宽度和文本省略，避免长模型名挤压工具栏。
+
+### 验收
+
+- RED：初始 `pnpm test -- --reporter=dot` 失败，主要原因是 `window.matchMedia is not a function` 连锁打断 AntD `Steps`/Onboarding 渲染；另有非 Tauri 环境下 IndexedDB 缺失导致 persistentStorage 测试失败。
+- GREEN：`pnpm exec vitest run src/WorkspaceLayout.test.jsx src/App.lensCardClosure.test.jsx src/dragInject.test.js src/services/persistentStorage.test.js --reporter=dot` -> pass，4 files / 28 tests。
+- 最终目标测试：`pnpm exec vitest run src/App.lensCardClosure.test.jsx src/WorkspaceLayout.test.jsx --reporter=dot` -> pass，2 files / 19 tests。
+- 全量测试：`pnpm test -- --reporter=dot` -> pass，53 files / 274 tests。
+- 构建：`pnpm build` -> pass，保留既有 chunk size warning。
+- 浏览器验证：`pnpm dev` + Playwright 打开 `http://127.0.0.1:3217/`，确认首屏非空、顶部模型服务入口可见；点击后右侧切换到「对话」并打开「自定义模型设置」Modal。
+- Rust/Tauri：初始被 Homebrew `libgit2` -> `llhttp` dylib 断链阻塞；升级 `libgit2 1.9.2_1 -> 1.9.4` 与 `rust 1.94.1 -> 1.96.0` 后，`cd src-tauri && cargo fmt --check && cargo check && cargo test` -> pass，1 command test + 22 storage core tests。
+
+### 遗留风险
+
+- 浏览器控制面未暴露 Browser 插件要求的 `node_repl js` 入口，因此本轮按前端验证规则 fallback 到 Playwright，并已记录。
+- 仍有既有 AntD `useForm` warning 与 zIndex warning；当前不影响目标流程，但后续整理 Modal 生命周期时应一并清理。
+
+## 2026-07-01 Phase 45：Model Config Truthfulness + Kimi WebBridge Validation
+
+> Superseded note: Phase 46 corrected the model-service truth. This phase fixed the "keyless Kimi" guard, but its browser validation still showed Kimi and MiniMax-M2.7 in the UI because it had not yet applied the owned-service rule from the desktop `AI组件工作流库`.
+
+### 目标
+
+1. 修复模型配置误导：外部 Kimi/Moonshot API 不能被当成“无需 Key 可用”的体验链路。
+2. 让旧 localStorage / Zustand 持久态自动迁移，避免历史 `preset-kimi-free-trial` 继续污染运行态。
+3. 用 Kimi WebBridge 接管真实 Chrome 页面验证配置弹窗，而不是只依赖 jsdom/单元测试。
+
+### 改动
+
+- 新增 `src/modelConfigMigration.js`，统一推断 `providerKey`、规范 `requiresApiKey`、修复旧 Kimi/MiniMax 配置。
+- 旧 Kimi free-trial 配置迁移为 `providerKey: kimi` 且 `requiresApiKey: true`；只有本地端点或 `authType: none` 可保留无 Key 模式。
+- `modelConfigGuard` 收紧运行前校验，外部端点即使传入 `requiresApiKey:false` 也不能绕过 API Key。
+- 默认模型 seed 从 `preset-kimi-free-trial / moonshot-v1-8k / no key` 改为真实的 `preset-kimi-default / kimi-k2.6 / requires key`。
+- `modelPresets` 隐藏历史 `kimi-free-trial` picker 项，并让旧兼容格式带上 `id/apiType/codingPlan/tokenPlan`。
+- 修复 ChatInput 旧模型配置弹窗与独立 `ModelConfigModal` 的 provider/model 受控状态同步。
+- 修复 Anthropic-compatible provider URL 规范化：MiniMax/MiMo 这类 `/anthropic` 端点不再被错误追加 `/v1`，已污染的 `/anthropic/v1` 会迁回 `/anthropic`。
+- `aiService` 在 API Key 为空时不再发送空认证头，配合 guard 支持本地无认证代理。
+
+### 验收
+
+- Kimi WebBridge：`~/.kimi-webbridge/bin/kimi-webbridge status` -> daemon running，Chrome extension connected。
+- Kimi WebBridge 浏览器验证 `http://127.0.0.1:3217/`：
+  - 旧 Kimi 配置自动迁移为 `providerKey: kimi`、`requiresApiKey: true`。
+  - 顶部入口显示「配置模型服务」，不会把空 Key Kimi 当成可运行模型。
+  - 配置弹窗中 Kimi 行显示 `Kimi (Moonshot)` + `Moonshot v1 8K` + `OpenAI格式`，API Key placeholder 不再出现“无需 Key”。
+  - 切换 MiniMax 行显示 `MiniMax` + `MiniMax-M2.7` + `Anthropic格式`，Base URL 为 `https://api.minimaxi.com/anthropic`。
+- 定向测试：`pnpm exec vitest run src/modelConfigMigration.test.js src/modelPresets.test.js src/modelConfigGuard.test.js src/testModelConfigSeed.test.js src/App.lensCardClosure.test.jsx --reporter=dot` -> pass，5 files / 25 tests。
+- 全量测试：`pnpm test -- --reporter=dot` -> pass，54 files / 280 tests。
+- 构建：`pnpm build` -> pass，保留既有 chunk size warning。
+
+### 遗留风险
+
+- 顶部按钮当前仍打开 ChatInput 内置旧配置弹窗；它已修到同一契约，但后续应考虑移除旧弹窗，只保留独立 `ModelConfigModal`。
+- Kimi/Moonshot 模型列表仍应在接入真实 Key 前再按当前官方控制台复核一次；本轮重点是修正“无 Key 可用”的错误产品契约。
+
+## 2026-07-01 Phase 46：Owned Model Service Correction
+
+> Superseded note: Phase 47 corrected the MiniMax host and credential-mode split. Phase 46 used `api.minimax.io` from the earlier local workflow note, but the current MiniMax Chinese platform docs and product feedback require `api.minimaxi.com` plus separate Token Plan/API choices.
+
+### 触发
+
+用户明确纠正：产品开发的第一批用户是我们自己，因此默认配置和测试链路只能使用我们真实拥有的大模型服务。当前本机事实源是桌面 `AI组件工作流库`，不是 provider preset 列表。
+
+### 本机事实
+
+- MiniMax Token Plan 是当前 VibeReader QA 默认链路。
+- 模型：`MiniMax-M3`。
+- 协议：Anthropic-compatible。
+- Base URL：`https://api.minimax.io/anthropic`。
+- 环境变量：`MINIMAX_API_KEY`。
+- Kimi/Moonshot 当前没有确认可复用本机 Key，因此不能作为默认、免 Key 或演示兜底链路。
+
+### 改动
+
+- 默认 first-use / QA seed 改为 `preset-minimax-default / MiniMax-M3 / https://api.minimax.io/anthropic`。
+- 旧 `preset-kimi-free-trial` 空 Key 记录从运行配置中丢弃，不再迁移成可见可运行配置。
+- Kimi provider 保留为可选，但默认模型改为 `kimi-k2.6`，并要求真实 Key。
+- 移除导入模板中的 keyless Kimi free-trial 记录。
+- MiniMax M2.7 与 `api.minimaxi.com` 历史配置会迁移到 M3 与 `api.minimax.io`。
+- 新增 `docs/LOCAL_MODEL_SERVICES.md`，并从 `PROJECT_MAP.md`、`CODEX.md`、个人 Codex work method、Codex memory registry 指向它。
+- 更新比赛 checklist / pitch / code wiki / review 文档，移除“Kimi 免 Key”作为当前可执行口径。
+
+### 验收
+
+- 定向单测：`pnpm exec vitest run src/modelConfigMigration.test.js src/modelPresets.test.js src/modelConfigGuard.test.js src/testModelConfigSeed.test.js src/aiEndpoint.test.js src/App.lensCardClosure.test.jsx src/agent/lensCard.test.js src/agent/artifact.test.js --reporter=dot` -> pass，8 files / 39 tests。
+- 全量测试：`pnpm test -- --reporter=dot` -> pass，54 files / 284 tests。
+- 构建：`pnpm build` -> pass，保留既有 chunk size warning。
+- `git diff --check` -> pass。
+- 真实 Chromium 浏览器验证：
+  - 写入旧 localStorage：keyless `preset-kimi-free-trial` + `MiniMax-M2.7` + `api.minimaxi.com`。
+  - 刷新后仅保留 MiniMax 配置，`name/modelName` 都迁移为 `MiniMax-M3`，Base URL 迁移为 `https://api.minimax.io/anthropic`。
+  - 顶部模型入口打开统一 `ModelConfigModal`，不再打开 ChatInput 旧弹窗。
+  - Modal 不显示 `MiniMax-M2.7`、`moonshot-v1` 或“无需 API Key”。
+
+## 2026-07-01 Phase 47：MiniMax API / Token Plan Split
+
+### 触发
+
+用户在真实浏览器中用 MiniMax Key 测试连接，UI 显示 `连接失败: Failed to fetch`。用户指出 MiniMax 官方有两种接入方式：API 与 Token Plan；产品必须让用户明确选择。
+
+### 官方事实
+
+- MiniMax 按量付费 API Key 与 Token Plan 订阅 Key 相互独立，不能互换。
+- Token Plan 快速接入文档使用 `ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic`。
+- MiniMax M3 文本能力可通过 Anthropic-compatible 接口接入。
+
+### 改动
+
+- `modelPresets` 拆成两个可见 provider：
+  - `MiniMax Token Plan`：`providerKey: minimax`，订阅 Key，默认 env `MINIMAX_TOKEN_PLAN_KEY`。
+  - `MiniMax API`：`providerKey: minimax-api`，按量付费 API Key，默认 env `MINIMAX_API_KEY`。
+- 默认 first-use / QA seed 仍选择 Token Plan，但 Base URL 改为 `https://api.minimaxi.com/anthropic`。
+- `ModelConfigModal` 快速模板新增 `MiniMax API`，并保留 `MiniMax Token Plan`。
+- `测试连接` 改为使用 `resolveAiEndpointForRuntime()`，本地浏览器会走 Vite dev proxy，不再直接跨域 fetch 外部接口。
+- Vite `/api/minimax` 代理目标改为 `https://api.minimaxi.com`。
+- 迁移器把旧 `api.minimax.io` 与 MiniMax M2.7 配置迁移到 `api.minimaxi.com` + `MiniMax-M3`。
+- 更新 `docs/LOCAL_MODEL_SERVICES.md`、`PROJECT_MAP.md`、Code Wiki、比赛文档和全局 Codex 记忆。
+
+### 验收
+
+- 定向单测：`pnpm exec vitest run src/modelConfigMigration.test.js src/modelPresets.test.js src/testModelConfigSeed.test.js src/aiEndpoint.test.js src/App.lensCardClosure.test.jsx --reporter=dot` -> pass，5 files / 28 tests。
+- 全量测试：`pnpm test -- --reporter=dot` -> pass，54 files / 287 tests。
+- 构建：`pnpm build` -> pass，保留既有 chunk size warning。
+- `git diff --check` -> pass。
+- 重启 dev server：`http://127.0.0.1:3217/`，使新的 Vite proxy target 生效。
+- 真实 Chromium 浏览器验证：
+  - Modal 点击「添加新配置」后同时显示 `MiniMax Token Plan` 与 `MiniMax API`。
+  - 使用假 Token Plan Key 并拦截网络，请求命中 `http://127.0.0.1:3217/api/minimax/v1/messages`。
+  - 页面出现「连接成功」，说明测试连接走本地代理，不再直接跨域 fetch 外部接口。
+
+## 2026-07-01 Phase 48：PDF Selection Toolbar UX Repair
+
+### 触发
+
+用户在真实阅读流中划选 PDF 文本后，选区动作条遮挡正文且按钮过大；PDF text layer 被全局 selection 样式染黑后出现拉伸乱码观感。
+
+### 改动
+
+- `PdfAnnotationToolbar` 从文字按钮长条改成紧凑图标气泡，默认只显示生成卡片、询问 AI、高亮、笔记 4 个图标按钮。
+- 笔记输入不再默认展开；点击笔记图标后才展开输入框。
+- `PdfViewer` 将动作条定位从选区上方改为选区下方，并限制在当前滚动视口内。
+- PDF text layer 增加 `textLayer pdf-text-layer` class，并为 `.textLayer ::selection` 设置透明文字色，只保留选区背景，避免把隐藏文本渲染成黑色拉伸字形。
+
+### 验收
+
+- 定向测试：`pnpm exec vitest run src/PdfAnnotationToolbar.test.jsx src/pdfSelection.test.js src/services/documentIsolation.test.jsx --reporter=dot` -> pass，3 files / 12 tests。
+- 构建：`pnpm build` -> pass，保留既有 chunk size warning。
+- Playwright Chromium 真实渲染验证：
+  - 上传 `demo-assets/outline-demo.pdf`。
+  - 在 PDF text layer 真实拖拽划词。
+  - 动作条可见，宽度约 `145px`，默认没有笔记输入框。
+  - 动作条位于选区下方，未与选区矩形重叠。
+  - PDF text layer 选区文字颜色为 transparent，只显示选区背景。
+  - 截图：`/tmp/vibereader-pdf-selection-toolbar-after.png`。
+
+## 2026-07-01 Phase 49：Notes Markdown Rendering and Chinese UI Pass
+
+### 触发
+
+用户指出右侧「笔记」面板把 Lens Card / Reading Note 的 Markdown 原样显示，`#`、`##`、列表和引用没有被渲染；同时右侧工作区存在中英文混杂，如 `Tasks`、`Reading Tasks`、`grounded`、`Workspace`、`Skim Map`。
+
+### 改动
+
+- `ArtifactPanel` 复用现有 `MarkdownRenderer` 渲染卡片正文、解释、回答、阅读笔记正文和用户备注。
+- 为卡片内 Markdown 添加紧凑样式，避免直接套聊天 Markdown 样式导致卡片过松。
+- 将右侧笔记面板可见文案中文化：
+  - 卡片类型：阅读卡片、解释卡片、概念卡片、阅读笔记。
+  - 导入导出按钮：预览导出、导入 JSON、导出所选、下载 Markdown / JSON。
+  - 卡片状态：`grounded` 显示为「有原文依据」。
+- 将任务面板可见文案中文化：
+  - `Tasks` -> 「任务」，`Reading Tasks` -> 「阅读任务」。
+  - `Paper overview / Attention route / Create VibeCard` -> 「论文总览 / 阅读路线 / 生成卡片」。
+  - 状态与动作：等待中、运行中、已完成、失败、重试、保存到笔记。
+- 将主工作区硬编码 `Workspace` / `Skim Map` 改为「工作台」/「阅读地图」。
+- 新增 `vibereader:artifacts-updated` 浏览器事件监听，用于外部导入或存储更新后显式刷新当前文档卡片，避免靠切 tab 刷新与正在生成卡片的乐观更新互相覆盖。
+
+### 验收
+
+- 定向测试：`pnpm exec vitest run src/ArtifactPanel.test.jsx src/TaskStatusPanel.test.jsx src/WorkspaceLayout.test.jsx src/dragInject.test.js --reporter=dot` -> pass，4 files / 49 tests。
+- Playwright Chromium 真实渲染验证：
+  - 使用 `zh-CN` locale 上传 Markdown 文档。
+  - 注入同 documentId 的阅读笔记卡片并派发 `vibereader:artifacts-updated`。
+  - 右侧「笔记」卡片中 `# / ## / - / >` 被渲染为真实 `h1 / h2 / li / blockquote`。
+  - 卡片文本不再包含裸 `# 测试标题`。
+  - 「工作台」「阅读地图」「最近文档」「阅读任务」「暂无阅读任务」「有原文依据」均为中文。
+  - Console 无 error / warning。
+  - 截图：`/tmp/vibereader-markdown-notes-after.png`。
+
+## 2026-07-01 Phase 50：Controlled UniRAG Query From Reader Chat
+
+### 触发
+
+按照 yishuship 继续推进知识飞轮。上一阶段已经把真实 Reader 文档接入 UniRAG ingest，并在界面显示「知识入库」状态；本阶段目标是让入库完成后的普通文本追问真正走 UniRAG 查询，而不是只停留在本地检索上下文。
+
+### 改动
+
+- `documentKnowledgeService` 新增 `isDocumentKnowledgeQueryReady(documentId)`，通过 `DocumentKnowledgeLink` 判断当前文档是否已完成入库且具备 UniRAG source/filename。
+- `App.handleSubmit` 增加受控 UniRAG 查询路径：
+  - 当前文档存在；
+  - 无图片；
+  - 不是手动注入选中文本/文档上下文；
+  - UniRAG health 可用；
+  - 当前文档入库完成。
+- 满足条件时调用 `UniRagHttpAdapter.query()`，携带当前问题、会话、`topK=5`、provider 和 API Key。
+- UniRAG 返回的 citations 继续走现有 `sourceRefs` 渲染，右侧聊天气泡显示「原文依据」。
+- 如果 UniRAG 查询失败，保留旧路径：本地 source index 检索 + 当前模型 chatStream fallback。
+- `App.retrievalContext.test.jsx` 增加 UniRAG eligible path 测试，确认入库完成时调用 `/api/query` 且不调用旧 chatStream。
+
+### 验收
+
+- 定向测试：`npm test -- src/App.retrievalContext.test.jsx -t "routes text-only chat through UniRAG|sends retrieved source excerpts"` -> pass，1 file / 2 tests。
+- 阶段回归：`npm test -- src/services/documentKnowledgeService.test.js src/services/ragEngineAdapter.test.js src/services/sourceIndexService.test.js src/App.retrievalContext.test.jsx src/WorkspaceLayout.test.jsx` -> pass，5 files / 51 tests。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Playwright Chromium 真实浏览器验证：
+  - dev server：`http://127.0.0.1:3322/`。
+  - 上传 `demo-assets/sample.md`。
+  - mock UniRAG health / ingest / status / query。
+  - 页面显示 `知识入库：已完成`。
+  - 在真实 Slate 输入框发送 `What is the core loop of this document?`。
+  - `/api/query` 收到一次请求，payload 包含 `provider: minimax`、`mode: chat`、`top_k: 5`。
+  - 页面显示 `UniRAG smoke answer: the reader and assistant stay visible together.`、`原文依据`、`P1`。
+  - 结束后停止 `3322` dev server，端口无监听。
+
+## 2026-07-01 Phase 51：UniRAG Citation Grounding and Jump
+
+### 触发
+
+继续 yishuship 当前阶段：UniRAG answer 已经能显示 citations，但远端 `chunk_id` 并不是 Reader 本地段落 id，点击 citation 仍可能无法回到原文。产品上这会削弱用户信任，因为“有引用”必须进一步变成“能回原文验证”。
+
+### 改动
+
+- `sourceIndexService` 新增 `groundSourceRefsForDocument(sourceRefs, document)`：
+  - citation text 能匹配本地 source chunk 时，转成段落级 evidence；
+  - text 匹配失败但 citation 有 page 时，转成页级 evidence；
+  - page/text 都不可用时，转成文档级 evidence；
+  - 保留 `originalDocumentId` / `originalParagraphId`，并新增 `grounding.precision / matchedBy / score`。
+- `App` 在 UniRAG query 成功后，对 `result.sourceRefs` 立刻做本地 grounding，再写入 assistant message。
+- 引用按钮对低精度 evidence 显式降级显示：
+  - 段落级：`P2`
+  - 页级：`P2 · 页级`
+  - 文档级：`来源 1 · 文档级`
+- `DocumentReader` 在 paragraphId 找不到时，使用 citation text fallback 高亮最接近段落，解决 Markdown/Text DOM id 与 source index id 命名不一致的问题。
+- `PdfViewer` 对没有 rect 的页级 source span 也执行跳页，不再静默忽略。
+- `App.retrievalContext.test.jsx` 增加 grounded UniRAG citation 点击测试，确认会派发当前文档的 `paragraphId`。
+
+### 验收
+
+- 定向测试：`npm test -- src/services/sourceIndexService.test.js src/DocumentReader.test.jsx src/App.retrievalContext.test.jsx -t "grounds UniRAG|page-level grounding|document-level evidence|falls back to citation text|grounded UniRAG|routes text-only chat"` -> pass，3 files / 6 tests。
+- Adapter / ingest 测试：`npm test -- src/services/ragEngineAdapter.test.js src/services/documentKnowledgeService.test.js` -> pass，2 files / 14 tests。
+- 阶段回归：`npm test -- src/services/documentKnowledgeService.test.js src/services/ragEngineAdapter.test.js src/services/sourceIndexService.test.js src/App.retrievalContext.test.jsx src/WorkspaceLayout.test.jsx src/DocumentReader.test.jsx` -> pass，6 files / 61 tests。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Playwright Chromium 真实浏览器验证：
+  - dev server：`http://127.0.0.1:3322/`。
+  - 上传 `demo-assets/sample.md`，等待 `知识入库：已完成`。
+  - mock UniRAG query 返回一个 remote `chunk_id`，该 id 不等于 Reader 段落 id。
+  - 页面显示段落级 `P1` citation，而不是 `页级/文档级` 降级标签。
+  - 点击 `P1` 后，左侧 Reader 中包含 `reader and assistant are visible at the same time` 的段落出现 `.paragraph-pulse-highlight`。
+  - 结束后停止 `3322` dev server，端口无监听。
+
+## 2026-07-01 Phase 52：Saved Answer/Card/Note Memory Ingest
+
+### 触发
+
+按照 yishuship 下一阶段推进：引用已经能回原文验证，因此用户保存下来的回答卡片、阅读卡片和笔记应该进入长期知识飞轮。目标不是只保存到本地 Notes，而是让产品记住“用户确认值得保留的理解”。
+
+### 改动
+
+- `ragEngineAdapter` 新增 saved memory API contract：
+  - `POST /api/memory/jobs`
+  - `GET /api/memory/jobs/{job_id}`
+- 新增 `savedMemoryService`：
+  - `SAVED_MEMORY_INGEST_TASK_TYPE = 'saved_memory_ingest'`
+  - `canIngestSavedMemoryArtifact`
+  - `buildSavedMemoryPayload`
+  - `startSavedMemoryIngest`
+- memory payload 包含：
+  - artifact id/type/title；
+  - document id/name/kind/fingerprint；
+  - verificationStatus；
+  - sourceRefs 与 `grounding.precision`；
+  - question/answer/summary/body/userNote/keyPoints/claims；
+  - 一份可直接入库的 markdown `text`。
+- App 在以下保存路径触发非阻塞 memory ingest：
+  - 保存 assistant answer card；
+  - 生成 Lens Card；
+  - 子组件回传的 concept/evidence/route cards；
+  - agent task result 保存为 reading_note。
+- 本地 artifact 保存不等待 memory ingest；memory ingest 失败只更新状态和任务，不回滚本地卡片。
+- 顶部新增 `记忆沉淀` 状态 badge，区分原始文档 `知识入库`。
+- `TaskStatusPanel` 将 `saved_memory_ingest` 显示为「记忆沉淀」。
+
+### 验收
+
+- Focused tests：`npm test -- src/services/savedMemoryService.test.js src/services/ragEngineAdapter.test.js src/App.retrievalContext.test.jsx src/TaskStatusPanel.test.jsx` -> pass，4 files / 41 tests。
+- Supporting tests：`npm test -- src/services/documentKnowledgeService.test.js src/services/sourceIndexService.test.js src/DocumentReader.test.jsx` -> pass，3 files / 22 tests。
+- Phase regression：`npm test -- src/services/documentKnowledgeService.test.js src/services/ragEngineAdapter.test.js src/services/savedMemoryService.test.js src/services/sourceIndexService.test.js src/App.retrievalContext.test.jsx src/WorkspaceLayout.test.jsx src/DocumentReader.test.jsx src/TaskStatusPanel.test.jsx` -> pass，8 files / 80 tests。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- Playwright Chromium 真实浏览器验证：
+  - dev server：`http://127.0.0.1:3322/`。
+  - 上传 `demo-assets/sample.md`，等待 `知识入库：已完成`。
+  - 提问 `What should I remember from this document?`，mock UniRAG answer 和 grounded citation。
+  - 点击 `保存回答卡片`。
+  - `/api/memory/jobs` 收到一次请求，payload 是 `explain_card`，包含 answer、document、paragraph-level grounded sourceRefs。
+  - 页面显示 `记忆沉淀：已完成`。
+  - 结束后停止 `3322` dev server，端口无监听。
+
+## 2026-07-01 Phase 53：Memory-Aware Reader Query Contract
+
+### 触发
+
+继续 yishuship 的知识飞轮：上一阶段已经能把用户保存的回答卡片、阅读卡片和笔记送入 memory ingest。下一步是让后续问答主动请求这些“用户确认过的记忆”，并在 UI 上明确区分“原文依据”和“我的记忆”。
+
+### 改动
+
+- `ragEngineAdapter.query()` 新增 Reader -> UniRAG query contract：
+  - `include_memory: true`
+  - `memory_top_k: 3`
+- `ragEngineAdapter` 归一化 UniRAG citations 时区分：
+  - raw source：`evidenceType: "source"` / `sourceType: "document"`
+  - saved memory：`evidenceType: "memory"` / `sourceType: "saved_memory"`
+- memory citation 支持识别 `source_type/sourceType/evidence_type/kind`，也支持通过 `artifact_id/memory_id` 判断。
+- memory citation 保留：
+  - `artifactId`
+  - `artifactType`
+  - `memoryId`
+  - `memoryTitle`
+  - nested `sourceRefs`
+- `App` 对 UniRAG 返回的 sourceRefs 做分流：
+  - 文档来源继续进入 `groundSourceRefsForDocument()`；
+  - memory 来源不伪装成原文段落，不做本地 grounding。
+- Assistant 引用 UI 分组显示：
+  - `原文依据`
+  - `我的记忆`
+- 点击 `我的记忆` citation：
+  - 切换右侧到 Notes；
+  - 派发 `vibereader:navigate-artifact`；
+  - `ArtifactPanel` 滚动到对应 saved card 并加 `.artifact-pulse-highlight`。
+- `styles.css` 为 memory source button 与 artifact highlight 增加低调绿色状态。
+
+### 明确边界
+
+本阶段完成的是 Reader 侧契约和真实浏览器行为验证。当前 UniRAG 仓库未确认已有 `include_memory` / `/api/memory/jobs` 的真实后端实现；因此 Playwright smoke 使用 route mock 验证 Reader 对预期 API contract 的行为。下一阶段应进入 UniRAG 后端，实现真实 memory persistence/retrieval。
+
+### 验收
+
+- 聚焦测试：`npm test -- --run src/services/ragEngineAdapter.test.js src/App.retrievalContext.test.jsx src/ArtifactPanel.test.jsx` -> pass，3 files / 44 tests。
+- 阶段回归：`npm test -- --run src/services/sourceIndexService.test.js src/services/documentKnowledgeService.test.js src/services/savedMemoryService.test.js src/services/ragEngineAdapter.test.js src/TaskStatusPanel.test.jsx src/ArtifactPanel.test.jsx src/DocumentReader.test.jsx src/App.retrievalContext.test.jsx` -> pass，8 files / 83 tests。
+- 全量测试：`npm test` -> pass，57 files / 317 tests。
+- 构建：`npm run build` -> pass，保留既有 chunk size warning。
+- `git diff --check` -> pass。
+- Playwright Chromium 真实浏览器验证：
+  - dev server：`http://127.0.0.1:3322/`。
+  - 上传 `demo-assets/sample.md`，等待 `知识入库：已完成`。
+  - 第一次提问 `What should I remember?`，`/api/query` payload 包含 `include_memory: true` / `memory_top_k: 3`。
+  - 保存回答卡片后，`/api/memory/jobs` 收到 `explain_card` memory payload，页面显示 `记忆沉淀：已完成`。
+  - 第二次提问 `What did my saved memory say?`，`/api/query` 仍包含 `include_memory: true` / `memory_top_k: 3`。
+  - mock 返回 `saved_memory` citation 后，assistant message 显示 `我的记忆`。
+  - 点击 memory citation 后，右侧 Notes active，目标卡片出现 `.artifact-pulse-highlight`。
+
+### yishuship 记录
+
+- 新增 `.ship/tasks/20260701-vibereader-knowledge-flywheel/delivery/phase-1-memory-aware-query.md`。
+- 新增 `.ship/tasks/20260701-vibereader-knowledge-flywheel/e2e/phase-1-memory-aware-query-browser.md`。
+- 新增下一阶段计划 `.ship/tasks/20260701-vibereader-knowledge-flywheel/plan/phase-1-unirag-memory-backend-goal.md`。

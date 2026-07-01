@@ -10,6 +10,7 @@ import {
     loadPersistentConversation,
     savePersistentConversation,
 } from './services/persistentStorage';
+import { normalizeModelConfigList } from './modelConfigMigration';
 
 const LS_PREFIX = 'ai-chat.';
 const DB_NAME = 'ai-chat-db';
@@ -190,11 +191,16 @@ const CONFIG_KEY = 'modelConfigs';
 const SELECTED_CONFIG_KEY = 'selectedConfigId';
 
 export function getModelConfigs() {
-    return getPref(CONFIG_KEY, []);
+    const configs = getPref(CONFIG_KEY, []);
+    const normalized = normalizeModelConfigList(configs);
+    if (JSON.stringify(configs) !== JSON.stringify(normalized)) {
+        setPref(CONFIG_KEY, normalized);
+    }
+    return normalized;
 }
 
 export function saveModelConfigs(configs) {
-    return setPref(CONFIG_KEY, configs);
+    return setPref(CONFIG_KEY, normalizeModelConfigList(configs));
 }
 
 export function getSelectedConfigId() {

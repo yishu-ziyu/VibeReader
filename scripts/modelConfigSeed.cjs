@@ -1,10 +1,12 @@
 const DEFAULT_TEST_CONFIG = {
-  id: 'preset-kimi-free-trial',
-  baseUrl: 'https://api.moonshot.cn/v1',
-  modelName: 'moonshot-v1-8k',
-  apiFormat: 'openai',
+  id: 'preset-minimax-default',
+  baseUrl: 'https://api.minimaxi.com/anthropic',
+  modelName: 'MiniMax-M3',
+  apiFormat: 'anthropic',
   apiKey: '',
-  requiresApiKey: false,
+  requiresApiKey: true,
+  providerKey: 'minimax',
+  credentialMode: 'token-plan',
 };
 
 const ENV_PROVIDER_CONFIGS = [
@@ -16,6 +18,7 @@ const ENV_PROVIDER_CONFIGS = [
     baseUrl: 'https://api.stepfun.com/v1',
     modelName: 'step-3.7-flash',
     apiFormat: 'openai',
+    providerKey: 'stepfun',
   },
   {
     envNames: ['MIMO_API_KEY', 'MIMO_TOKEN_PLAN_KEY'],
@@ -25,15 +28,29 @@ const ENV_PROVIDER_CONFIGS = [
     baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
     modelName: 'mimo-v2.5-pro',
     apiFormat: 'anthropic',
+    providerKey: 'mimo',
   },
   {
-    envNames: ['MINIMAX_TOKEN_PLAN_KEY', 'MINIMAX_API_KEY'],
+    envNames: ['MINIMAX_TOKEN_PLAN_KEY'],
     baseUrlEnvNames: ['MINIMAX_BASE_URL', 'MINIMAX_ANTHROPIC_BASE_URL'],
     modelEnvNames: ['MINIMAX_MODEL'],
-    id: 'qa-env-minimax',
+    id: 'qa-env-minimax-token-plan',
     baseUrl: 'https://api.minimaxi.com/anthropic',
-    modelName: 'MiniMax-M2.7',
+    modelName: 'MiniMax-M3',
     apiFormat: 'anthropic',
+    providerKey: 'minimax',
+    credentialMode: 'token-plan',
+  },
+  {
+    envNames: ['MINIMAX_API_KEY'],
+    baseUrlEnvNames: ['MINIMAX_BASE_URL', 'MINIMAX_ANTHROPIC_BASE_URL'],
+    modelEnvNames: ['MINIMAX_MODEL'],
+    id: 'qa-env-minimax-api',
+    baseUrl: 'https://api.minimaxi.com/anthropic',
+    modelName: 'MiniMax-M3',
+    apiFormat: 'anthropic',
+    providerKey: 'minimax-api',
+    credentialMode: 'pay-as-you-go-api',
   },
   {
     envNames: ['KIMI_API_KEY'],
@@ -41,8 +58,9 @@ const ENV_PROVIDER_CONFIGS = [
     modelEnvNames: ['KIMI_MODEL'],
     id: 'qa-env-kimi',
     baseUrl: 'https://api.moonshot.cn/v1',
-    modelName: 'moonshot-v1-8k',
+    modelName: 'kimi-k2.6',
     apiFormat: 'openai',
+    providerKey: 'kimi',
   },
   {
     envNames: ['MOONSHOT_API_KEY'],
@@ -50,8 +68,9 @@ const ENV_PROVIDER_CONFIGS = [
     modelEnvNames: ['MOONSHOT_MODEL'],
     id: 'qa-env-moonshot',
     baseUrl: 'https://api.moonshot.cn/v1',
-    modelName: 'moonshot-v1-8k',
+    modelName: 'kimi-k2.6',
     apiFormat: 'openai',
+    providerKey: 'kimi',
   },
   {
     envNames: ['DEEPSEEK_API_KEY'],
@@ -61,6 +80,7 @@ const ENV_PROVIDER_CONFIGS = [
     baseUrl: 'https://api.deepseek.com/v1',
     modelName: 'deepseek-chat',
     apiFormat: 'openai',
+    providerKey: 'deepseek',
   },
   {
     envNames: ['OPENAI_API_KEY'],
@@ -70,6 +90,7 @@ const ENV_PROVIDER_CONFIGS = [
     baseUrl: 'https://api.openai.com/v1',
     modelName: 'gpt-4o-mini',
     apiFormat: 'openai',
+    providerKey: 'openai',
   },
 ];
 
@@ -117,7 +138,9 @@ function compactConfig(config) {
     apiFormat: config.apiFormat || 'openai',
     apiKey: config.apiKey || '',
     requiresApiKey: config.requiresApiKey !== false,
+    ...(config.providerKey ? { providerKey: config.providerKey } : {}),
     ...(config.authType ? { authType: config.authType } : {}),
+    ...(config.credentialMode ? { credentialMode: config.credentialMode } : {}),
   };
 }
 
@@ -134,6 +157,7 @@ function buildSeedModelConfig(env = process.env) {
       modelName: explicitModel || 'gpt-4o-mini',
       apiFormat: env.VIBEREADER_TEST_API_FORMAT || env.QA_MODEL_API_FORMAT || 'openai',
       authType: env.VIBEREADER_TEST_AUTH_TYPE || env.QA_MODEL_AUTH_TYPE || '',
+      providerKey: env.VIBEREADER_TEST_PROVIDER_KEY || env.QA_MODEL_PROVIDER_KEY || '',
       requiresApiKey: boolFromEnv(env.VIBEREADER_TEST_REQUIRES_API_KEY || env.QA_MODEL_REQUIRES_API_KEY, true),
     });
   }

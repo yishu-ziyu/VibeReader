@@ -536,7 +536,7 @@ export function PdfViewer({ onInject, onGenerateLensCard, onPageChange, document
           }, text),
           sourceType: 'pdf-selection',
           x: rect.left - scrollRect.left + scrollArea.scrollLeft + rect.width / 2,
-          y: rect.top - scrollRect.top + scrollArea.scrollTop - 44,
+          y: rect.bottom - scrollRect.top + scrollArea.scrollTop + 10,
           rect: {
             left: rect.left - textLayerRect.left,
             top: rect.top - textLayerRect.top,
@@ -593,10 +593,10 @@ export function PdfViewer({ onInject, onGenerateLensCard, onPageChange, document
     const handleNavigateSourceSpan = (event) => {
       const source = event.detail || {};
       const hasSourceRect = Boolean(source.rect) || (Array.isArray(source.rects) && source.rects.length > 0);
-      if (!source.page || !hasSourceRect) return;
+      if (!source.page) return;
       if (source.documentId && source.documentId !== documentId) return;
 
-      setSourceHighlight(source);
+      if (hasSourceRect) setSourceHighlight(source);
       if (source.page !== currentPage) {
         goToPage(source.page);
       }
@@ -880,6 +880,7 @@ export function PdfViewer({ onInject, onGenerateLensCard, onPageChange, document
           <canvas ref={canvasRef} style={{ display: 'block', background: '#fff' }} />
           <div
             ref={textLayerRef}
+            className="textLayer pdf-text-layer"
             onPointerDown={(event) => {
               textPointerStartRef.current = { clientX: event.clientX, clientY: event.clientY };
               textPointerDraggedRef.current = false;
@@ -950,11 +951,19 @@ export function PdfViewer({ onInject, onGenerateLensCard, onPageChange, document
               const viewportWidth = scrollArea?.clientWidth || 400;
               const scrollLeft = scrollArea?.scrollLeft || 0;
               const minX = scrollLeft + 8;
-              const toolbarWidth = 368;
+              const toolbarWidth = 188;
               const maxX = scrollLeft + Math.max(8, viewportWidth - toolbarWidth);
               return Math.max(minX, Math.min(selection.x - toolbarWidth / 2, maxX));
             })(),
-            y: Math.max((pageScrollRef.current?.scrollTop || 0) + 8, selection.y),
+            y: (() => {
+              const scrollArea = pageScrollRef.current;
+              const scrollTop = scrollArea?.scrollTop || 0;
+              const viewportHeight = scrollArea?.clientHeight || 600;
+              const toolbarHeight = 40;
+              const minY = scrollTop + 8;
+              const maxY = scrollTop + Math.max(8, viewportHeight - toolbarHeight - 8);
+              return Math.max(minY, Math.min(selection.y, maxY));
+            })(),
           }}
           onInject={() => handleInject()}
           onHighlight={handleHighlight}

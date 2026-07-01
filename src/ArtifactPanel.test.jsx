@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ArtifactPanel } from './ArtifactPanel';
 
@@ -45,6 +45,10 @@ describe('ArtifactPanel', () => {
         createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:export');
         revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
         appendChildSpy = vi.spyOn(document.body, 'appendChild');
+        Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+            configurable: true,
+            value: vi.fn(),
+        });
         const originalCreateElement = document.createElement.bind(document);
         vi.spyOn(document, 'createElement').mockImplementation((tagName, options) => {
             const element = originalCreateElement(tagName, options);
@@ -85,7 +89,7 @@ describe('ArtifactPanel', () => {
 
         render(<ArtifactPanel artifacts={artifacts} onNavigateToSource={onNavigateToSource} />);
 
-        expect(screen.getByText('Lens Card')).toBeTruthy();
+        expect(screen.getByText('阅读卡片')).toBeTruthy();
         expect(screen.getByText('Selected source text.')).toBeTruthy();
         expect(screen.getByText('这是解释。')).toBeTruthy();
         expect(screen.getByText('span-1')).toBeTruthy();
@@ -121,13 +125,45 @@ describe('ArtifactPanel', () => {
 
         render(<ArtifactPanel artifacts={artifacts} onNavigateToSource={onNavigateToSource} />);
 
-        expect(screen.getByText('Explain Card')).toBeTruthy();
+        expect(screen.getByText('解释卡片')).toBeTruthy();
         expect(screen.getByText('What is the identification strategy?')).toBeTruthy();
         expect(screen.getByText('The answer cites the document source.')).toBeTruthy();
         expect(screen.getByText('P2 · page-2-para-0')).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: /回到原文|source/i }));
         expect(onNavigateToSource).toHaveBeenCalledWith(artifacts[0]);
+    });
+
+    it('scrolls and highlights a card when a saved memory citation targets it', async () => {
+        const artifacts = [
+            {
+                id: 'artifact-answer-card',
+                type: 'explain_card',
+                goal: 'AI 回答：What is the identification strategy?',
+                verificationStatus: 'grounded',
+                currentContent: {
+                    question: 'What is the identification strategy?',
+                    answer: 'The answer cites saved memory.',
+                },
+            },
+        ];
+
+        render(<ArtifactPanel artifacts={artifacts} />);
+
+        const card = screen.getByText('The answer cites saved memory.').closest('article');
+        act(() => {
+            window.dispatchEvent(new CustomEvent('vibereader:navigate-artifact', {
+                detail: { artifactId: 'artifact-answer-card' },
+            }));
+        });
+
+        await waitFor(() => {
+            expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({
+                block: 'center',
+                inline: 'nearest',
+            }));
+            expect(card.classList.contains('artifact-pulse-highlight')).toBe(true);
+        });
     });
 
     it('renders Concept Card artifacts with section summary, key points, and source refs', () => {
@@ -154,7 +190,7 @@ describe('ArtifactPanel', () => {
 
         render(<ArtifactPanel artifacts={artifacts} />);
 
-        expect(screen.getByText('Concept Card')).toBeTruthy();
+        expect(screen.getByText('概念卡片')).toBeTruthy();
         expect(screen.getByText('Introduction')).toBeTruthy();
         expect(screen.getByText('This section introduces the main idea.')).toBeTruthy();
         expect(screen.getByText('Research question')).toBeTruthy();
@@ -178,8 +214,8 @@ describe('ArtifactPanel', () => {
 
         render(<ArtifactPanel artifacts={artifacts} />);
 
-        expect(screen.getByText('Reading Note')).toBeTruthy();
-        expect(screen.getByText('Paper overview')).toBeTruthy();
+        expect(screen.getByText('阅读笔记')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Paper overview' })).toBeTruthy();
         expect(screen.getByText(/Important source-backed finding/)).toBeTruthy();
     });
 
@@ -206,7 +242,7 @@ describe('ArtifactPanel', () => {
 
         render(<ArtifactPanel artifacts={artifacts} />);
 
-        expect(screen.getByText('Reading Note')).toBeTruthy();
+        expect(screen.getByText('阅读笔记')).toBeTruthy();
         expect(screen.getByText('P2 · page-2-para-0')).toBeTruthy();
     });
 
@@ -249,7 +285,7 @@ describe('ArtifactPanel', () => {
         expect(screen.getByText('The research problem source text.')).toBeTruthy();
         expect(screen.getByText('Review this source-backed point: The research problem source text.')).toBeTruthy();
         expect(screen.getByText('P1 · chunk-3')).toBeTruthy();
-        expect(screen.getByText('grounded')).toBeTruthy();
+        expect(screen.getByText('有原文依据')).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: '回到原文 P1 · chunk-3' }));
         expect(onNavigateToSource).toHaveBeenCalledWith(artifacts[0]);
@@ -278,7 +314,7 @@ describe('ArtifactPanel', () => {
         ];
         render(<ArtifactPanel artifacts={artifacts} />);
 
-        const card = screen.getByText('Concept Card').closest('article');
+        const card = screen.getByText('概念卡片').closest('article');
         const dataTransfer = createDataTransfer();
         fireEvent.dragStart(card, { dataTransfer });
 
@@ -403,7 +439,7 @@ describe('ArtifactPanel', () => {
         render(<ArtifactPanel documentId="doc-1" artifacts={artifacts} />);
 
         fireEvent.click(screen.getByRole('checkbox', { name: /选择卡片 Concept Card：Introduction/ }));
-        fireEvent.click(screen.getByRole('button', { name: /Export Selected/ }));
+        fireEvent.click(screen.getByRole('button', { name: /导出所选/ }));
 
         const preview = screen.getByText(/# Selected VibeCards/);
         expect(preview.textContent).toContain('Selected summary only.');
@@ -527,7 +563,7 @@ describe('ArtifactPanel', () => {
 
         expect(await screen.findByText(/# Reading Note/)).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: /Markdown/ }));
-        fireEvent.click(screen.getByRole('button', { name: /^downloadJSON$/ }));
+        fireEvent.click(screen.getByRole('button', { name: /下载 JSON/ }));
 
         expect(appendedDownloads(appendChildSpy)).toEqual([
             'vibereader-export-paper-2026-06-10.md',
@@ -554,11 +590,11 @@ describe('ArtifactPanel', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: /Import JSON/ }));
+        fireEvent.click(screen.getByRole('button', { name: /导入 JSON/ }));
         fireEvent.change(screen.getByRole('textbox', { name: 'Reading Note JSON' }), {
             target: { value: json },
         });
-        fireEvent.click(screen.getByRole('button', { name: /Import Reading Note/ }));
+        fireEvent.click(screen.getByRole('button', { name: /导入阅读笔记/ }));
 
         await waitFor(() => {
             expect(persistentMock.importPersistentReadingNoteJson).toHaveBeenCalledWith(json);
@@ -578,7 +614,7 @@ describe('ArtifactPanel', () => {
 
         render(<ArtifactPanel documentId="doc-1" artifacts={[]} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /Import JSON/ }));
+        fireEvent.click(screen.getByRole('button', { name: /导入 JSON/ }));
         fireEvent.change(screen.getByLabelText('Reading Note JSON file'), {
             target: { files: [file] },
         });
@@ -586,7 +622,7 @@ describe('ArtifactPanel', () => {
         await waitFor(() => {
             expect(screen.getByRole('textbox', { name: 'Reading Note JSON' }).value).toBe(json);
         });
-        fireEvent.click(screen.getByRole('button', { name: /Import Reading Note/ }));
+        fireEvent.click(screen.getByRole('button', { name: /导入阅读笔记/ }));
 
         await waitFor(() => {
             expect(persistentMock.importPersistentReadingNoteJson).toHaveBeenCalledWith(json);
@@ -610,10 +646,10 @@ describe('ArtifactPanel', () => {
         render(<ArtifactPanel documentId="doc-1" documentName="Export Paper.pdf" artifacts={artifacts} />);
 
         fireEvent.click(screen.getByRole('checkbox', { name: /选择卡片 Concept Card：Introduction/ }));
-        fireEvent.click(screen.getByRole('button', { name: /Export Selected/ }));
-        fireEvent.click(screen.getByRole('button', { name: /Selected Markdown/ }));
+        fireEvent.click(screen.getByRole('button', { name: /导出所选/ }));
+        fireEvent.click(screen.getByRole('button', { name: /下载 Markdown/ }));
         fireEvent.click(screen.getByRole('button', { name: /Obsidian/ }));
-        fireEvent.click(screen.getByRole('button', { name: /Obsidian Markdown/ }));
+        fireEvent.click(screen.getByRole('button', { name: /下载 Obsidian Markdown/ }));
 
         const date = new Date().toISOString().slice(0, 10);
         expect(appendedDownloads(appendChildSpy)).toEqual([

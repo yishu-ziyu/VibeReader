@@ -64,6 +64,7 @@ export function AttentionNavigatorPanel({
   onInsightsChange,
   onArtifactCreated,
   onAskAI,
+  onStartDeepRead,
   style = {},
 }) {
   const { pdfText, pdfParsing } = usePdfStore();
@@ -270,15 +271,28 @@ export function AttentionNavigatorPanel({
       <div className="attention-navigator-header">
         <div className="attention-navigator-title">
           <CompassOutlined />
-          <span>注意力导航</span>
+          <span>阅读路线</span>
         </div>
+        {documentId && typeof onStartDeepRead === 'function' && (
+          <Button
+            size="small"
+            type="primary"
+            icon={<AimOutlined />}
+            onClick={onStartDeepRead}
+          >
+            开始精读
+          </Button>
+        )}
       </div>
 
       {!analyzing && insights.length === 0 && (
         <div className="attention-navigator-generate">
           <AimOutlined className="attention-navigator-generate-icon" />
+          <div className="attention-navigator-generate-copy">
+            先让 AI 标出这篇文档最值得精读的位置，再逐段回到原文确认。
+          </div>
           <Button type="primary" icon={<CompassOutlined />} onClick={handleAnalyze}>
-            分析关键位置
+            生成阅读路线
           </Button>
         </div>
       )}
@@ -287,7 +301,7 @@ export function AttentionNavigatorPanel({
         <div className="attention-navigator-progress">
           <Spin size="small" />
           <div className="attention-navigator-muted">
-            {progress || '正在分析关键位置...'}
+            {progress || '正在生成阅读路线...'}
           </div>
         </div>
       )}

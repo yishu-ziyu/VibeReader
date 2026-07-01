@@ -26,6 +26,7 @@ describe('PdfAnnotationToolbar', () => {
         fireEvent.click(screen.getByRole('button', { name: /生成卡片|lens/i }));
         fireEvent.click(screen.getByRole('button', { name: /注入|inject/i }));
         fireEvent.click(screen.getByRole('button', { name: /高亮/i }));
+        fireEvent.click(screen.getByRole('button', { name: /保存笔记/i }));
         fireEvent.change(screen.getByPlaceholderText(/笔记/i), {
             target: { value: 'My note' },
         });

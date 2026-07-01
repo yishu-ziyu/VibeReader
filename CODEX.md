@@ -267,6 +267,7 @@ npm run qa:smoke     # Smoke test script
 - ALWAYS validate user input at boundaries.
 - Sanitize HTML from AI responses (react-markdown handles this).
 - NEVER trust external data (API responses, file content).
+- Before changing model defaults or provider templates, read `docs/LOCAL_MODEL_SERVICES.md`. Defaults and QA seeds must use services we actually own or can operate locally.
 
 ---
 
@@ -292,7 +293,8 @@ Before implementing any feature, read these files in order:
 2. **`src/styles.css`** — Understand the CSS variable system and existing overrides.
 3. **`DESIGN.md`** — Understand the visual constraints.
 4. **`src/aiService.js`** — Understand how AI calls work.
-5. Relevant component file(s) — Read before modifying.
+5. **`docs/LOCAL_MODEL_SERVICES.md`** — Required before changing model/provider/runtime behavior.
+6. Relevant component file(s) — Read before modifying.
 
 ---
 

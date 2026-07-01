@@ -232,8 +232,8 @@ documentStore.addDocument()             ← Zustand 内存状态
 ```
 aiService.js（统一入口）
   │
-  ├─ customOpenAIService.js   ← OpenAI 协议（DeepSeek / Moonshot / MiniMax）
-  ├─ customAnthropicService.js ← Anthropic 协议（Claude / MiniMax-M2.7）
+  ├─ customOpenAIService.js   ← OpenAI 协议（DeepSeek / Moonshot / Kimi 等）
+  ├─ customAnthropicService.js ← Anthropic 协议（Claude / MiniMax-M3）
   │
   ├─ 运行时路由：
   │   ├─ 浏览器 → fetch（Vite dev proxy: /api/minimax /api/mimo /api/kimi）
@@ -405,7 +405,7 @@ pnpm tauri:dev
 
 | 前端路径 | 后端目标 | 用途 |
 |----------|---------|------|
-| `/api/minimax` | `https://api.minimaxi.com/anthropic` | MiniMax API（Anthropic 协议） |
+| `/api/minimax` | `https://api.minimaxi.com/anthropic` | MiniMax Token Plan / MiniMax API（Anthropic 协议） |
 | `/api/mimo` | Token Plan 端点 | MiMo 模型 |
 | `/api/kimi` | `https://api.moonshot.cn/v1` | Kimi/Moonshot（OpenAI 协议） |
 
@@ -415,12 +415,14 @@ pnpm tauri:dev
 
 | 预设 | Base URL | 协议 | 默认模型 |
 |------|----------|------|---------|
-| Kimi Priority Trial | `api.moonshot.cn/v1` | OpenAI | moonshot-v1-8k |
-| MiniMax Default | `api.minimaxi.com/anthropic` | Anthropic | MiniMax-M2.7 |
+| MiniMax Token Plan | `api.minimaxi.com/anthropic` | Anthropic | MiniMax-M3 |
+| MiniMax API | `api.minimaxi.com/anthropic` | Anthropic | MiniMax-M3 |
 | StepFun | `api.stepfun.com/step_plan` | OpenAI | step-3.7-flash |
 | DeepSeek | `api.deepseek.com` | OpenAI | deepseek-chat |
-| Moonshot | `api.moonshot.cn/v1` | OpenAI | moonshot-v1-8k |
+| Kimi / Moonshot（可选，需真实 Key） | `api.moonshot.cn/v1` | OpenAI | kimi-k2.6 |
 | MiMo | Token Plan | OpenAI | — |
+
+当前模型服务事实以 `docs/LOCAL_MODEL_SERVICES.md` 为准。
 
 ---
 

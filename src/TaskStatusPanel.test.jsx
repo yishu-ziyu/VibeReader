@@ -32,6 +32,15 @@ describe('TaskStatusPanel', () => {
   it('lists current document tasks with status, progress, and failure reason', async () => {
     persistentMock.listPersistentTasks.mockResolvedValue([
       {
+        id: 'task-memory',
+        documentId: 'doc-1',
+        type: 'saved_memory_ingest',
+        status: 'running',
+        title: '记忆沉淀',
+        progress: 42,
+        updatedAt: 3000,
+      },
+      {
         id: 'task-summary',
         documentId: 'doc-1',
         type: 'section_summary',
@@ -54,11 +63,14 @@ describe('TaskStatusPanel', () => {
 
     render(<TaskStatusPanel documentId="doc-1" />);
 
+    expect((await screen.findAllByText('记忆沉淀')).length).toBeGreaterThan(0);
     expect(await screen.findByText('Summarize Introduction')).toBeTruthy();
     expect(screen.getByText('Find key locations')).toBeTruthy();
-    expect(screen.getByText('succeeded')).toBeTruthy();
-    expect(screen.getByText('failed')).toBeTruthy();
+    expect(screen.getByText('运行中')).toBeTruthy();
+    expect(screen.getByText('已完成')).toBeTruthy();
+    expect(screen.getByText('失败')).toBeTruthy();
     expect(screen.getAllByRole('progressbar').map((item) => item.getAttribute('aria-valuenow'))).toEqual([
+      '42',
       '100',
       '100',
     ]);
@@ -84,7 +96,7 @@ describe('TaskStatusPanel', () => {
 
     render(<TaskStatusPanel documentId="doc-1" />);
 
-    expect(await screen.findByText('Paper overview')).toBeTruthy();
+    expect((await screen.findAllByText('论文总览')).length).toBeGreaterThan(0);
     const preview = document.querySelector('.task-status-result');
     expect(preview?.textContent).toContain('Important source-backed finding.');
     expect(preview?.textContent).toContain('...');
@@ -107,7 +119,7 @@ describe('TaskStatusPanel', () => {
 
     render(<TaskStatusPanel documentId="doc-1" />);
 
-    expect(await screen.findByText('Paper overview')).toBeTruthy();
+    expect((await screen.findAllByText('论文总览')).length).toBeGreaterThan(0);
     expect(document.querySelector('.task-status-result')).toBeNull();
   });
 
@@ -135,7 +147,7 @@ describe('TaskStatusPanel', () => {
       />
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Save to Notes' }));
+    fireEvent.click(await screen.findByRole('button', { name: '保存到笔记' }));
 
     expect(onSaveTaskResult).toHaveBeenCalledTimes(1);
     expect(onSaveTaskResult).toHaveBeenCalledWith(expect.objectContaining({
@@ -167,14 +179,14 @@ describe('TaskStatusPanel', () => {
       />
     );
 
-    expect(await screen.findByText('Paper overview')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Save to Notes' })).toBeNull();
+    expect((await screen.findAllByText('论文总览')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: '保存到笔记' })).toBeNull();
   });
 
   it('renders an empty state when no document tasks are available', async () => {
     render(<TaskStatusPanel documentId="doc-empty" />);
 
-    expect(await screen.findByText('No reading tasks yet')).toBeTruthy();
+    expect(await screen.findByText('暂无阅读任务')).toBeTruthy();
   });
 
   it('starts a paper overview agent for the current document', async () => {
@@ -187,7 +199,7 @@ describe('TaskStatusPanel', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Paper overview' }));
+    fireEvent.click(screen.getByRole('button', { name: '论文总览' }));
 
     expect(onStartAgentTask).toHaveBeenCalledTimes(1);
     expect(onStartAgentTask).toHaveBeenCalledWith('paper_overview_agent');
@@ -208,7 +220,7 @@ describe('TaskStatusPanel', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create VibeCard' }));
+    fireEvent.click(screen.getByRole('button', { name: '生成卡片' }));
 
     expect(onStartAgentTask).toHaveBeenCalledTimes(1);
     expect(onStartAgentTask).toHaveBeenCalledWith('card_generation_agent');
@@ -217,7 +229,7 @@ describe('TaskStatusPanel', () => {
   it('does not show the paper overview entry without a current document', () => {
     render(<TaskStatusPanel onStartAgentTask={vi.fn()} />);
 
-    expect(screen.queryByRole('button', { name: 'Paper overview' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '论文总览' })).toBeNull();
   });
 
   it('refreshes current document tasks when a task update event is emitted', async () => {
@@ -237,7 +249,7 @@ describe('TaskStatusPanel', () => {
 
     render(<TaskStatusPanel documentId="doc-1" />);
 
-    expect(await screen.findByText('No reading tasks yet')).toBeTruthy();
+    expect(await screen.findByText('暂无阅读任务')).toBeTruthy();
 
     window.dispatchEvent(new CustomEvent('vibereader:task-updated', {
       detail: {
@@ -250,7 +262,7 @@ describe('TaskStatusPanel', () => {
     }));
 
     expect(await screen.findByText('Live summary')).toBeTruthy();
-    expect(screen.getByText('running')).toBeTruthy();
+    expect(screen.getByText('运行中')).toBeTruthy();
     expect(persistentMock.listPersistentTasks).toHaveBeenCalledTimes(2);
     expect(persistentMock.listPersistentTasks).toHaveBeenLastCalledWith('doc-1');
   });
@@ -258,7 +270,7 @@ describe('TaskStatusPanel', () => {
   it('ignores task update events for other documents', async () => {
     render(<TaskStatusPanel documentId="doc-1" />);
 
-    expect(await screen.findByText('No reading tasks yet')).toBeTruthy();
+    expect(await screen.findByText('暂无阅读任务')).toBeTruthy();
 
     window.dispatchEvent(new CustomEvent('vibereader:task-updated', {
       detail: {
@@ -290,7 +302,7 @@ describe('TaskStatusPanel', () => {
 
     render(<TaskStatusPanel documentId="doc-1" onRetryTask={onRetryTask} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    fireEvent.click(await screen.findByRole('button', { name: '重试' }));
 
     expect(onRetryTask).toHaveBeenCalledTimes(1);
     expect(onRetryTask).toHaveBeenCalledWith(expect.objectContaining({
@@ -323,7 +335,7 @@ describe('TaskStatusPanel', () => {
 
     render(<TaskStatusPanel documentId="doc-1" onRetryTask={onRetryTask} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    fireEvent.click(await screen.findByRole('button', { name: '重试' }));
 
     expect(onRetryTask).toHaveBeenCalledTimes(1);
     expect(onRetryTask).toHaveBeenCalledWith(expect.objectContaining({

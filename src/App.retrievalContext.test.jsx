@@ -18,6 +18,53 @@ const artifactServiceMock = vi.hoisted(() => ({
     })),
     listArtifactsForDocument: vi.fn(async () => []),
 }));
+const ragEngineAdapterMock = vi.hoisted(() => ({
+    query: vi.fn(async () => ({
+        answer: 'UniRAG says the identification strategy uses matched controls.',
+        sourceRefs: [
+            {
+                documentId: 'working-paper.pdf',
+                documentName: 'working-paper.pdf',
+                page: 2,
+                paragraphId: 'working-paper.pdf:2',
+                chunkId: 'working-paper.pdf:2',
+                label: 'P2',
+                text: 'The identification strategy uses matched controls.',
+            },
+        ],
+        ragEngine: {
+            engine: 'uni-rag',
+            available: true,
+            degraded: false,
+        },
+    })),
+    health: vi.fn(async () => ({
+        available: true,
+        engine: 'uni-rag',
+        adapter: 'uni-rag',
+        degraded: false,
+        baseUrl: 'http://127.0.0.1:8766',
+    })),
+    ingestMemory: vi.fn(async () => ({
+        jobId: 'memory-job-1',
+        statusUrl: '/api/memory/jobs/memory-job-1',
+    })),
+    getMemoryIngestStatus: vi.fn(async () => ({
+        jobId: 'memory-job-1',
+        status: 'completed',
+        percent: 100,
+        message: '记忆沉淀完成',
+        result: {
+            memory_id: 'memory-1',
+            chunks: 1,
+        },
+    })),
+}));
+const documentKnowledgeServiceMock = vi.hoisted(() => ({
+    isDocumentKnowledgeQueryReady: vi.fn(() => false),
+    loadDocumentKnowledgeLink: vi.fn(() => null),
+    startDocumentKnowledgeIngest: vi.fn(async () => null),
+}));
 
 vi.mock('./storage', () => ({
     deleteConversation: vi.fn().mockResolvedValue(true),
@@ -37,14 +84,32 @@ vi.mock('./services/persistentStorage', () => ({
     isPersistentStorageAvailable: vi.fn(() => false),
     listPersistentDocuments: vi.fn(async () => []),
     listPersistentSourceSpans: vi.fn(async () => []),
+    listPersistentTasks: vi.fn(async () => []),
     loadPersistentSourceIndexStatus: vi.fn(async () => null),
     replacePersistentSourceSpans: vi.fn(async () => []),
     savePersistentSourceIndexStatus: vi.fn(async () => null),
+    savePersistentTask: vi.fn(async (task) => task),
     savePersistentDocument: vi.fn(async () => ({ ok: true })),
     searchPersistentSourceSpans: vi.fn(async () => []),
+    TASK_UPDATED_EVENT: 'vibereader:test-task-updated',
 }));
 
 vi.mock('./services/artifactService', () => artifactServiceMock);
+
+vi.mock('./services/ragEngineAdapter', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        createUniRagHttpAdapter: vi.fn(() => ragEngineAdapterMock),
+    };
+});
+
+vi.mock('./services/documentKnowledgeService', () => ({
+    KNOWLEDGE_INGEST_TASK_TYPE: 'knowledge_ingest',
+    isDocumentKnowledgeQueryReady: documentKnowledgeServiceMock.isDocumentKnowledgeQueryReady,
+    loadDocumentKnowledgeLink: documentKnowledgeServiceMock.loadDocumentKnowledgeLink,
+    startDocumentKnowledgeIngest: documentKnowledgeServiceMock.startDocumentKnowledgeIngest,
+}));
 
 vi.mock('./aiService', () => ({
     default: {
@@ -130,6 +195,20 @@ vi.mock('./AttentionNavigatorPanel', () => ({
                 <button type="button" onClick={() => props.onAskAI?.('Explain this attention insight.')}>
                     Ask mocked attention insight
                 </button>
+                <button
+                    type="button"
+                    onClick={() => props.onArtifactCreated?.({
+                        id: 'artifact-route-card',
+                        documentId: 'doc-retrieval',
+                        type: 'concept_card',
+                        goal: 'Concept Card：Methods',
+                        currentContent: {
+                            summary: 'Mocked route card',
+                        },
+                    })}
+                >
+                    Save mocked route card
+                </button>
             </div>
         );
     },
@@ -140,6 +219,20 @@ vi.mock('./AttentionNavigatorPanel', () => ({
                 <div>Attention</div>
                 <button type="button" onClick={() => props.onAskAI?.('Explain this attention insight.')}>
                     Ask mocked attention insight
+                </button>
+                <button
+                    type="button"
+                    onClick={() => props.onArtifactCreated?.({
+                        id: 'artifact-route-card',
+                        documentId: 'doc-retrieval',
+                        type: 'concept_card',
+                        goal: 'Concept Card：Methods',
+                        currentContent: {
+                            summary: 'Mocked route card',
+                        },
+                    })}
+                >
+                    Save mocked route card
                 </button>
             </div>
         );
@@ -190,6 +283,7 @@ function resetStores() {
                 apiKey: 'test-key',
                 modelName: 'test-model',
                 apiFormat: 'openai',
+                providerKey: 'minimax',
             },
         },
         visionCapable: false,
@@ -221,6 +315,16 @@ describe('App retrieval context', () => {
         summaryPanelMock.lastProps = null;
         artifactServiceMock.createArtifact.mockClear();
         artifactServiceMock.listArtifactsForDocument.mockClear();
+        ragEngineAdapterMock.query.mockClear();
+        ragEngineAdapterMock.health.mockClear();
+        ragEngineAdapterMock.ingestMemory.mockClear();
+        ragEngineAdapterMock.getMemoryIngestStatus.mockClear();
+        documentKnowledgeServiceMock.isDocumentKnowledgeQueryReady.mockReset();
+        documentKnowledgeServiceMock.isDocumentKnowledgeQueryReady.mockReturnValue(false);
+        documentKnowledgeServiceMock.loadDocumentKnowledgeLink.mockReset();
+        documentKnowledgeServiceMock.loadDocumentKnowledgeLink.mockReturnValue(null);
+        documentKnowledgeServiceMock.startDocumentKnowledgeIngest.mockReset();
+        documentKnowledgeServiceMock.startDocumentKnowledgeIngest.mockResolvedValue(null);
         resetStores();
         act(() => {
             useDocumentStore.getState().addDocument({
@@ -299,8 +403,139 @@ describe('App retrieval context', () => {
                 ],
             }));
         });
-        expect(await screen.findByText('Sources')).toBeTruthy();
+        expect(await screen.findByText('原文依据')).toBeTruthy();
         expect(screen.getByRole('button', { name: /P2/ })).toBeTruthy();
+    });
+
+    it('routes text-only chat through UniRAG when the current document is ingested', async () => {
+        documentKnowledgeServiceMock.isDocumentKnowledgeQueryReady.mockReturnValue(true);
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        fireEvent.click(await screen.findByText('Ask mocked retrieval question'));
+
+        await waitFor(() => {
+            expect(ragEngineAdapterMock.query).toHaveBeenCalledWith(expect.objectContaining({
+                question: 'What is the identification strategy?',
+                includeMemory: true,
+                memoryTopK: 3,
+                providerKey: 'minimax',
+                apiKey: 'test-key',
+                mode: 'chat',
+            }));
+        });
+        expect(mockChatStream).not.toHaveBeenCalled();
+
+        await waitFor(() => {
+            const assistantMessage = useConversationStore.getState().messages.find((message) => message.role === 'assistant');
+            expect(assistantMessage).toEqual(expect.objectContaining({
+                content: 'UniRAG says the identification strategy uses matched controls.',
+                sourceRefs: [
+                    expect.objectContaining({
+                        documentId: 'doc-retrieval',
+                        documentName: 'working-paper.pdf',
+                        page: 2,
+                        paragraphId: 'page-2-para-0',
+                        label: 'P2',
+                        grounding: expect.objectContaining({
+                            precision: 'paragraph',
+                        }),
+                    }),
+                ],
+                ragEngine: expect.objectContaining({
+                    engine: 'uni-rag',
+                    available: true,
+                }),
+            }));
+        });
+        expect(await screen.findByText('原文依据')).toBeTruthy();
+    });
+
+    it('shows saved memory citations and navigates them back to Notes cards', async () => {
+        documentKnowledgeServiceMock.isDocumentKnowledgeQueryReady.mockReturnValue(true);
+        ragEngineAdapterMock.query.mockResolvedValueOnce({
+            answer: '你的已保存卡片认为，真 Agent 的关键是任务规划和可审计闭环。',
+            sourceRefs: [
+                {
+                    id: 'artifact-answer-card',
+                    evidenceType: 'memory',
+                    sourceType: 'saved_memory',
+                    artifactId: 'artifact-answer-card',
+                    artifactType: 'explain_card',
+                    memoryId: 'memory-1',
+                    memoryTitle: 'AI 回答：What is the identification strategy?',
+                    label: '记忆 1',
+                    text: 'The saved card says auditable execution matters.',
+                    sourceRefs: [
+                        {
+                            documentId: 'doc-retrieval',
+                            documentName: 'working-paper.pdf',
+                            page: 2,
+                            paragraphId: 'page-2-para-0',
+                            text: 'The identification strategy uses a difference in differences design.',
+                        },
+                    ],
+                },
+            ],
+            ragEngine: {
+                engine: 'uni-rag',
+                available: true,
+                degraded: false,
+            },
+        });
+        const navigateArtifactListener = vi.fn();
+        window.addEventListener('vibereader:navigate-artifact', navigateArtifactListener);
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        fireEvent.click(await screen.findByText('Ask mocked retrieval question'));
+
+        expect(await screen.findByText('我的记忆')).toBeTruthy();
+        const memoryButton = await screen.findByRole('button', {
+            name: /打开我的记忆 记忆 1: AI 回答/,
+        });
+        fireEvent.click(memoryButton);
+
+        await waitFor(() => {
+            expect(useUIStore.getState().rightToolTab).toBe('artifacts');
+        });
+        await waitFor(() => {
+            expect(navigateArtifactListener).toHaveBeenCalledTimes(1);
+        });
+        expect(navigateArtifactListener.mock.calls[0][0].detail).toEqual(expect.objectContaining({
+            artifactId: 'artifact-answer-card',
+            memoryId: 'memory-1',
+        }));
+
+        window.removeEventListener('vibereader:navigate-artifact', navigateArtifactListener);
+    });
+
+    it('dispatches grounded UniRAG citations to the matched Reader paragraph', async () => {
+        documentKnowledgeServiceMock.isDocumentKnowledgeQueryReady.mockReturnValue(true);
+        const navigateListener = vi.fn();
+        window.addEventListener('vibereader:navigate-paragraph', navigateListener);
+
+        const { App } = await import('./App.jsx');
+        render(<App />);
+
+        fireEvent.click(await screen.findByText('Ask mocked retrieval question'));
+
+        const sourceButton = await screen.findByRole('button', {
+            name: /打开原文依据 P2: The identification strategy/i,
+        });
+        fireEvent.click(sourceButton);
+
+        expect(navigateListener).toHaveBeenCalledTimes(1);
+        expect(navigateListener.mock.calls[0][0].detail).toEqual(expect.objectContaining({
+            documentId: 'doc-retrieval',
+            page: 2,
+            paragraphId: 'page-2-para-0',
+            text: expect.stringContaining('matched controls'),
+        }));
+
+        window.removeEventListener('vibereader:navigate-paragraph', navigateListener);
     });
 
     it('dispatches a paragraph navigation event with source text when a source ref is clicked', async () => {
@@ -312,7 +547,7 @@ describe('App retrieval context', () => {
         fireEvent.click(await screen.findByText('Ask mocked retrieval question'));
 
         const sourceButton = await screen.findByRole('button', {
-            name: /Open source P2: The identification strategy/i,
+            name: /打开原文依据 P2: The identification strategy/i,
         });
         fireEvent.click(sourceButton);
 
@@ -332,7 +567,7 @@ describe('App retrieval context', () => {
         render(<App />);
 
         await screen.findByText(/P3/);
-        fireEvent.click(await screen.findByRole('radio', { name: 'Current page' }));
+        fireEvent.click(await screen.findByRole('radio', { name: '当前页' }));
         fireEvent.click(await screen.findByText('Ask mocked current page question'));
 
         await waitFor(() => {
@@ -352,7 +587,7 @@ describe('App retrieval context', () => {
         render(<App />);
 
         await screen.findByText(/P3.*Conclusion/);
-        fireEvent.click(await screen.findByRole('radio', { name: 'Current section' }));
+        fireEvent.click(await screen.findByRole('radio', { name: '当前章节' }));
         fireEvent.click(await screen.findByText('Ask mocked retrieval question'));
 
         await waitFor(() => {
@@ -376,7 +611,7 @@ describe('App retrieval context', () => {
                 detail: { paragraphId: 'page-1-para-0' },
             }));
         });
-        fireEvent.click(await screen.findByRole('radio', { name: 'Selected paragraph' }));
+        fireEvent.click(await screen.findByRole('radio', { name: '选中段落' }));
         fireEvent.click(await screen.findByText('Ask mocked retrieval question'));
 
         await waitFor(() => {
@@ -405,18 +640,28 @@ describe('App retrieval context', () => {
         expect(mockChatStream.mock.calls[0][0]).toContain('Explain this attention insight.');
     });
 
-    it('receives Summary Concept Cards and switches the right pane to Notes', async () => {
-        useUIStore.setState({ rightToolTab: 'summary' });
+    it('receives reading route cards and switches the right pane to Notes', async () => {
+        useUIStore.setState({ rightToolTab: 'navigator' });
         const { App } = await import('./App.jsx');
         render(<App />);
 
-        fireEvent.click(await screen.findByText('Save mocked summary concept card'));
+        fireEvent.click(await screen.findByText('Save mocked route card'));
 
         await waitFor(() => {
             expect(useUIStore.getState().rightToolTab).toBe('artifacts');
-            expect(screen.getByText('Mocked summary card')).toBeTruthy();
+            expect(screen.getByText('Mocked route card')).toBeTruthy();
         });
-        expect(summaryPanelMock.lastProps?.onArtifactCreated).toEqual(expect.any(Function));
+        await waitFor(() => {
+            expect(ragEngineAdapterMock.ingestMemory).toHaveBeenCalledWith({
+                memory: expect.objectContaining({
+                    artifactId: 'artifact-route-card',
+                    artifactType: 'concept_card',
+                    title: 'Concept Card：Methods',
+                    text: expect.stringContaining('Mocked route card'),
+                }),
+            });
+        });
+        expect(attentionPanelMock.lastProps?.onArtifactCreated).toEqual(expect.any(Function));
     });
 
     it('saves an assistant answer as a source-bound explain card', async () => {
@@ -452,6 +697,24 @@ describe('App retrieval context', () => {
         await waitFor(() => {
             expect(screen.getAllByText('Notes').length).toBeGreaterThan(0);
         });
+        await waitFor(() => {
+            expect(ragEngineAdapterMock.ingestMemory).toHaveBeenCalledWith({
+                memory: expect.objectContaining({
+                    artifactId: 'artifact-answer-card',
+                    artifactType: 'explain_card',
+                    title: 'AI 回答：What is the identification strategy?',
+                    sourceRefs: [
+                        expect.objectContaining({
+                            documentId: 'doc-retrieval',
+                            page: 2,
+                            paragraphId: 'page-2-para-0',
+                        }),
+                    ],
+                    text: expect.stringContaining('The answer cites the document source.'),
+                }),
+            });
+        });
+        expect(await screen.findByText('记忆沉淀：已完成')).toBeTruthy();
     });
 
     it('navigates a saved source-ref card back to its paragraph source from Notes', async () => {

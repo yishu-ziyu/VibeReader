@@ -18,6 +18,10 @@ function readableChunks(content = '') {
         .filter(Boolean);
 }
 
+function normalizeSearchText(value = '') {
+    return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 export function DocumentReader({ document: activeDocument, onInject, style = {} }) {
     const containerRef = useRef(null);
     const [selection, setSelection] = useState(null);
@@ -81,19 +85,45 @@ export function DocumentReader({ document: activeDocument, onInject, style = {} 
         return true;
     }, []);
 
+    const highlightClosestText = useCallback((text) => {
+        const container = containerRef.current;
+        const normalizedText = normalizeSearchText(text);
+        if (!container || !normalizedText) return false;
+        const paragraphs = [...container.querySelectorAll('[data-paragraph-id]')];
+        const target = paragraphs.find((paragraph) => {
+            const paragraphText = normalizeSearchText(paragraph.textContent || '');
+            return paragraphText.includes(normalizedText) ||
+                (normalizedText.length >= 24 && normalizedText.includes(paragraphText));
+        });
+        if (!target) return false;
+
+        target.scrollIntoView({ block: 'center', inline: 'nearest' });
+        target.classList.add('paragraph-pulse-highlight');
+        window.setTimeout(() => {
+            target.classList.remove('paragraph-pulse-highlight');
+        }, 3000);
+        return true;
+    }, []);
+
     useEffect(() => {
         const handleNavigateParagraph = (event) => {
             const detail = event.detail || {};
             if (detail.documentId && activeDocument?.id && detail.documentId !== activeDocument.id) return;
-            if (!detail.paragraphId) return;
-            if (!highlightParagraph(detail.paragraphId)) {
+            const navigated = detail.paragraphId
+                ? highlightParagraph(detail.paragraphId) || highlightClosestText(detail.text)
+                : highlightClosestText(detail.text);
+            if (!navigated) {
                 antMessage.warning('未找到这张卡片的原文段落');
             }
         };
 
         window.addEventListener('vibereader:navigate-paragraph', handleNavigateParagraph);
-        return () => window.removeEventListener('vibereader:navigate-paragraph', handleNavigateParagraph);
-    }, [activeDocument?.id, highlightParagraph]);
+        window.addEventListener('vibereader:navigate-source-span', handleNavigateParagraph);
+        return () => {
+            window.removeEventListener('vibereader:navigate-paragraph', handleNavigateParagraph);
+            window.removeEventListener('vibereader:navigate-source-span', handleNavigateParagraph);
+        };
+    }, [activeDocument?.id, highlightClosestText, highlightParagraph]);
 
     if (!activeDocument || !content) {
         return (
