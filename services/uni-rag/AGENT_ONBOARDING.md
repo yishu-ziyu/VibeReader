@@ -1,59 +1,21 @@
-# uni-rag 开发指南（yishuship 框架）
+# uni-rag 开发指南
 
-> 本文档是给下一个 agent 的完整接入指南。读完后你应该能直接开始用 yishuship 开发 uni-rag。
+> 本文档是给下一个 agent 的接入指南：项目是什么、现在什么状态、怎么开始。
 
 ## 你是谁
 
 你是 uni-rag 项目的开发 agent。uni-rag 是一个本地文档问答工具（上传文档→问问题→得到带引用的答案）。项目地址：https://github.com/yishu-ziyu/uni-rag
 
-你使用 yishuship 框架进行开发。yishuship 是 Ship 增强版：PM 层 + 对抗式工程一体化。
-
-## yishuship 是什么
-
-```
-PM 层（先调研再动手）
-  发现 → 定义 → 设计 → 验证
-                          ↓
-工程层（对抗式执行）
-  对抗式设计 → 实现 → 测试 → QA → 发布
-```
-
-**核心原则**：
-- 没有调研就没有判断，没有判断就不进执行
-- 需求在磁盘上（`.ship/tasks/<id>/`），不在聊天里
-- 每个阶段必须写文件才算完成
-- hooks 会强制执行流程，你不能跳步
-
-## 可用命令
+想法的跟进用 yishuship，只在用户输入命令时使用：
 
 | 命令 | 什么时候用 |
 |------|-----------|
-| `/yishuship:pm-intake` | 新功能、产品方向（先调研再做） |
-| `/yishuship:use-yishuship` | 不确定走哪条路时 |
-| `/yishuship:design` | 对抗式设计（host + peer 并行调查） |
-| `/yishuship:dev` | 写代码（host 实现 + peer 交叉验证） |
-| `/yishuship:review` | 检查代码（只找 bug，不评风格） |
-| `/yishuship:qa` | 独立 QA（启动真实应用测试） |
-| `/yishuship:e2e` | 写 E2E 测试 |
-| `/yishuship:handoff` | 发布（PR + CI fix loop） |
-| `/yishuship:refactor` | 重构（四镜头扫描） |
-| `/yishuship:auto` | 全流程状态机 |
+| `/yishuship:idea <一句话>` | 新功能、新想法：先变成用户能看到的行为，等用户决定 |
+| `/yishuship:next` | 继续这个项目里正在做的想法 |
+| `/yishuship:ideas` | 看所有项目里还活着的想法 |
 
-## 路由规则
+进度在 `.ship/ideas/<名字>.md`；`.ship/tasks/` 是旧版记录，只读。
 
-**新功能** → `/yishuship:pm-intake` → `/yishuship:design` → `/yishuship:dev`
-**Bug** → `/yishuship:review` → `/yishuship:dev`
-**重构** → `/yishuship:design`（refactor scope）→ `/yishuship:dev`
-**不确定** → `/yishuship:use-yishuship`
-
-## 强制执行机制
-
-你不能跳过这些，hooks 会拦截：
-
-1. **没有 discovery.md 就不能调 design** — pm-gate.sh 拦截
-2. **PM 产出没写完就不能退出** — pm-verify.sh 拦截
-3. **QA 不能读 review 结论** — phase-guardrail.sh 拦截
-4. **Review 不能写源码** — phase-guardrail.sh 拦截
 
 ## uni-rag 项目状态
 
@@ -114,46 +76,17 @@ PM 层（先调研再动手）
 
 ### 场景 1：用户说"加个功能"
 
-```
-1. /yishuship:pm-intake <功能描述>
-   → agent 自动执行发现→定义→设计→验证
-   → 产出写入 .ship/tasks/<id>/pm/
-
-2. 确认 PM 产出后：
-   /yishuship:design
-   → 对抗式设计，产出 spec.md + plan.md
-
-3. 设计确认后：
-   /yishuship:dev
-   → 实现代码 + 测试
-
-4. 实现完成后：
-   /yishuship:review → /yishuship:qa → /yishuship:handoff
-```
+用户输入了 `/yishuship:idea` 就按它走。没有的话，先和用户确认用户能看到的行为，再实现；
+做完附上真实运行的证据（截图、接口返回、测试输出），而不是"应该能跑"。
 
 ### 场景 2：用户说"修个 bug"
 
-```
-1. /yishuship:review
-   → 找到 bug 的根因
-
-2. /yishuship:dev
-   → 修复 + 写回归测试
-
-3. 验证测试通过
-```
+先用一句话说清根因并拿到能复现的方法，再动代码；修完补一条会在旧代码上失败的回归测试。
 
 ### 场景 3：用户说"看看现在有什么问题"
 
-```
-1. /yishuship:review
-   → 审查当前代码
+审查当前代码，再把应用跑起来实际走一遍；把发现的问题直接列给用户，按严重程度排序。
 
-2. /yishuship:qa
-   → 启动应用，探索性测试
-
-3. 把发现的问题记录到 .ship/tasks/<id>/
-```
 
 ## 项目结构
 
@@ -179,7 +112,7 @@ uni-rag/
 ├── docs/
 │   ├── PRODUCT.md    产品规格
 │   └── ARCHITECTURE.md 系统架构
-├── .ship/            yishuship 工作流状态
+├── .ship/            ideas/：yishuship 进度文件；tasks/：旧版记录（只读）
 ├── CLAUDE.md         项目开发守则
 ├── DEVLOG.md         开发日志
 └── CHANGELOG.md      版本变更
@@ -195,4 +128,4 @@ uni-rag/
 
 ## 现在就开始
 
-用户可能会告诉你要做什么。按 yishuship 路由规则选择命令，然后执行。
+用户可能会告诉你要做什么。有 yishuship 命令就按命令走；没有就直接完成请求，并按上面的约定验证。
