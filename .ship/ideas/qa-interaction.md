@@ -1,5 +1,6 @@
 ---
 title: 让 VibeReader 的交互体验更好
+short: 问答交互
 date: 2026-09-26
 tags: [yishuship, vibereader]
 project: vibereader
@@ -12,8 +13,8 @@ updated: 2026-09-26
 ---
 
 <!-- 走到哪了：由 ideas.py --refresh 生成，不要手改 -->
-> [!summary] 走到哪了
-> **● 在等你决定 4 项**
+> [!NOTE]
+> **走到哪了 · ● 在等你决定 4 项**
 > 第一块：回答能好好读，编号引用可点
 > 等你：范围是否先定在问答面板；第一块做不做；悬停预览放不放进第一块；测试记忆怎么处理
 > 下一步：你回答后，开始做第一块

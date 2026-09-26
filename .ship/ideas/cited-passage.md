@@ -1,5 +1,6 @@
 ---
 title: 点问答里的引用，直接跳到原文那句话并高亮
+short: 引用高亮原句
 date: 2026-09-26
 tags: [yishuship, vibereader]
 project: vibereader
@@ -12,8 +13,8 @@ updated: 2026-09-26
 ---
 
 <!-- 走到哪了：由 ideas.py --refresh 生成，不要手改 -->
-> [!summary] 走到哪了
-> **● 暂停中**
+> [!NOTE]
+> **走到哪了 · ● 暂停中**
 > 三块都已完成，准备上线
 > 下一步：恢复时按上线标准打包，并用全新 macOS 账户走一遍
 > 上次更新：2026-09-26
