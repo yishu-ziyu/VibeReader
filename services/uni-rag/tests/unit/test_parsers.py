@@ -92,3 +92,17 @@ def test_parsed_document_has_visual_tiles_field():
         visual_tiles=tiles,
     )
     assert doc.visual_tiles == tiles
+
+
+def test_mineru_markdown_still_comes_with_the_pdf_pages(monkeypatch):
+    """MinerU returns flat Markdown; page texts must still come along so
+    chunks can be labelled with the page they are on."""
+    monkeypatch.setattr("uni_rag.ingest.parsers.is_mineru_available", lambda: True)
+    monkeypatch.setattr("uni_rag.ingest.parsers.parse_file_via_api", lambda path: "# mineru markdown")
+    pdf = Path(__file__).parent.parent / "fixtures" / "sample.pdf"
+
+    res = parse_document(pdf)
+
+    assert res.text == "# mineru markdown"
+    assert res.pages == _parse_pdf_pymupdf(pdf).pages
+    assert res.pages

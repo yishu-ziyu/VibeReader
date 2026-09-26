@@ -35,12 +35,24 @@ def _parse_pdf(
                 text=md_text,
                 format="pdf",
                 source_path=str(path),
-                pages=None,  # MinerU returns flat Markdown; page numbers lost
+                # MinerU returns flat Markdown; the text layer supplies the pages
+                # the chunker matches against to label chunks.
+                pages=_pdf_page_texts(path),
                 visual_tiles=None,  # MinerU path does not produce tiles
             )
         except Exception as e:
             logger.warning("MinerU 解析失败，回退到 PyMuPDF: %s", e)
     return _parse_pdf_pymupdf(path, visual_tiles_dir=visual_tiles_dir)
+
+
+def _pdf_page_texts(path: Path) -> list[tuple[int, str]] | None:
+    """[(page_no, text)] from the PDF text layer; None if it can't be read."""
+    try:
+        with fitz.open(str(path)) as doc:
+            return [(i + 1, page.get_text("text")) for i, page in enumerate(doc)]
+    except Exception as e:
+        logger.warning("读取 PDF 页文本失败，chunk 将没有页码: %s", e)
+        return None
 
 
 def _parse_pdf_pymupdf(

@@ -1,7 +1,9 @@
 """Semantic chunker: split on headers, then by size."""
 from __future__ import annotations
+from collections import Counter
 from dataclasses import dataclass
 import re
+import unicodedata
 
 
 @dataclass
@@ -54,6 +56,58 @@ def _split_long_body(body: str, max_chars: int) -> list[str]:
     return chunks
 
 
+_FRAGMENT = 8  # folded characters per fingerprint
+_MIN_START_HITS = 3  # fingerprints needed before a chunk counts as starting on the previous page
+_FOLD_DROP_RE = re.compile(r"[\s_*#>`\-]+")
+
+
+def _fold(text: str) -> str:
+    """Comparable form across parsers: NFKC, lowercase, no whitespace, markdown
+    marks or hyphens (so PDF line breaks and end-of-line hyphenation vanish)."""
+    return _FOLD_DROP_RE.sub("", unicodedata.normalize("NFKC", text).lower())
+
+
+def _page_locator(pages: list[tuple[int, str]]):
+    """Return a function mapping chunk text to the PDF page it starts on.
+
+    Pages are matched by content, not by character offsets: offsets drift as
+    soon as the chunk text comes from a different parser (MinerU Markdown) or
+    was re-joined during splitting. Only fingerprints found on exactly one page
+    count, so running headers and footers never decide the page.
+    """
+    owner: dict[str, int] = {}
+    shared: set[str] = set()
+    for page_no, page_text in pages:
+        folded = _fold(page_text)
+        for i in range(len(folded) - _FRAGMENT + 1):
+            fragment = folded[i:i + _FRAGMENT]
+            if owner.setdefault(fragment, page_no) != page_no:
+                shared.add(fragment)
+    for fragment in shared:
+        del owner[fragment]
+
+    def locate(chunk_text: str) -> int | None:
+        folded = _fold(chunk_text)
+        hits = [
+            owner[folded[i:i + _FRAGMENT]]
+            for i in range(len(folded) - _FRAGMENT + 1)
+            if folded[i:i + _FRAGMENT] in owner
+        ]
+        if not hits:
+            return None
+        votes = Counter(hits)
+        main = votes.most_common(1)[0][0]
+        # The chunk's page is where its text starts: when it begins with the tail
+        # of the previous page, that page wins. Only the adjacent page may, so a
+        # phrase that happens to be unique to some distant page can't.
+        previous = main - 1
+        if votes.get(previous, 0) >= _MIN_START_HITS and hits.index(previous) < hits.index(main):
+            return previous
+        return main
+
+    return locate
+
+
 def chunk_document(
     text: str,
     source_id: str,
@@ -72,13 +126,7 @@ def chunk_document(
     chunks = []
     cursor = 0
 
-    # 构建 page offset 索引：(page_no, start_offset, end_offset)
-    page_index = []
-    if pages:
-        offset = 0
-        for page_no, page_text in pages:
-            page_index.append((page_no, offset, offset + len(page_text)))
-            offset += len(page_text) + 2  # +2 for "\n\n" join
+    locate_page = _page_locator(pages) if pages else None
 
     for title, body in sections:
         idx = text.find(body, cursor)
@@ -91,20 +139,12 @@ def chunk_document(
                 piece_start = idx
             piece_end = piece_start + len(piece)
 
-            # 查找页码
-            page_no = None
-            if page_index:
-                for pno, pstart, pend in page_index:
-                    if pstart <= piece_start < pend:
-                        page_no = pno
-                        break
-
             chunks.append(Chunk(
                 text=piece,
                 source_id=source_id,
                 section_title=title,
                 start_offset=piece_start,
                 end_offset=piece_end,
-                page_number=page_no,
+                page_number=locate_page(piece) if locate_page else None,
             ))
     return chunks
