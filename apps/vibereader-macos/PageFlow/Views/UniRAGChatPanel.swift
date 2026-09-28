@@ -70,9 +70,9 @@ struct UniRAGChatPanel: View {
     private var serviceBanner: some View {
         if chatManager.serviceOnline == false {
             banner(
-                icon: "hourglass",
-                text: "正在启动知识库服务",
-                detail: "首次使用需联网下载模型，可能需要几分钟"
+                icon: "wifi.slash",
+                text: "知识库服务未连接",
+                detail: "首次启动可能需要几分钟；若持续未连接，请检查服务配置"
             )
         }
     }

@@ -110,8 +110,8 @@ Phase C.0: done.
 
 - Initialize the workbench root as a Git repository for product-level assets.
 - Track `packages/shared-contracts`, `docs`, `.ship`, root scripts, `README.md`, and `PROJECTS.md`.
-- Keep `apps/reader` and `services/uni-rag` ignored as nested repositories until a later subtree/submodule/flatten decision.
-- Root remote is created and tracks `origin/main`; continue with the later subtree/submodule/flatten decision only after the nested repositories are reviewed.
+- At this phase, `apps/reader` and `services/uni-rag` were still ignored nested repositories pending review; Phase C.1 resolved this.
+- Root remote was created and tracked `origin/main`.
 
 Phase C.1: done (2026-08-31, DEC-0005).
 

@@ -2,16 +2,16 @@
 # 真实黄金路径验收（本机 macOS 运行；CI 不跑此脚本）。
 #
 # 覆盖 Issue #1 要求的验收面：
-#   1. 打开真实 PDF                  —— 通过 macOS `open` 的真实 AppleEvent 路径
-#   2. 正常阅读                      —— App 存活（截图留证）
+#   1. 打开真实 PDF                  —— 新启动构建出的 App，并核对进程路径
+#   2. 正常阅读                      —— App 存活（只截该 App 窗口）
 #   3. 调用 UniRAG                   —— 真实启动服务 + App 健康轮询命中服务（日志证据）
 #   4. 返回 answer + citation        —— POST /api/query 断言 answer/citations/page
-#   5. citation 指回正确页           —— 断言 citation.page 在文档页数范围内
-#                                      （App 内点击跳转的定位逻辑由 CitationLocatorTests 覆盖）
-#   6. UniRAG 不可用不崩溃           —— 端口被坏服务占用，App 必须存活
-#   7. 用户可继续阅读                —— 失败态下进程仍在，截图留证
+#   5. citation 指回正确页           —— 断言验收文档的 citation.page=1
+#                                      （App 内点击与高亮需按验收技能另行核验）
+#   6. UniRAG 不可用不崩溃           —— 阅读中断开服务，App 必须存活
+#   7. 用户可继续阅读                —— 离线态 PDF 内容仍可见，截图留证
 #
-# 用法: scripts/acceptance.sh [--keep]     # --keep 保留现场（App/服务不自动回收）
+# 用法: scripts/acceptance.sh [--keep]     # --keep 保留离线现场（App + 500 服务）
 # 证据目录: test-results/acceptance-<timestamp>/（已 gitignore）
 set -euo pipefail
 
@@ -20,15 +20,17 @@ NATIVE="$ROOT/apps/vibereader-macos"
 UNIRAG="$ROOT/services/uni-rag"
 PORT=8766
 BASE="http://127.0.0.1:$PORT"
-FIXTURE="$ROOT/test-fixtures/acceptance-sample.pdf"   # 2 页、文本完整的验收样例
+SOURCE_FIXTURE="$ROOT/test-fixtures/acceptance-sample.pdf"   # 2 页、文本完整的验收样例
 QUESTION="什么是监督学习？"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 ART="$ROOT/test-results/acceptance-$STAMP"
+FIXTURE="$ART/acceptance-sample.pdf"   # 每轮独立路径，不继承旧阅读位置
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
 UNIRAG_PID=""
 DUMMY_PID=""
+APP_PID=""
 
 cleanup() {
     [ "$KEEP" = 1 ] && return 0
@@ -53,12 +55,40 @@ check() { # check <名称> <命令...>   命令失败记 FAIL，不中断脚本
 }
 
 quit_app() {
-    osascript -e 'tell application "VibeReader" to quit' 2>/dev/null || true
+    app_alive || { APP_PID=""; return 0; }
+    kill -TERM "$APP_PID" 2>/dev/null || true
     for _ in 1 2 3 4 5; do
-        pgrep -x VibeReader >/dev/null || return 0
+        app_alive || { APP_PID=""; return 0; }
         sleep 1
     done
-    pkill -x VibeReader 2>/dev/null || true
+    app_alive && kill -KILL "$APP_PID" 2>/dev/null || true
+    APP_PID=""
+}
+
+app_pids() {
+    local pid
+    for pid in $(pgrep -x VibeReader || true); do
+        if [ "$(ps -p "$pid" -o comm= 2>/dev/null)" = "$APP/Contents/MacOS/VibeReader" ]; then
+            echo "$pid"
+        fi
+    done
+}
+
+start_app() {
+    local before pid
+    before="$(app_pids)"
+    open -n -a "$APP" "$FIXTURE"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        for pid in $(app_pids); do
+            if ! printf '%s\n' "$before" | grep -qx "$pid"; then
+                APP_PID="$pid"
+                return 0
+            fi
+        done
+        sleep 1
+    done
+    echo "未找到新启动的构建版 VibeReader 进程" >&2
+    return 1
 }
 
 start_unirag() {
@@ -85,8 +115,8 @@ stop_unirag() {
         lsof -ti tcp:$PORT >/dev/null 2>&1 || return 0
         sleep 1
     done
-    lsof -ti tcp:$PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
-    return 0
+    echo "端口 $PORT 仍被占用；不终止未知进程" >&2
+    return 1
 }
 
 start_dummy() {
@@ -114,9 +144,15 @@ stop_dummy() {
     return 0
 }
 
-app_alive() { pgrep -x VibeReader >/dev/null; }
+app_alive() {
+    [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null &&
+        [ "$(ps -p "$APP_PID" -o comm= 2>/dev/null)" = "$APP/Contents/MacOS/VibeReader" ]
+}
 
-screenshot() { screencapture -x "$ART/$1" 2>/dev/null || true; }
+screenshot() {
+    swift "$ROOT/scripts/acceptance-capture.swift" "$APP_PID" \
+        "$(basename "$FIXTURE" .pdf)" "$ART/$1" && [ -s "$ART/$1" ]
+}
 
 # ------------------------------------------------ 断言函数（供 check 调用）
 INGEST_JSON="$ART/ingest.json"
@@ -168,16 +204,20 @@ ok_cit = len(cits) > 0 and all(
 print("     answer:", (d.get("answer") or "")[:160].replace("\n", " "))
 for c in cits[:3]:
     print(f"     citation: page={c.get('page')} source={c.get('source')} text={c.get('text','')[:60]}")
-ok_grounded = any("监督学习" in c.get("text", "") for c in cits)
+ok_grounded = any(
+    c.get("source") == "acceptance-sample.pdf" and "监督学习" in c.get("text", "")
+    for c in cits
+)
 sys.exit(0 if (ok_answer and ok_cit and ok_grounded) else 1)
 PY
 }
 
-assert_pages_in_range() { # 验收样例共 2 页；页码 0 基或 1 基都应落在 [0,2]
+assert_pages_in_range() { # 监督学习在验收样例第 1 页；UniRAG citation 使用 1 基页码
     python3 - "$QUERY_JSON" <<'PY'
 import json, sys
-cits = json.load(open(sys.argv[1])).get("citations", [])
-sys.exit(0 if cits and all(0 <= c.get("page", -1) <= 2 for c in cits) else 1)
+cits = [c for c in json.load(open(sys.argv[1])).get("citations", [])
+        if c.get("source") == "acceptance-sample.pdf"]
+sys.exit(0 if cits and all(c.get("page") == 1 for c in cits) else 1)
 PY
 }
 
@@ -185,19 +225,19 @@ PY
 mkdir -p "$ART"
 echo "== acceptance 证据目录: $ART"
 uname -s | grep -q Darwin || { echo "仅支持 macOS"; exit 2; }
-for tool in xcodebuild uv curl python3 pgrep lsof; do
+for tool in xcodebuild uv curl python3 pgrep lsof swift open; do
     command -v "$tool" >/dev/null || { echo "缺少工具: $tool"; exit 2; }
 done
-[ -f "$FIXTURE" ] || { echo "缺少真实 PDF fixture: $FIXTURE"; exit 2; }
+[ -f "$SOURCE_FIXTURE" ] || { echo "缺少真实 PDF fixture: $SOURCE_FIXTURE"; exit 2; }
 if lsof -ti tcp:$PORT >/dev/null 2>&1; then
     echo "端口 $PORT 已被占用（已有 UniRAG 或其他服务在跑）。验收需要独占管理服务生命周期，请先停掉再跑。" >&2
     exit 2
 fi
 if pgrep -x VibeReader >/dev/null 2>&1; then
-    echo "已有 VibeReader 在运行，验收会构建并重启 App。3 秒后继续……"
-    sleep 3
+    echo "已有 VibeReader 在运行；验收需要独占 App 以归因健康轮询。请先关闭现有实例。" >&2
+    exit 2
 fi
-
+cp "$SOURCE_FIXTURE" "$FIXTURE"
 echo "== [0] 构建原生 App（Debug）"
 if "$ROOT/scripts/build-native.sh" >"$ART/build.log" 2>&1; then
     echo "   构建成功"
@@ -221,46 +261,37 @@ sleep 2
 check "1.4 /api/query 返回 200" do_query
 check "1.5 answer 非空且 citations 携带页码与原文" assert_query_shape
 check "1.6 citation 页码在文档页数范围内" assert_pages_in_range
+
+# --------------------------------------------- [2] App × 真实服务
+echo
+echo "== [2] 真实 App + 真实 UniRAG：打开 PDF 并验证服务调用"
+LOG_LINES_BEFORE="$(wc -l < "$ART/unirag.log" | tr -d ' ')"
+start_app
+sleep 15
+check "2.1 App 打开真实 PDF 后进程存活" app_alive
+check "2.2 捕获构建版 App 窗口" screenshot "golden-path-app.png"
+tail -n +"$((LOG_LINES_BEFORE + 1))" "$ART/unirag.log" > "$ART/unirag-after-app.log" || true
+check "2.3 App 健康轮询命中 UniRAG（日志证据）" grep -q "GET /api/health" "$ART/unirag-after-app.log"
 cleanup_ingest
 
-# --------------------------------------------- [2] 失败路径：服务不可用
+# --------------------------------------------- [3] 阅读中断开服务
 echo
-echo "== [2] 失败路径：UniRAG 不可用时 App 不崩溃、可继续阅读"
-cleanup_ingest
+echo "== [3] 服务不可用时 App 不崩溃，PDF 仍可阅读"
 stop_unirag
 start_dummy
-sleep 1
-open -a "$APP" "$FIXTURE"
 sleep 12
-check "2.1 App 打开真实 PDF 后进程存活" app_alive
-screenshot "failure-path-app.png"
+check "3.1 失败态下 App 仍存活" app_alive
+check "3.2 捕获离线时的 PDF 内容" screenshot "failure-path-app.png"
 sleep 6
-check "2.2 失败态下 App 仍存活（未崩溃退出，用户可继续阅读）" app_alive
-quit_app
-stop_dummy
-
-# --------------------------------------------- [3] App × 真实服务
-echo
-echo "== [3] 真实 App + 真实 UniRAG：健康轮询命中服务（App→UniRAG 真实调用证据）"
-start_unirag
-check "3.1 服务健康" wait_health 180
-LOG_LINES_BEFORE="$(wc -l < "$ART/unirag.log" | tr -d ' ')"
-open -a "$APP" "$FIXTURE"
-sleep 15
-check "3.2 App 存活" app_alive
-screenshot "golden-path-app.png"
-tail -n +"$((LOG_LINES_BEFORE + 1))" "$ART/unirag.log" > "$ART/unirag-after-app.log" || true
-if grep -q "GET /api/health" "$ART/unirag-after-app.log" 2>/dev/null; then
-    check "3.3 App 健康轮询命中 UniRAG（日志证据）" true
-else
-    echo "     （未在服务日志捕获 /api/health 访问行——访问日志可能未开；见 unirag-after-app.log）"
+check "3.3 用户可继续阅读（App 未退出）" app_alive
+if [ "$KEEP" = 0 ]; then
+    quit_app
+    stop_dummy
 fi
-quit_app
-stop_unirag
 
 # ---------------------------------------------------------------- 总结
 echo
 echo "================================================================"
-echo "acceptance 结果: PASS=$PASS FAIL=$FAIL   证据: $ART"
-echo "（App 内 citation 点击跳转的定位逻辑由 test-native.sh 的 CitationLocatorTests 覆盖）"
+echo "acceptance 自动化结果: PASS=$PASS FAIL=$FAIL   证据: $ART"
+echo "App 内提问、引用点击、高亮与离线提示仍需按 .agents/skills/vibereader-acceptance/SKILL.md 在真实界面核验。"
 [ "$FAIL" -eq 0 ] || exit 1
