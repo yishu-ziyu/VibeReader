@@ -32,8 +32,10 @@ jobs:
           test_pid=$!
           last_size=0
           idle_seconds=0
+          elapsed_seconds=0
           while ps -p "$test_pid" >/dev/null 2>&1; do
             sleep 30
+            elapsed_seconds=$((elapsed_seconds + 30))
             size="$(stat -f %z "$log")"
             if [ "$size" -gt "$last_size" ]; then
               tail -n 12 "$log"
@@ -42,8 +44,8 @@ jobs:
             else
               idle_seconds=$((idle_seconds + 30))
             fi
-            if [ "$idle_seconds" -ge 480 ]; then
-              echo "XCTest produced no output for 8 minutes; collecting runner state"
+            if [ "$idle_seconds" -ge 480 ] || [ "$elapsed_seconds" -ge 900 ]; then
+              echo "XCTest exceeded its 8-minute idle or 15-minute total limit; collecting runner state"
               ps -axo pid,ppid,state,etime,command | grep -E 'xcodebuild|xctest|VibeReader|testmanagerd' | tail -30 || true
               sample "$test_pid" 5 -file "$RUNNER_TEMP/xcodebuild.sample" >/dev/null 2>&1 || true
               tail -n 60 "$RUNNER_TEMP/xcodebuild.sample" 2>/dev/null || true
