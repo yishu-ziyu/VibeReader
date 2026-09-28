@@ -28,8 +28,10 @@ jobs:
             -destination "platform=macOS" \
             CODE_SIGNING_ALLOWED=NO build
       - name: Unit tests (PageFlowTests)
+        # caffeinate 预先持有电源断言：VM 里 xcodebuild 测试会话自行创建断言时
+        # 可能无限阻塞（本地 powerd 拒绝时则快速报错），这是社区通用 workaround。
         run: |
-          xcodebuild test -project apps/vibereader-macos/PageFlow.xcodeproj \
+          caffeinate -is xcodebuild test -project apps/vibereader-macos/PageFlow.xcodeproj \
             -scheme PageFlowUnitTests \
             -destination "platform=macOS" \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=
