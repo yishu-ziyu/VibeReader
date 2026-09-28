@@ -16,24 +16,23 @@ jobs:
   native:
     name: Native build + PageFlowTests
     runs-on: macos-15
+    timeout-minutes: 45
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
       - name: Build (Debug)
         run: |
-          set -o pipefail
           xcodebuild -project apps/vibereader-macos/PageFlow.xcodeproj \
             -scheme PageFlow -configuration Debug \
             -destination "platform=macOS" \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -200
+            CODE_SIGNING_ALLOWED=NO build
       - name: Unit tests (PageFlowTests)
         run: |
-          set -o pipefail
           xcodebuild test -project apps/vibereader-macos/PageFlow.xcodeproj \
             -scheme PageFlowUnitTests \
             -destination "platform=macOS" \
-            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= 2>&1 | tail -200
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=
 
   unirag:
     name: UniRAG tests (unit + integration + contract v1)
