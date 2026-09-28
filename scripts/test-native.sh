@@ -8,10 +8,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT/apps/vibereader-macos/PageFlow.xcodeproj"
 
+SIGN_ARGS=()
+if [ "${VIBEREADER_SIGN:-adhoc}" != "auto" ]; then
+    SIGN_ARGS=(CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+fi
+
 if [ "${1:-}" = "--ui" ]; then
     exec xcodebuild test -project "$PROJECT" -scheme "PageFlow" \
-        -destination "platform=macOS"
+        -destination "platform=macOS" "${SIGN_ARGS[@]}"
 fi
 
 exec xcodebuild test -project "$PROJECT" -scheme "PageFlowUnitTests" \
-    -destination "platform=macOS"
+    -destination "platform=macOS" -parallel-testing-enabled NO "${SIGN_ARGS[@]}"
