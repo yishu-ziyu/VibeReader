@@ -1,0 +1,9 @@
+# 二进制资产按 binary 处理（diff 统计与合并行为）
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.tiff binary
+*.icns binary
+*.dmg binary
+*.xcresult binary
