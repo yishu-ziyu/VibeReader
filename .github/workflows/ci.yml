@@ -47,6 +47,7 @@ jobs:
             if [ "$idle_seconds" -ge 480 ] || [ "$elapsed_seconds" -ge 900 ]; then
               echo "XCTest exceeded its 8-minute idle or 15-minute total limit; collecting runner state"
               ps -axo pid,ppid,state,etime,command | grep -E 'xcodebuild|xctest|VibeReader|testmanagerd' | tail -30 || true
+              grep -F 'VibeReader test host:' "$log" | tail -5 || true
               sample "$test_pid" 5 -file "$RUNNER_TEMP/xcodebuild.sample" >/dev/null 2>&1 || true
               tail -n 60 "$RUNNER_TEMP/xcodebuild.sample" 2>/dev/null || true
               tail -n 80 "$log"

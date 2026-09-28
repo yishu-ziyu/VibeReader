@@ -158,7 +158,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The first-launch prompt is a modal alert that would stall the test
         // host (its UserDefaults are fresh under the test bundle identifier).
-        guard !TestEnvironment.isRunningTests else { return }
+        guard !TestEnvironment.isRunningTests else {
+            NSLog("VibeReader test host: startup UI suppressed")
+            return
+        }
         firstLaunchManager.handleFirstLaunch()
         UniRAGServiceLauncher.shared.startIfNeeded()
     }

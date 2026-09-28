@@ -10,8 +10,9 @@ import Testing
 
 struct PageFlowTests {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    @Test func appHostStartsInTestMode() {
+        // Startup must suppress modal first-launch and service setup UI before tests run.
+        #expect(TestEnvironment.isRunningTests)
     }
 
 }
