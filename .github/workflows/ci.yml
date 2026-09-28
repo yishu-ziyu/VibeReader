@@ -1,0 +1,54 @@
+# 最小 CI（Issue #1 P2）：PR gate = native build + native tests + UniRAG tests
+#（含 shared-contract 钉死测试）。真实 GUI / sidecar / 大模型 / 用户核心路径
+# 验收不在此跑，保留在 macOS 本机（scripts/acceptance.sh）。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Native build + PageFlowTests
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (Debug)
+        run: |
+          xcodebuild -project apps/vibereader-macos/PageFlow.xcodeproj \
+            -scheme PageFlow -configuration Debug \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO build | xcbeautify --render-inline-comments
+        # xcbeautify 预装在 GitHub macOS runner 上；失败时尾部日志仍可见
+      - name: Unit tests (PageFlowTests)
+        run: |
+          xcodebuild test -project apps/vibereader-macos/PageFlow.xcodeproj \
+            -scheme PageFlowUnitTests \
+            -destination "platform=macOS" | xcbeautify --render-inline-comments
+
+  unirag:
+    name: UniRAG tests (unit + integration + contract v1)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Sync dependencies
+        working-directory: services/uni-rag
+        run: uv sync --extra dev
+      - name: Tests
+        working-directory: services/uni-rag
+        env:
+          UNI_RAG_LLM_API_KEY: test-key-for-unit-tests
+        run: uv run python -m pytest tests/unit tests/integration -q
+        # test_contract_v1.py 会向上找到 packages/shared-contracts 的 v1
+        # fixtures，即为本 workflow 的 shared contract check。

@@ -1,5 +1,10 @@
 # VibeReader Reading Agent 构建总计划
 
+> **状态注记（2026-09-28）**：本文描述的 Reading Agent 落点是旧 Tauri 版
+> `apps/reader`，该线已冻结（DEC-0010）。当前主力产品是
+> `apps/vibereader-macos`（原生 macOS 版）；Reading Agent 7 skills 迁移到原生版
+> 属未来工作（见 DEC-0010 的范围后置决定）。本文仅作参考实现规划保留。
+
 更新时间：2026-08-06
 
 质量标尺来源：本地《深入理解 AI Agent》十章（`/Users/mahaoxuan/Desktop/AI产品经理/ai-agent-book`，核心公式 **Agent = LLM + 上下文 + 工具**）。
@@ -226,7 +231,8 @@ UniRAG 联调：
 ```bash
 # 仓库根
 ./scripts/dev-unirag.sh   # 或 services/uni-rag 文档中的启动方式
-./scripts/dev-reader.sh
+./scripts/dev-native.sh   # 原生主线（DEC-0010 后唯一活跃产品）
+# 旧 Tauri Reader 的 dev-reader.sh 已随冻结移除；如需查看旧实现，直接进 apps/reader
 ```
 
 ---

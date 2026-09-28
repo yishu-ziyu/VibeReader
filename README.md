@@ -1,48 +1,53 @@
 # VibeReader
 
-这是 VibeReader 与 UniRAG 的统一产品仓库，使用 yishuship 管理产品生命周期。
+VibeReader 的统一产品仓库：原生 macOS 阅读器 + 本地知识后端 UniRAG。
 
-这个目录现在是 VibeReader 知识飞轮的本地统一入口。只保留自己的 Reader 和 UniRAG。作者 Vibero 的本机拷贝已于 2026-08-13 删除，不再作为参考仓。
+## 当前主线（Canonical）
 
-1. 统一产品叙事：以阅读为入口，以本地 RAG 为长期知识记忆。
-2. 统一开发计划：把 Reader、RAG、共享协议、模型配置、测试验收放到同一张路线图里。
-3. 统一项目索引：让下次开发只需要先打开这个目录。
+- **产品主线**：`apps/vibereader-macos` — VibeReader for Mac（SwiftUI + AppKit + PDFKit，
+  PageFlow fork + UniRAG 带引用问答）。DEC-0010 起为唯一主力产品，
+  DEC-0011 起并入本仓统一追踪。
+- **知识后端**：`services/uni-rag` — 本地 RAG 服务（FastAPI，127.0.0.1:8766），
+  以 sidecar 形式随 App 分发。
+- **共享契约**：`packages/shared-contracts/reader-unirag-memory/v1/`
 
-## 当前代码位置（Canonical）
+`apps/reader`（旧 Tauri 版）**已冻结**：仅作参考实现保留，不再新增产品能力（DEC-0010）。
 
-- Reader: `apps/reader`
-- UniRAG: `services/uni-rag`
-
-不要再找 `legacy/vibero`、`黑客松/_apps`、`黑客松/_downloads`。那些是作者 Vibero 的本机残留，已经删除。
-
-详细索引见 [PROJECTS.md](PROJECTS.md)。
+Agent / 新会话请先读 [AGENTS.md](AGENTS.md)。
 
 ## 快速进入
 
 ```bash
-cd /Users/mahaoxuan/Desktop/AI产品经理/vibereader
+# 构建 + 启动原生 App（Debug）
+scripts/dev-native.sh
 
-# Reader
-cd apps/reader
-npm run dev -- --port 3217
+# 单独起 UniRAG 服务（App 开发时通常不需要，sidecar/dev fallback 会自动拉起）
+scripts/dev-unirag.sh
 
-# UniRAG
-cd services/uni-rag
-uv run uni-rag serve --port 8766
+# 状态一览（native + UniRAG + git）
+scripts/status.sh
 ```
 
-## yishuship 生命周期入口
+验证入口：
 
-- 当前生命周期任务：`.ship/tasks/20260701-vibereader-knowledge-flywheel/`
-- 产品类型：hybrid
-- 当前阶段：`phase-1-unirag-memory-backend`
-- 工程交接：`.ship/tasks/20260701-vibereader-knowledge-flywheel/delivery/design-spec.md`
+```bash
+scripts/build-native.sh    # 原生构建
+scripts/test-native.sh     # 原生单元测试（PageFlowTests）
+scripts/test-unirag.sh     # UniRAG Python 测试
+scripts/verify.sh          # 按改动范围执行最低充分验证
+scripts/acceptance.sh      # 真实黄金路径验收（真实 PDF + 真实 App + 真实 UniRAG）
+```
 
 ## 核心文档
 
-- [项目开发计划](docs/PROJECT_DEVELOPMENT_PLAN.md)
-- [产品愿景](docs/PRODUCT_VISION.md)
-- [UniRAG 集成策略](docs/UNI_RAG_INTEGRATION_STRATEGY.md)
-- [运行规范：Plan / Goal / Loop](docs/OPERATING_MODEL.md)
-- [竞品分析与产品规划流程](docs/COMPETITIVE_ANALYSIS_AND_PRODUCT_PLANNING.md)
-- [生命周期决策记录](docs/decisions/DEC-0001-use-yishuship-lifecycle.md)
+- [AGENTS.md](AGENTS.md) — Agent 开发入口（主线 / 冻结线 / 完成定义）
+- [项目索引](PROJECTS.md)
+- [产品开发计划](docs/PROJECT_DEVELOPMENT_PLAN.md) / [产品愿景](docs/PRODUCT_VISION.md)
+- 关键决策：[DEC-0010 原生优先 + sidecar](docs/decisions/DEC-0010-native-first-and-unirag-sidecar.md) ·
+  [DEC-0011 原生仓并入单仓](docs/decisions/DEC-0011-native-macos-monorepo-import.md)
+- 原生模块上下文：[apps/vibereader-macos/CONTEXT.md](apps/vibereader-macos/CONTEXT.md)
+
+## yishuship 生命周期
+
+- 当前生命周期任务：`.ship/tasks/20260701-vibereader-knowledge-flywheel/`
+- 历史决策记录：`docs/decisions/`

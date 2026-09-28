@@ -1,35 +1,41 @@
 # VibeReader Project Index
 
-Updated: 2026-09-04
+Updated: 2026-09-28
 
 ## Canonical Local Root
 
 ```text
-/Users/mahaoxuan/Desktop/AI产品经理/vibereader
+/Users/mahaoxuan/Desktop/AI 产品/vibereader
 ```
 
-Open this directory first when continuing the product.
+Open this directory first when continuing the product. Agent entry point: [AGENTS.md](AGENTS.md).
 
 ## Current Layout
 
 ```text
 vibereader/
   apps/
-    reader/          # active VibeReader app
+    vibereader-macos/  # canonical product: native macOS reader (DEC-0010/0011)
+    reader/            # FROZEN: legacy Tauri reader, reference-only
   services/
-    uni-rag/         # local RAG backend / knowledge module
+    uni-rag/           # local RAG backend / knowledge module
+  packages/
+    shared-contracts/  # reader-unirag-memory v1 fixtures
   docs/
   .ship/
+  scripts/             # unified dev/verify/acceptance entry points
 ```
 
 ## Project Roles
 
 | Path | Role | Git Remote | Current Use |
 | --- | --- | --- | --- |
-| 仓库根（含 `apps/reader`、`services/uni-rag`） | 单一公开产品仓库：代码 + 契约 + 文档 | `https://github.com/yishu-ziyu/vibereader.git` | **唯一活跃开发入口（DEC-0005，2026-08-31 起）** |
-| `apps/vibereader-macos` | VibeReader for Mac: native macOS edition, PageFlow fork (Apache-2.0) + UniRAG AI | 本地独立仓（DEC-0009，M1/M2 稳定后并入单仓） | Native edition bootstrap |
+| 仓库根（全部代码 + 契约 + 文档） | 单一公开产品仓库 | `https://github.com/yishu-ziyu/vibereader.git` | **唯一活跃开发入口（DEC-0005 / DEC-0011）** |
+| `apps/vibereader-macos` | 唯一主力产品：native macOS 版（PageFlow fork + UniRAG） | 本仓直接追踪（DEC-0011，2026-09-28 squash import） | **canonical product** |
+| `apps/reader` | 旧 Tauri 版，AI 功能参考实现 | 本仓直接追踪（DEC-0005） | **frozen / reference-only**（DEC-0010） |
+| `services/uni-rag` | 本地知识后端，sidecar 分发 | 本仓直接追踪（DEC-0005） | active |
 
-Author Vibero local copies were deleted on 2026-08-13 (`legacy/vibero`, `黑客松/_apps`, `黑客松/_downloads`). Do not restore them. Independent development continues on Reader + UniRAG only.
+Author Vibero local copies were deleted on 2026-08-13 (`legacy/vibero`, `黑客松/_apps`, `黑客松/_downloads`). Do not restore them.
 
 ## Canonical Entry
 
@@ -43,10 +49,8 @@ Treat the new paths as canonical in new docs, prompts, scripts, and future commi
 
 - `apps/reader` Reading Agent Wave 17 已并入本仓库；handoff 为 `docs/AGENT_CONTINUE.md`。Prior contract: `4ec8191`.
 - `services/uni-rag` is clean after commit `b093749 feat: stabilize reader memory contract` and push to `https://github.com/yishu-ziyu/uni-rag.git`.
-- The workbench root is now a separate Phase C.0 repository for lifecycle docs, scripts, and shared contracts. It intentionally ignores nested code repositories during the gradual migration.
+- All code now lives in this single repository (DEC-0005 for reader + uni-rag, DEC-0011 for vibereader-macos); no nested repositories remain.
 - Author Vibero is gone from disk. Ignore leftover mentions of `legacy/vibero` in older ship notes.
-
-Do not flatten these repositories into a single Git history until dirty worktrees are reviewed and either committed or intentionally archived. Current review record: `.ship/tasks/20260701-vibereader-knowledge-flywheel/qa/codex-review-phase-1-contract-stabilization.md`.
 
 ## Agent Collaboration
 
@@ -68,21 +72,21 @@ The plain `uv run pytest` entry can hit a stale pytest script after local folder
 
 ## Cloud Repository Strategy
 
-Current cloud state (after DEC-0005 cutover, 2026-08-31):
+Current cloud state (after DEC-0005 and DEC-0011 cutover):
 
 | Local path | Current remote | Role |
 | --- | --- | --- |
 | repository root | `https://github.com/yishu-ziyu/vibereader.git` | **唯一活跃仓库**：全部代码 + 契约 + 文档 |
 | `services/uni-rag`（历史） | `https://github.com/yishu-ziyu/uni-rag.git` | 只读归档（cutover 前已完整推送） |
+| `apps/vibereader-macos`（历史） | `https://github.com/yishu-ziyu/vibereader-macos.git` | 只读归档（并入前已完整推送；本地 `.git` 备份于 `~/vibereader-git-backups/vibereader-macos-git-20260928.tar.gz`） |
 
 Repository retention policy:
 
 - 原 Reader 单体仓已由本仓库接管 `vibereader` 名称并删除；
-- `uni-rag.git` 冻结为只读归档，不再推送；
-- 不创建更多分散的产品远程；
-- `apps/vibereader-macos` 并入本仓时沿用 squash import（见 DEC-0005）。
+- `uni-rag.git`、`vibereader-macos.git` 冻结为只读归档，不再推送；
+- 不创建更多分散的产品远程。
 
-Durable decisions: `docs/decisions/DEC-0004-retain-subrepos-until-monorepo-cutover.md`（已被 DEC-0005 取代）、`docs/decisions/DEC-0005-monorepo-squash-import.md`。
+Durable decisions: `docs/decisions/DEC-0004-retain-subrepos-until-monorepo-cutover.md`（已被 DEC-0005 取代）、`docs/decisions/DEC-0005-monorepo-squash-import.md`、`docs/decisions/DEC-0011-native-macos-monorepo-import.md`。
 
 ## Consolidation Plan
 
@@ -116,12 +120,16 @@ Phase C.1: done (2026-08-31, DEC-0005).
 - Nested `.git` 备份于 `~/vibereader-git-backups/` 后移除；根仓已拥有全部 app/service 代码。
 - 旧远程冻结为只读归档。
 
-Phase C.2: no longer needed — the layout below is now the real single-repo layout:
+Phase C.2: done (2026-09-28, DEC-0011).
+
+- `apps/vibereader-macos` squashed into this repository (nested `.git` archived to
+  `~/vibereader-git-backups/vibereader-macos-git-20260928.tar.gz`, old remote frozen
+  read-only). The single-repo layout is now complete:
 
 ```text
-apps/reader
+apps/vibereader-macos   # canonical product
+apps/reader             # frozen reference
 services/uni-rag
-apps/vibereader-macos   # 嵌套本地仓，M1/M2 后并入
 packages/shared-contracts
 packages/model-providers  # 规划中
 ```
