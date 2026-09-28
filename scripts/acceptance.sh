@@ -163,16 +163,19 @@ INGEST_SOURCE_ID=""
 do_ingest() {
     # 走真实 App 同款路径：默认知识库 /api/ingest（App 问答用的就是默认库）。
     # 验收后用返回的 source_id 删除该文档，不污染长期知识库。
-    curl -sf -m 300 -F "file=@$FIXTURE" "$BASE/api/ingest" >"$INGEST_JSON" || echo '{}' >"$INGEST_JSON"
+    curl -sf -m 300 -F "file=@$FIXTURE" "$BASE/api/ingest" >"$INGEST_JSON" || return 1
     INGEST_SOURCE_ID="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('source_id',''))" "$INGEST_JSON" 2>/dev/null || true)"
+    [ -n "$INGEST_SOURCE_ID" ]
 }
 
 cleanup_ingest() { # 删除验收期间 ingest 的文档（幂等，尽力而为）
     if [ -n "${INGEST_SOURCE_ID:-}" ]; then
-        curl -sf -m 60 -X DELETE "$BASE/api/documents/$INGEST_SOURCE_ID" \
-            >"$ART/ingest-cleanup.json" 2>&1 \
-            && echo "     已清理验收文档: $INGEST_SOURCE_ID" \
-            || echo "     警告: 清理验收文档失败（source_id=$INGEST_SOURCE_ID），请手动删除"
+        if ! curl -sf -m 60 -X DELETE "$BASE/api/documents/$INGEST_SOURCE_ID" \
+            >"$ART/ingest-cleanup.json" 2>&1; then
+            echo "清理验收文档失败（source_id=$INGEST_SOURCE_ID），请手动删除" >&2
+            return 1
+        fi
+        echo "     已清理验收文档: $INGEST_SOURCE_ID"
         INGEST_SOURCE_ID=""
     fi
     return 0
@@ -255,7 +258,9 @@ echo
 echo "== [1] UniRAG 真实服务：启动 → 索引真实 PDF → 问答 → 断言 answer+citation"
 start_unirag
 check "1.1 服务健康 (/api/health)" wait_health 180
+[ "$FAIL" -eq 0 ] || exit 1
 check "1.2 索引真实 PDF" do_ingest
+[ "$FAIL" -eq 0 ] || exit 1
 check "1.3 索引产生 chunks > 0" assert_ingest_chunks
 sleep 2
 check "1.4 /api/query 返回 200" do_query
