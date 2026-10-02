@@ -5,8 +5,9 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ART="${RUNNER_TEMP:-$ROOT/test-results}/reader-root-smoke"
 mkdir -p "$ART"
-APP_PID=""; DUMMY_PID=""
+APP_PID=""; DUMMY_PID=""; OPEN_PID=""
 cleanup() {
+  if [ -n "$OPEN_PID" ]; then kill "$OPEN_PID" 2>/dev/null || true; fi
   if [ -n "$APP_PID" ]; then kill "$APP_PID" 2>/dev/null || true; fi
   if [ -n "$DUMMY_PID" ]; then kill "$DUMMY_PID" 2>/dev/null || true; fi
 }
@@ -23,7 +24,7 @@ error_diagnostics() {
   local status=$?
   echo "READER_ROOT_SMOKE_FAIL: stage=$stage line=$1 status=$status"
   tail -n 25 "$ART/build.log" 2>/dev/null || true
-  cat "$ART/unavailable.log" 2>/dev/null || true
+  cat "$ART/unavailable.log" "$ART/open.log" 2>/dev/null || true
   sample_host
   exit "$status"
 }
@@ -63,7 +64,8 @@ done
 [ "$HTTP_CODE" = 500 ]
 echo "Verified unavailable service: HTTP $HTTP_CODE"
 stage="normal-app-launch"; echo "Stage: $stage"
-open -n -a "$APP" "$FIXTURE"
+open -n -a "$APP" "$FIXTURE" >"$ART/open.log" 2>&1 &
+OPEN_PID=$!
 for _ in $(seq 1 20); do
   APP_PID="$(pgrep -x VibeReader | head -1 || true)"
   [ -n "$APP_PID" ] && break
@@ -76,29 +78,41 @@ sleep 12
 sample_host
 stage="first-page-OCR"; echo "Stage: $stage"
 swift "$ROOT/scripts/reader-root-capture.swift" "$APP_PID" reader-startup-sample "$ART/page-1.png" 第一章
-osascript - "$APP_PID" <<'APPLESCRIPT'
+menu_action() {
+  local action="$1" action_pid status
+  osascript - "$APP_PID" "$action" <<'APPLESCRIPT' &
 on run argv
  tell application "System Events"
   tell (first process whose unix id is (item 1 of argv as integer))
    set frontmost to true
-   click menu item "Next Page" of menu "Go" of menu bar item "Go" of menu bar 1
+   click menu item (item 2 of argv) of menu "Go" of menu bar item "Go" of menu bar 1
   end tell
  end tell
 end run
 APPLESCRIPT
+  action_pid=$!
+  for _ in $(seq 1 20); do
+    if ! kill -0 "$action_pid" 2>/dev/null; then
+      status=0; wait "$action_pid" || status=$?
+      return "$status"
+    fi
+    sleep 1
+  done
+  kill "$action_pid" 2>/dev/null || true
+  wait "$action_pid" 2>/dev/null || true
+  echo "Real menu action timed out after 20 seconds: $action"
+  return 124
+}
+stage="next-page-menu"; echo "Stage: $stage"
+menu_action "Next Page"
 sleep 3
+stage="second-page-OCR"; echo "Stage: $stage"
 swift "$ROOT/scripts/reader-root-capture.swift" "$APP_PID" reader-startup-sample "$ART/page-2.png" 第二章
 ! cmp -s "$ART/page-1.png.txt" "$ART/page-2.png.txt"
-osascript - "$APP_PID" <<'APPLESCRIPT'
-on run argv
- tell application "System Events"
-  tell (first process whose unix id is (item 1 of argv as integer))
-   click menu item "Previous Page" of menu "Go" of menu bar item "Go" of menu bar 1
-  end tell
- end tell
-end run
-APPLESCRIPT
+stage="previous-page-menu"; echo "Stage: $stage"
+menu_action "Previous Page"
 sleep 3
+stage="returned-first-page-OCR"; echo "Stage: $stage"
 swift "$ROOT/scripts/reader-root-capture.swift" "$APP_PID" reader-startup-sample "$ART/recovery-page-1.png" 第一章
 kill -0 "$APP_PID"
-echo "READER_ROOT_SMOKE_PASS: normal root, actual PDF text, Next/Previous navigation, unavailable service recovery"
+echo "READER_ROOT_SMOKE_PASS: normal root, actual PDF text, Next/Previous navigation, reading/navigation with unavailable service"

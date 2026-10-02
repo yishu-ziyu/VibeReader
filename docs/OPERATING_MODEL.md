@@ -356,3 +356,9 @@ service makes UniRAG unavailable. Complete host samples, images, and OCR stay
 in `reader-root-evidence`; permission or startup failures remain failures.
 This bounded cloud diagnostic is not full `acceptance.sh` or provider-backed
 GUI/citation acceptance, and does not change product behavior.
+
+The smoke proves only reader startup and navigation in that service condition.
+It does not assert an App service request, error-panel UI, reconnection, or
+answer/citation recovery; those acceptance points remain unrun. LaunchServices
+and menu automation are bounded independently so a blocked action leaves the
+actual App stack rather than only a workflow timeout.
