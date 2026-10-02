@@ -42,8 +42,14 @@ cp "$ROOT/test-fixtures/acceptance-sample.pdf" "$FIXTURE"
 defaults write cn.yishuziyu.vibereader-macos hasShownDefaultPDFPrompt -bool true
 cat > "$ART/unavailable.py" <<'PYTHON'
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import json, sys, time
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
+        record = {"time": time.time(), "method": self.command, "path": self.path,
+                  "ua": self.headers.get("User-Agent", ""),
+                  "probe": self.headers.get("X-Smoke-Probe", "")}
+        with open(sys.argv[1], "a", encoding="utf-8") as log:
+            log.write(json.dumps(record) + "\n"); log.flush()
         self.send_response(500); self.end_headers(); self.wfile.write(b"unavailable")
     do_POST = do_GET
 HTTPServer(("127.0.0.1",8766),H).serve_forever()
@@ -51,19 +57,20 @@ PYTHON
 if lsof -ti tcp:8766 >/dev/null 2>&1; then
   echo "Port 8766 already occupied; refusing unknown service"; exit 2
 fi
-python3 "$ART/unavailable.py" >"$ART/unavailable.log" 2>&1 &
+python3 -u "$ART/unavailable.py" "$ART/service-requests.jsonl" >"$ART/unavailable.log" 2>&1 &
 DUMMY_PID=$!
 stage="unavailable-service"; echo "Stage: $stage"
 HTTP_CODE=000
 for _ in $(seq 1 10); do
   kill -0 "$DUMMY_PID"
-  HTTP_CODE="$(curl -s -o "$ART/unavailable-response.txt" -w '%{http_code}' -m 3 http://127.0.0.1:8766/api/health || true)"
+  HTTP_CODE="$(curl -s -o "$ART/unavailable-response.txt" -w '%{http_code}' -m 3 -H 'X-Smoke-Probe: preflight' http://127.0.0.1:8766/api/health || true)"
   [ "$HTTP_CODE" = 500 ] && break
   sleep 1
 done
 [ "$HTTP_CODE" = 500 ]
 echo "Verified unavailable service: HTTP $HTTP_CODE"
 stage="normal-app-launch"; echo "Stage: $stage"
+LAUNCH_TIME="$(date +%s)"
 open -n -a "$APP" "$FIXTURE" >"$ART/open.log" 2>&1 &
 OPEN_PID=$!
 for _ in $(seq 1 20); do
@@ -114,5 +121,17 @@ menu_action "Previous Page"
 sleep 3
 stage="returned-first-page-OCR"; echo "Stage: $stage"
 swift "$ROOT/scripts/reader-root-capture.swift" "$APP_PID" reader-startup-sample "$ART/recovery-page-1.png" 第一章
+stage="App-unavailable-service-request"; echo "Stage: $stage"
+python3 - "$ART/service-requests.jsonl" "$LAUNCH_TIME" <<'PYTHON'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as log:
+    records = [json.loads(line) for line in log]
+for record in records:
+    print("Observed service request:", json.dumps(record))
+assert any(r["time"] >= int(sys.argv[2]) and r["path"] == "/api/health"
+           and not r["probe"] and not r["ua"].lower().startswith("curl/")
+           and ("VibeReader" in r["ua"] or "CFNetwork" in r["ua"])
+           for r in records), "No attributed real App health request after launch"
+PYTHON
 kill -0 "$APP_PID"
 echo "READER_ROOT_SMOKE_PASS: normal root, actual PDF text, Next/Previous navigation, reading/navigation with unavailable service"
