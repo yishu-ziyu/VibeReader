@@ -8,6 +8,10 @@
 import Foundation
 
 enum TestEnvironment {
+    /// Set only by PageFlowUnitTests. The full PageFlow/UI-test scheme keeps
+    /// its normal reader scene so user-flow tests cannot silently bypass it.
+    static let isUnitTestHost = ProcessInfo.processInfo.environment["VIBEREADER_UNIT_TEST_HOST"] == "1"
+
     /// The Test action marks the host before the test bundle is injected;
     /// checking XCTestCase alone can miss Swift Testing during startup.
     /// Used to suppress UI that blocks the main actor under tests: the

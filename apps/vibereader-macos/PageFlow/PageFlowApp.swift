@@ -67,8 +67,18 @@ struct PageFlowApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TabContainerView()
-                .environment(recentFilesManager)
+            Group {
+                if TestEnvironment.isUnitTestHost {
+                    // App-hosted unit tests need the real application delegate
+                    // and run loop, but no automatically mounted reader scene.
+                    // CI host samples showed this scene continuously laying out
+                    // before the first test could start. UI tests keep the reader.
+                    Color.clear.frame(width: 1, height: 1)
+                } else {
+                    TabContainerView()
+                        .environment(recentFilesManager)
+                }
+            }
                 .onAppear {
                     appDelegate.windowContentBuilder = { tabManager in
                         AnyView(
