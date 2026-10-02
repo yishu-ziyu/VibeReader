@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Issue #3: real reader root + PDF navigation, without unit/test-host isolation.
 # This is not the provider-backed full acceptance.sh golden path.
-set -euo pipefail
+set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ART="${RUNNER_TEMP:-$ROOT/test-results}/reader-root-smoke"
 mkdir -p "$ART"
@@ -18,12 +18,22 @@ sample_host() {
     ps -p "$APP_PID" -o pid,etime,%cpu,state,command || true
   fi
 }
-trap 'sample_host' ERR
+stage="preflight"
+error_diagnostics() {
+  local status=$?
+  echo "READER_ROOT_SMOKE_FAIL: stage=$stage line=$1 status=$status"
+  tail -n 25 "$ART/build.log" 2>/dev/null || true
+  cat "$ART/unavailable.log" 2>/dev/null || true
+  sample_host
+  exit "$status"
+}
+trap 'error_diagnostics $LINENO' ERR
 [ "$(uname -s)" = Darwin ] || { echo "macOS required"; exit 2; }
 [ -z "${VIBEREADER_UNIT_TEST_HOST:-}" ] && [ -z "${VIBEREADER_TEST_HOST:-}" ]
 if pgrep -x VibeReader >/dev/null; then echo "Existing reader; refusing ambiguous attribution"; exit 2; fi
+stage="build"; echo "Stage: $stage"
 scripts/build-native.sh >"$ART/build.log" 2>&1
-APP_DIR="$(xcodebuild -project "$ROOT/apps/vibereader-macos/PageFlow.xcodeproj" -scheme PageFlow -configuration Debug -showBuildSettings 2>/dev/null | awk '/ BUILT_PRODUCTS_DIR =/{print $3; exit}')"
+APP_DIR="$(xcodebuild -project "$ROOT/apps/vibereader-macos/PageFlow.xcodeproj" -scheme PageFlow -configuration Debug -showBuildSettings 2>/dev/null | awk '/ BUILT_PRODUCTS_DIR =/ && !printed {print $3; printed=1}')"
 APP="$APP_DIR/VibeReader.app"
 FIXTURE="$ART/reader-startup-sample.pdf"
 cp "$ROOT/test-fixtures/acceptance-sample.pdf" "$FIXTURE"
@@ -42,9 +52,17 @@ if lsof -ti tcp:8766 >/dev/null 2>&1; then
 fi
 python3 "$ART/unavailable.py" >"$ART/unavailable.log" 2>&1 &
 DUMMY_PID=$!
-sleep 1
-kill -0 "$DUMMY_PID"
-[ "$(curl -s -o "$ART/unavailable-response.txt" -w '%{http_code}' -m 3 http://127.0.0.1:8766/api/health)" = 500 ]
+stage="unavailable-service"; echo "Stage: $stage"
+HTTP_CODE=000
+for _ in $(seq 1 10); do
+  kill -0 "$DUMMY_PID"
+  HTTP_CODE="$(curl -s -o "$ART/unavailable-response.txt" -w '%{http_code}' -m 3 http://127.0.0.1:8766/api/health || true)"
+  [ "$HTTP_CODE" = 500 ] && break
+  sleep 1
+done
+[ "$HTTP_CODE" = 500 ]
+echo "Verified unavailable service: HTTP $HTTP_CODE"
+stage="normal-app-launch"; echo "Stage: $stage"
 open -n -a "$APP" "$FIXTURE"
 for _ in $(seq 1 20); do
   APP_PID="$(pgrep -x VibeReader | head -1 || true)"
@@ -53,8 +71,10 @@ for _ in $(seq 1 20); do
 done
 [ -n "$APP_PID" ]
 [ "$(ps -p "$APP_PID" -o comm=)" = "$APP/Contents/MacOS/VibeReader" ]
+stage="startup-settle"; echo "Stage: $stage pid=$APP_PID"
 sleep 12
 sample_host
+stage="first-page-OCR"; echo "Stage: $stage"
 swift "$ROOT/scripts/reader-root-capture.swift" "$APP_PID" reader-startup-sample "$ART/page-1.png" 第一章
 osascript - "$APP_PID" <<'APPLESCRIPT'
 on run argv
