@@ -84,6 +84,46 @@ done
 stage="startup-settle"; echo "Stage: $stage pid=$APP_PID"
 sleep 12
 sample_host
+stage="acknowledge-real-service-error"; echo "Stage: $stage"
+# The normal unavailable-service path presents a real blocking alert. Observe
+# its exact text and acknowledge its native button; never suppress the alert.
+screencapture -x "$ART/service-error-screen.png" 2>/dev/null || true
+osascript - "$APP_PID" >"$ART/service-error-AX.txt" 2>&1 <<'APPLESCRIPT' &
+on run argv
+ tell application "System Events"
+  tell (first process whose unix id is (item 1 of argv as integer))
+   set frontmost to true
+   set observedText to ""
+   repeat with element in entire contents of window 1
+    if class of element is static text then
+     set observedText to observedText & (value of element as text) & linefeed
+    end if
+   end repeat
+   log observedText
+   if observedText does not contain "知识库服务无法启动" then error "Expected real missing-service alert was not observed"
+   if (count of (buttons of window 1 whose name is "好")) is not 1 then error "Expected unique native acknowledgement button was not observed"
+   click button "好" of window 1
+   log "Acknowledged real missing-service alert with native 好 button"
+  end tell
+ end tell
+end run
+APPLESCRIPT
+ALERT_PID=$!
+ALERT_DONE=0
+for _ in $(seq 1 20); do
+  if ! kill -0 "$ALERT_PID" 2>/dev/null; then ALERT_DONE=1; break; fi
+  sleep 1
+done
+if [ "$ALERT_DONE" != 1 ]; then
+  kill "$ALERT_PID" 2>/dev/null || true
+  wait "$ALERT_PID" 2>/dev/null || true
+  cat "$ART/service-error-AX.txt"
+  echo "Real service-alert acknowledgement timed out"; exit 124
+fi
+ALERT_STATUS=0; wait "$ALERT_PID" || ALERT_STATUS=$?
+cat "$ART/service-error-AX.txt"
+[ "$ALERT_STATUS" = 0 ]
+sleep 3
 stage="first-page-OCR"; echo "Stage: $stage"
 swift "$ROOT/scripts/reader-root-capture.swift" "$APP_PID" reader-startup-sample "$ART/page-1.png" 第一章
 menu_action() {
