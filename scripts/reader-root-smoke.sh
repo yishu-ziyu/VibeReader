@@ -94,9 +94,11 @@ on run argv
   tell (first process whose unix id is (item 1 of argv as integer))
    set frontmost to true
    set observedText to ""
-   repeat with element in entire contents of window 1
-    if class of element is static text then
-     set observedText to observedText & (value of element as text) & linefeed
+   set observedElements to get entire contents of window 1
+   repeat with elementReference in observedElements
+    set observedElement to contents of elementReference
+    if class of observedElement is static text then
+     set observedText to observedText & (value of observedElement as text) & linefeed
     end if
    end repeat
    log observedText
