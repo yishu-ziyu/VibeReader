@@ -23,6 +23,7 @@ stage="preflight"
 error_diagnostics() {
   local status=$?
   echo "READER_ROOT_SMOKE_FAIL: stage=$stage line=$1 status=$status"
+  grep -n -C 3 'error:' "$ART/build.log" 2>/dev/null | head -90 || true
   tail -n 25 "$ART/build.log" 2>/dev/null || true
   cat "$ART/unavailable.log" "$ART/open.log" 2>/dev/null || true
   sample_host
