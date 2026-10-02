@@ -44,6 +44,11 @@
       </Testables>
       <EnvironmentVariables>
          <EnvironmentVariable
+            key = "VIBEREADER_UNIT_TEST_HOST"
+            value = "1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
             key = "SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE"
             value = "legacy"
             isEnabled = "YES">

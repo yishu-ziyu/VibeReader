@@ -321,3 +321,25 @@ Intake
 ```
 
 不要只说“完成了”。必须给出证据和下一步。
+
+
+### Native unit-test host isolation (Issue #3)
+
+`PageFlowUnitTests` sets `VIBEREADER_UNIT_TEST_HOST=1`. Its automatic
+WindowGroup mounts a minimal transparent view instead of the reader scene.
+The real AppDelegate, event loop, window-content builder, and all PageFlowTests
+remain active; tests can explicitly construct PDF views and windows.
+The normal launch and the PageFlow/UI-test scheme retain the reader scene.
+
+This isolates the unit harness after real macOS CI samples at 120 and 900 seconds
+showed the main thread continuously in NSHostingView.layout and SwiftUI
+AttributeGraph/Observation updates before any test began. It does not establish
+the exact source of that layout loop or prove normal reader startup healthy.
+Full native CI must execute a nonzero suite successfully. Normal GUI/sidecar
+acceptance remains a separate macOS check.
+
+The first isolated-host run started the actual Swift Testing suite, then exposed
+a separate fixture error: two PageOperationTests used `groupsByEvent=false`
+without an explicit undo group, causing an NSUndoManager exception. Those two
+operations now use the fixture's existing `grouped` helper and additionally
+assert `canUndo`; original page-index expectations remain unchanged.

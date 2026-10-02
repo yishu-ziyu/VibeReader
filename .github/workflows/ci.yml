@@ -30,12 +30,25 @@ jobs:
           log="$RUNNER_TEMP/native-test.log"
           scripts/test-native.sh >"$log" 2>&1 &
           test_pid=$!
+          diagnostics="$RUNNER_TEMP/native-diagnostics"
+          mkdir -p "$diagnostics"
+          sample_host() {
+            host_pid="$(pgrep -x VibeReader | head -1 || true)"
+            if [ -n "$host_pid" ]; then
+              sample "$host_pid" 5 -file "$diagnostics/host-$elapsed_seconds.sample" >/dev/null 2>&1 || true
+              head -n 180 "$diagnostics/host-$elapsed_seconds.sample" || true
+            fi
+          }
           last_size=0
           idle_seconds=0
           elapsed_seconds=0
           while ps -p "$test_pid" >/dev/null 2>&1; do
             sleep 30
             elapsed_seconds=$((elapsed_seconds + 30))
+            # Preserve a live host stack while the test runner is still attached.
+            if [ "$elapsed_seconds" -eq 120 ]; then
+              sample_host
+            fi
             size="$(stat -f %z "$log")"
             if [ "$size" -gt "$last_size" ]; then
               tail -n 12 "$log"
@@ -48,8 +61,9 @@ jobs:
               echo "XCTest exceeded its 8-minute idle or 15-minute total limit; collecting runner state"
               ps -axo pid,ppid,state,etime,command | grep -E 'xcodebuild|xctest|VibeReader|testmanagerd' | tail -30 || true
               grep -F 'VibeReader test host:' "$log" | tail -5 || true
-              sample "$test_pid" 5 -file "$RUNNER_TEMP/xcodebuild.sample" >/dev/null 2>&1 || true
-              tail -n 60 "$RUNNER_TEMP/xcodebuild.sample" 2>/dev/null || true
+              sample_host
+              sample "$test_pid" 5 -file "$diagnostics/xcodebuild.sample" >/dev/null 2>&1 || true
+              head -n 180 "$diagnostics/xcodebuild.sample" 2>/dev/null || true
               tail -n 80 "$log"
               kill "$test_pid" 2>/dev/null || true
               exit 124
@@ -59,6 +73,16 @@ jobs:
           wait "$test_pid" || status=$?
           tail -n 100 "$log"
           exit "$status"
+
+      - name: Preserve native test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-test-diagnostics
+          path: |
+            ${{ runner.temp }}/native-test.log
+            ${{ runner.temp }}/native-diagnostics/
+          if-no-files-found: warn
 
   unirag:
     name: UniRAG tests (unit + integration + contract v1)
