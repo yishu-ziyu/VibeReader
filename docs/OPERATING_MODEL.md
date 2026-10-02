@@ -337,3 +337,9 @@ AttributeGraph/Observation updates before any test began. It does not establish
 the exact source of that layout loop or prove normal reader startup healthy.
 Full native CI must execute a nonzero suite successfully. Normal GUI/sidecar
 acceptance remains a separate macOS check.
+
+The first isolated-host run started the actual Swift Testing suite, then exposed
+a separate fixture error: two PageOperationTests used `groupsByEvent=false`
+without an explicit undo group, causing an NSUndoManager exception. Those two
+operations now use the fixture's existing `grouped` helper and additionally
+assert `canUndo`; original page-index expectations remain unchanged.
