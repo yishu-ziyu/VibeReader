@@ -42,7 +42,7 @@ scripts/acceptance.sh      # 真实黄金路径验收（真实 PDF + 真实 App 
 
 - [AGENTS.md](AGENTS.md) — Agent 开发入口（主线 / 冻结线 / 完成定义）
 - [项目索引](PROJECTS.md)
-- [产品开发计划](docs/PROJECT_DEVELOPMENT_PLAN.md) / [产品愿景](docs/PRODUCT_VISION.md)
+- [想法留存](docs/IDEAS.md) — 待重新调研的产品想法
 - 关键决策：[DEC-0010 原生优先 + sidecar](docs/decisions/DEC-0010-native-first-and-unirag-sidecar.md) ·
   [DEC-0011 原生仓并入单仓](docs/decisions/DEC-0011-native-macos-monorepo-import.md)
 - 原生模块上下文：[apps/vibereader-macos/CONTEXT.md](apps/vibereader-macos/CONTEXT.md)

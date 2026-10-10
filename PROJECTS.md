@@ -54,7 +54,7 @@ Treat the new paths as canonical in new docs, prompts, scripts, and future commi
 
 ## Git State Notes
 
-- `apps/reader` Reading Agent Wave 17 已并入本仓库；handoff 为 `docs/AGENT_CONTINUE.md`。Prior contract: `4ec8191`.
+- `apps/reader` Reading Agent Wave 17 已并入本仓库（旧 handoff 文档已于 2026-10-10 删除，见 `docs/IDEAS.md`）。Prior contract: `4ec8191`.
 - `services/uni-rag` is clean after commit `b093749 feat: stabilize reader memory contract` and push to `https://github.com/yishu-ziyu/uni-rag.git`.
 - All code now lives in this single repository (DEC-0005 for reader + uni-rag, DEC-0011 for vibereader-macos); no nested repositories remain.
 - Author Vibero is gone from disk. Ignore leftover mentions of `legacy/vibero` in older ship notes.
