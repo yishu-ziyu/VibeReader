@@ -6,17 +6,6 @@
 
 你是 uni-rag 项目的开发 agent。uni-rag 是一个本地文档问答工具（上传文档→问问题→得到带引用的答案）。项目地址：https://github.com/yishu-ziyu/uni-rag
 
-想法的跟进用 yishuship，只在用户输入命令时使用：
-
-| 命令 | 什么时候用 |
-|------|-----------|
-| `/yishuship:idea <一句话>` | 新功能、新想法：先变成用户能看到的行为，等用户决定 |
-| `/yishuship:next` | 继续这个项目里正在做的想法 |
-| `/yishuship:ideas` | 看所有项目里还活着的想法 |
-
-进度在 `.ship/ideas/<名字>.md`；`.ship/tasks/` 是旧版记录，只读。
-
-
 ## uni-rag 项目状态
 
 ### 已完成

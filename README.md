@@ -46,8 +46,3 @@ scripts/acceptance.sh      # 真实黄金路径验收（真实 PDF + 真实 App 
 - 关键决策：[DEC-0010 原生优先 + sidecar](docs/decisions/DEC-0010-native-first-and-unirag-sidecar.md) ·
   [DEC-0011 原生仓并入单仓](docs/decisions/DEC-0011-native-macos-monorepo-import.md)
 - 原生模块上下文：[apps/vibereader-macos/CONTEXT.md](apps/vibereader-macos/CONTEXT.md)
-
-## yishuship 生命周期
-
-- 当前生命周期任务：`.ship/tasks/20260701-vibereader-knowledge-flywheel/`
-- 历史决策记录：`docs/decisions/`

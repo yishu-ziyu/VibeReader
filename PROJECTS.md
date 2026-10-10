@@ -1,6 +1,6 @@
 # VibeReader Project Index
 
-Updated: 2026-09-28
+Updated: 2026-10-06
 
 ## Canonical Local Root
 
@@ -22,8 +22,8 @@ vibereader/
   packages/
     shared-contracts/  # reader-unirag-memory v1 fixtures
   docs/
-  .ship/
   scripts/             # unified dev/verify/acceptance entry points
+  .local/archives/     # local-only Git history backups and legacy data
 ```
 
 ## Project Roles
@@ -41,7 +41,14 @@ Author Vibero local copies were deleted on 2026-08-13 (`legacy/vibero`, `黑客�
 
 旧 Reader 入口 `/Users/mahaoxuan/Desktop/黑客松/阅读器/ai-chat-standalone` 已移除。统一从本仓库进入。
 
-`/Users/mahaoxuan/Desktop/AI产品经理/uni-rag` 已于 2026-08-31 恢复为**独立项目副本**（不再是软链）：从 `services/uni-rag` 复制最新代码 + 从 `~/vibereader-git-backups/unirag-git-20260831.tar.gz` 恢复 `.git` 历史，remote 仍指向 `uni-rag.git`。它是独立演进的实验项目，不属于 workbench 工程；workbench 的 canonical 代码仍是 `services/uni-rag`。
+旧独立 UniRAG 路径 `/Users/mahaoxuan/Desktop/AI产品经理/uni-rag` 当前不存在。
+`/Users/mahaoxuan/Desktop/产品项目学习/uni-rag` 只剩旧日志，已于 2026-10-06
+完整移入 `.local/archives/unirag-legacy-data/`。UniRAG 当前源码入口只有 `services/uni-rag`。
+
+历史 Git 和数据备份已从 `~/vibereader-git-backups/` 完整移入
+`.local/archives/git-backups/`。归档目录不进入 Git；文件完整性与迁移范围见
+[DEC-0012](docs/decisions/DEC-0012-local-archive-consolidation.md)。
+下文历史阶段及旧决策中保留的外部路径描述当时状态，不是当前入口。
 
 Treat the new paths as canonical in new docs, prompts, scripts, and future commits.
 
@@ -78,7 +85,7 @@ Current cloud state (after DEC-0005 and DEC-0011 cutover):
 | --- | --- | --- |
 | repository root | `https://github.com/yishu-ziyu/vibereader.git` | **唯一活跃仓库**：全部代码 + 契约 + 文档 |
 | `services/uni-rag`（历史） | `https://github.com/yishu-ziyu/uni-rag.git` | 只读归档（cutover 前已完整推送） |
-| `apps/vibereader-macos`（历史） | `https://github.com/yishu-ziyu/vibereader-macos.git` | 只读归档（并入前已完整推送；本地 `.git` 备份于 `~/vibereader-git-backups/vibereader-macos-git-20260928.tar.gz`） |
+| `apps/vibereader-macos`（历史） | `https://github.com/yishu-ziyu/vibereader-macos.git` | 只读归档（并入前已完整推送；本地 `.git` 备份于 `.local/archives/git-backups/vibereader-macos-git-20260928.tar.gz`） |
 
 Repository retention policy:
 

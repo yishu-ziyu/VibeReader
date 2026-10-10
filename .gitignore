@@ -13,7 +13,14 @@ build/
 # Keep shared contracts and lifecycle artifacts tracked here.
 !/packages/
 !/docs/
-!/.ship/
 !/scripts/
 test-results/
 /services/uni-rag/data/
+
+# Machine-local history archives and residual data stay with this project.
+/.local/
+
+# Per-user AI tool configs.
+/.serena/
+/.trae/
+/.zcodeignore

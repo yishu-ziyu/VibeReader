@@ -24,25 +24,6 @@
 - 浏览器 E2E 验证。
 - 发布与复盘。
 
-## 2. yishuship 作为生命周期事实源
-
-项目生命周期以 `.ship/tasks/<task_id>/` 为事实源。
-
-当前主任务：
-
-```text
-.ship/tasks/20260701-vibereader-knowledge-flywheel/
-```
-
-长期文档放在 `docs/`，但阶段推进必须能回到 `.ship`：
-
-- 产品判断：`.ship/tasks/<task_id>/product/`
-- 工程交接：`.ship/tasks/<task_id>/delivery/`
-- 执行计划：`.ship/tasks/<task_id>/plan/`
-- E2E 结果：`.ship/tasks/<task_id>/e2e/`
-- QA 结果：`.ship/tasks/<task_id>/qa/`
-- 运行状态：`.ship/tasks/<task_id>/control/`
-
 ## 2.5 多 Agent 协作规范
 
 GLM、Trae、Codex 可以协作，但项目事实不能只来自某个 Agent 的交付总结。
@@ -178,7 +159,6 @@ Intake
 结果必须回写：
 
 - 开发日志。
-- yishuship delivery/e2e/qa。
 - 必要时写 DEC 决策记录。
 
 ### 5.7 Decide Next
