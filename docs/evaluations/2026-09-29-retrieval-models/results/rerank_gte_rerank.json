@@ -1,0 +1,1085 @@
+{
+  "model": "gte_rerank",
+  "device": "mps:0",
+  "dtype": "torch.float16",
+  "compatibility_fix": "reset uninitialized non-persistent position_ids and rotary buffers",
+  "load_seconds": 1.535366582997085,
+  "query_seconds": [
+    1.6086578749964247,
+    1.685306416999083,
+    1.396258917004161,
+    2.052187125002092,
+    1.7498245829992811,
+    2.0141854169996805,
+    1.065595250001934,
+    1.460215999999491,
+    1.8352546249952866,
+    1.8023259580004378,
+    2.1289516249962617
+  ],
+  "peak_rss_gib": 1.203582763671875,
+  "rows": [
+    {
+      "qid": "zh_accept",
+      "gold": "acceptance:0",
+      "candidate_count": 31,
+      "pool_top5": [
+        "acceptance:0",
+        "future:45",
+        "future:195",
+        "future:194",
+        "future:189"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.6962890625,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "acceptance:0",
+            "future:194",
+            "future:27",
+            "future:201",
+            "future:204"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 15
+        },
+        "qwen": {
+          "top5": [
+            "acceptance:0",
+            "future:45",
+            "future:195",
+            "future:194",
+            "future:189"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 15
+        },
+        "granite": {
+          "top5": [
+            "acceptance:0",
+            "future:45",
+            "future:195",
+            "future:194",
+            "future:189"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 15
+        }
+      }
+    },
+    {
+      "qid": "zh_zones",
+      "gold": "archive:3",
+      "candidate_count": 30,
+      "pool_top5": [
+        "archive:7",
+        "archive:0",
+        "archive:10",
+        "future:228",
+        "archive:2"
+      ],
+      "pool_gold_rank": 12,
+      "pool_score_gold": 0.2215576171875,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "archive:7",
+            "archive:0",
+            "archive:10",
+            "future:228",
+            "archive:2"
+          ],
+          "gold_rank": 11,
+          "candidate_count": 26
+        },
+        "qwen": {
+          "top5": [
+            "archive:7",
+            "archive:0",
+            "archive:10",
+            "archive:2",
+            "future:96"
+          ],
+          "gold_rank": 10,
+          "candidate_count": 26
+        },
+        "granite": {
+          "top5": [
+            "archive:7",
+            "archive:0",
+            "archive:10",
+            "future:228",
+            "archive:2"
+          ],
+          "gold_rank": 10,
+          "candidate_count": 25
+        }
+      }
+    },
+    {
+      "qid": "zh_mobile",
+      "gold": "archive:4",
+      "candidate_count": 26,
+      "pool_top5": [
+        "archive:4",
+        "archive:6",
+        "archive:8",
+        "archive:3",
+        "future:158"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.458984375,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "archive:4",
+            "archive:6",
+            "archive:8",
+            "archive:3",
+            "archive:10"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 15
+        },
+        "qwen": {
+          "top5": [
+            "archive:4",
+            "archive:6",
+            "archive:8",
+            "archive:3",
+            "future:219"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 15
+        },
+        "granite": {
+          "top5": [
+            "archive:4",
+            "archive:6",
+            "archive:8",
+            "archive:3",
+            "future:158"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 15
+        }
+      }
+    },
+    {
+      "qid": "zh_scrub",
+      "gold": "archive:5",
+      "candidate_count": 37,
+      "pool_top5": [
+        "archive:5",
+        "future:93",
+        "archive:6",
+        "archive:8",
+        "archive:4"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.5068359375,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "archive:5",
+            "archive:6",
+            "archive:8",
+            "archive:4",
+            "future:196"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 28
+        },
+        "qwen": {
+          "top5": [
+            "archive:5",
+            "archive:6",
+            "archive:8",
+            "archive:4",
+            "archive:2"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 29
+        },
+        "granite": {
+          "top5": [
+            "archive:5",
+            "future:93",
+            "archive:6",
+            "archive:8",
+            "archive:4"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 27
+        }
+      }
+    },
+    {
+      "qid": "en_gsap",
+      "gold": "archive:4",
+      "candidate_count": 29,
+      "pool_top5": [
+        "archive:3",
+        "archive:4",
+        "archive:6",
+        "archive:10",
+        "archive:2"
+      ],
+      "pool_gold_rank": 2,
+      "pool_score_gold": 0.481689453125,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "archive:3",
+            "archive:4",
+            "archive:6",
+            "archive:10",
+            "archive:2"
+          ],
+          "gold_rank": 2,
+          "candidate_count": 25
+        },
+        "qwen": {
+          "top5": [
+            "archive:3",
+            "archive:4",
+            "archive:6",
+            "archive:10",
+            "archive:2"
+          ],
+          "gold_rank": 2,
+          "candidate_count": 25
+        },
+        "granite": {
+          "top5": [
+            "archive:3",
+            "archive:4",
+            "archive:6",
+            "archive:10",
+            "archive:2"
+          ],
+          "gold_rank": 2,
+          "candidate_count": 24
+        }
+      }
+    },
+    {
+      "qid": "en_phases",
+      "gold": "archive:11",
+      "candidate_count": 37,
+      "pool_top5": [
+        "archive:11",
+        "archive:12",
+        "future:109",
+        "future:228",
+        "future:267"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.521484375,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "archive:11",
+            "archive:12",
+            "future:109",
+            "future:228",
+            "future:267"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 25
+        },
+        "qwen": {
+          "top5": [
+            "archive:11",
+            "archive:12",
+            "future:109",
+            "future:228",
+            "future:119"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 28
+        },
+        "granite": {
+          "top5": [
+            "archive:11",
+            "archive:12",
+            "future:109",
+            "future:228",
+            "future:267"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 27
+        }
+      }
+    },
+    {
+      "qid": "en_bandwidth",
+      "gold": "future:12",
+      "candidate_count": 22,
+      "pool_top5": [
+        "future:12",
+        "future:11",
+        "future:14",
+        "future:4",
+        "future:15"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.57470703125,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "future:12",
+            "future:11",
+            "future:14",
+            "future:4",
+            "future:15"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 22
+        },
+        "qwen": {
+          "top5": [
+            "future:12",
+            "future:11",
+            "future:14",
+            "future:4",
+            "future:15"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 20
+        },
+        "granite": {
+          "top5": [
+            "future:12",
+            "future:11",
+            "future:14",
+            "future:4",
+            "future:15"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 21
+        }
+      }
+    },
+    {
+      "qid": "zh_content",
+      "gold": "future:9",
+      "candidate_count": 29,
+      "pool_top5": [
+        "future:9",
+        "future:2",
+        "future:6",
+        "future:3",
+        "future:4"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.498291015625,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "future:9",
+            "future:6",
+            "future:11",
+            "future:55",
+            "future:5"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 16
+        },
+        "qwen": {
+          "top5": [
+            "future:9",
+            "future:2",
+            "future:6",
+            "future:4",
+            "future:11"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 16
+        },
+        "granite": {
+          "top5": [
+            "future:9",
+            "future:2",
+            "future:3",
+            "future:11",
+            "future:55"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 16
+        }
+      }
+    },
+    {
+      "qid": "en_accessories",
+      "gold": "future:104",
+      "candidate_count": 35,
+      "pool_top5": [
+        "future:104",
+        "future:103",
+        "future:31",
+        "future:9",
+        "future:107"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.6630859375,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "future:104",
+            "future:103",
+            "future:31",
+            "future:107",
+            "future:102"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 27
+        },
+        "qwen": {
+          "top5": [
+            "future:104",
+            "future:103",
+            "future:31",
+            "future:107",
+            "future:102"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 26
+        },
+        "granite": {
+          "top5": [
+            "future:104",
+            "future:103",
+            "future:9",
+            "future:107",
+            "future:102"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 25
+        }
+      }
+    },
+    {
+      "qid": "en_canvas",
+      "gold": "future:159",
+      "candidate_count": 39,
+      "pool_top5": [
+        "future:159",
+        "future:158",
+        "future:204",
+        "future:138",
+        "future:126"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.5625,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "future:159",
+            "future:204",
+            "future:138",
+            "future:126",
+            "future:196"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 26
+        },
+        "qwen": {
+          "top5": [
+            "future:159",
+            "future:158",
+            "future:204",
+            "future:138",
+            "future:126"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 26
+        },
+        "granite": {
+          "top5": [
+            "future:159",
+            "future:158",
+            "future:204",
+            "future:138",
+            "future:126"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 26
+        }
+      }
+    },
+    {
+      "qid": "en_story",
+      "gold": "future:216",
+      "candidate_count": 39,
+      "pool_top5": [
+        "future:216",
+        "future:217",
+        "future:218",
+        "future:222",
+        "future:212"
+      ],
+      "pool_gold_rank": 1,
+      "pool_score_gold": 0.6796875,
+      "pipeline": {
+        "bge": {
+          "top5": [
+            "future:216",
+            "future:217",
+            "future:218",
+            "future:222",
+            "future:212"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 27
+        },
+        "qwen": {
+          "top5": [
+            "future:216",
+            "future:217",
+            "future:218",
+            "future:222",
+            "future:212"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 26
+        },
+        "granite": {
+          "top5": [
+            "future:216",
+            "future:217",
+            "future:218",
+            "future:222",
+            "future:212"
+          ],
+          "gold_rank": 1,
+          "candidate_count": 27
+        }
+      }
+    }
+  ],
+  "pool": {
+    "zh_accept": [
+      "acceptance:0",
+      "future:209",
+      "future:204",
+      "future:44",
+      "future:98",
+      "future:194",
+      "future:27",
+      "future:152",
+      "future:214",
+      "future:77",
+      "future:119",
+      "future:102",
+      "future:230",
+      "future:201",
+      "future:114",
+      "future:45",
+      "future:195",
+      "future:202",
+      "future:249",
+      "future:248",
+      "future:47",
+      "future:189",
+      "future:79",
+      "future:48",
+      "future:163",
+      "future:97",
+      "future:129",
+      "future:145",
+      "future:115",
+      "future:92",
+      "archive:0"
+    ],
+    "zh_zones": [
+      "archive:7",
+      "archive:0",
+      "archive:10",
+      "archive:6",
+      "archive:8",
+      "archive:3",
+      "archive:2",
+      "archive:5",
+      "archive:4",
+      "archive:1",
+      "archive:11",
+      "future:97",
+      "archive:12",
+      "future:228",
+      "future:220",
+      "future:95",
+      "future:216",
+      "future:61",
+      "future:96",
+      "future:109",
+      "acceptance:0",
+      "future:66",
+      "future:33",
+      "future:60",
+      "future:92",
+      "future:85",
+      "future:89",
+      "future:70",
+      "future:74",
+      "future:63"
+    ],
+    "zh_mobile": [
+      "archive:4",
+      "archive:8",
+      "future:110",
+      "archive:2",
+      "future:84",
+      "archive:6",
+      "archive:12",
+      "archive:5",
+      "future:85",
+      "future:14",
+      "future:87",
+      "archive:10",
+      "future:13",
+      "archive:3",
+      "future:15",
+      "archive:9",
+      "future:93",
+      "future:217",
+      "future:220",
+      "future:196",
+      "archive:11",
+      "future:219",
+      "future:92",
+      "future:222",
+      "future:6",
+      "future:158"
+    ],
+    "zh_scrub": [
+      "archive:12",
+      "archive:4",
+      "future:84",
+      "archive:5",
+      "future:103",
+      "future:85",
+      "archive:6",
+      "archive:3",
+      "archive:10",
+      "archive:11",
+      "future:196",
+      "archive:9",
+      "archive:8",
+      "future:87",
+      "future:86",
+      "archive:13",
+      "archive:7",
+      "archive:2",
+      "future:212",
+      "archive:0",
+      "future:208",
+      "future:214",
+      "future:92",
+      "future:93",
+      "future:89",
+      "future:158",
+      "acceptance:0",
+      "future:66",
+      "future:33",
+      "future:60",
+      "future:96",
+      "future:70",
+      "future:74",
+      "future:63",
+      "future:56",
+      "future:82",
+      "future:26"
+    ],
+    "en_gsap": [
+      "archive:3",
+      "archive:6",
+      "archive:4",
+      "archive:12",
+      "archive:10",
+      "archive:8",
+      "archive:2",
+      "archive:5",
+      "archive:0",
+      "archive:13",
+      "archive:1",
+      "future:178",
+      "archive:11",
+      "future:208",
+      "future:194",
+      "archive:7",
+      "archive:9",
+      "future:95",
+      "future:238",
+      "future:204",
+      "future:58",
+      "future:233",
+      "future:223",
+      "future:174",
+      "future:111",
+      "future:10",
+      "future:219",
+      "future:134",
+      "future:74"
+    ],
+    "en_phases": [
+      "archive:12",
+      "future:150",
+      "future:156",
+      "archive:11",
+      "future:109",
+      "future:230",
+      "future:152",
+      "future:224",
+      "future:233",
+      "future:232",
+      "future:162",
+      "future:144",
+      "future:118",
+      "future:111",
+      "future:267",
+      "future:120",
+      "future:119",
+      "future:148",
+      "future:70",
+      "future:125",
+      "future:124",
+      "future:149",
+      "future:110",
+      "future:228",
+      "archive:1",
+      "future:123",
+      "future:112",
+      "archive:9",
+      "future:88",
+      "future:223",
+      "future:249",
+      "future:274",
+      "future:204",
+      "future:116",
+      "future:255",
+      "future:8",
+      "future:58"
+    ],
+    "en_bandwidth": [
+      "future:12",
+      "future:14",
+      "future:13",
+      "future:11",
+      "future:6",
+      "future:4",
+      "future:9",
+      "future:15",
+      "future:25",
+      "future:5",
+      "future:29",
+      "future:7",
+      "future:21",
+      "future:3",
+      "future:8",
+      "future:19",
+      "future:179",
+      "future:20",
+      "future:28",
+      "future:267",
+      "future:204",
+      "future:58"
+    ],
+    "zh_content": [
+      "future:9",
+      "future:5",
+      "future:55",
+      "future:6",
+      "future:8",
+      "future:15",
+      "future:190",
+      "future:163",
+      "future:11",
+      "future:158",
+      "future:181",
+      "future:7",
+      "future:13",
+      "future:19",
+      "future:28",
+      "future:192",
+      "future:2",
+      "future:29",
+      "future:4",
+      "future:200",
+      "future:168",
+      "future:20",
+      "future:14",
+      "future:165",
+      "future:3",
+      "future:30",
+      "future:33",
+      "future:166",
+      "acceptance:0"
+    ],
+    "en_accessories": [
+      "future:104",
+      "future:103",
+      "future:105",
+      "future:86",
+      "future:84",
+      "future:102",
+      "future:71",
+      "future:66",
+      "future:85",
+      "future:106",
+      "future:96",
+      "future:37",
+      "future:70",
+      "future:31",
+      "future:270",
+      "future:87",
+      "future:99",
+      "future:98",
+      "future:186",
+      "future:35",
+      "future:107",
+      "future:9",
+      "future:33",
+      "future:101",
+      "future:27",
+      "future:233",
+      "future:204",
+      "future:223",
+      "future:255",
+      "future:140",
+      "future:111",
+      "future:64",
+      "future:34",
+      "future:93",
+      "future:26"
+    ],
+    "en_canvas": [
+      "future:159",
+      "future:111",
+      "future:30",
+      "future:141",
+      "future:135",
+      "future:32",
+      "future:43",
+      "future:134",
+      "future:239",
+      "future:88",
+      "future:91",
+      "future:33",
+      "future:124",
+      "future:278",
+      "future:110",
+      "future:1",
+      "future:157",
+      "future:63",
+      "future:246",
+      "future:275",
+      "future:138",
+      "future:276",
+      "future:241",
+      "future:158",
+      "future:252",
+      "future:279",
+      "future:123",
+      "future:273",
+      "future:244",
+      "future:204",
+      "future:196",
+      "future:20",
+      "future:126",
+      "future:7",
+      "future:34",
+      "future:169",
+      "future:101",
+      "future:80",
+      "future:264"
+    ],
+    "en_story": [
+      "future:216",
+      "archive:11",
+      "future:193",
+      "archive:12",
+      "future:208",
+      "future:194",
+      "future:214",
+      "future:209",
+      "archive:3",
+      "future:25",
+      "future:210",
+      "future:190",
+      "archive:6",
+      "future:202",
+      "future:16",
+      "future:218",
+      "future:233",
+      "future:213",
+      "future:212",
+      "future:92",
+      "future:228",
+      "future:236",
+      "future:231",
+      "archive:5",
+      "future:217",
+      "future:61",
+      "archive:2",
+      "future:52",
+      "future:109",
+      "future:89",
+      "future:230",
+      "future:222",
+      "future:258",
+      "future:58",
+      "future:86",
+      "future:5",
+      "future:39",
+      "future:12",
+      "future:227"
+    ]
+  },
+  "bm25": {
+    "zh_accept": [
+      "acceptance:0"
+    ],
+    "zh_zones": [
+      "acceptance:0",
+      "archive:0",
+      "archive:10",
+      "archive:7",
+      "archive:8",
+      "future:66",
+      "future:33",
+      "future:60",
+      "future:96",
+      "future:92",
+      "future:85",
+      "future:89",
+      "future:70",
+      "future:74",
+      "future:63"
+    ],
+    "zh_mobile": [],
+    "zh_scrub": [
+      "acceptance:0",
+      "archive:5",
+      "future:66",
+      "future:33",
+      "future:60",
+      "future:96",
+      "future:92",
+      "future:85",
+      "future:89",
+      "future:70",
+      "future:74",
+      "future:63",
+      "future:56",
+      "future:82",
+      "future:26"
+    ],
+    "en_gsap": [
+      "archive:3",
+      "archive:11",
+      "future:58",
+      "future:233",
+      "future:223",
+      "future:174",
+      "archive:1",
+      "future:111",
+      "future:204",
+      "future:10",
+      "archive:0",
+      "future:219",
+      "future:134",
+      "future:74",
+      "archive:12"
+    ],
+    "en_phases": [
+      "future:88",
+      "future:223",
+      "future:249",
+      "future:156",
+      "future:274",
+      "future:233",
+      "archive:11",
+      "future:204",
+      "future:116",
+      "future:255",
+      "future:111",
+      "future:8",
+      "future:228",
+      "future:58",
+      "future:152"
+    ],
+    "en_bandwidth": [
+      "future:4",
+      "future:12",
+      "future:13",
+      "future:28",
+      "future:6",
+      "future:20",
+      "future:19",
+      "future:3",
+      "future:267",
+      "future:15",
+      "future:204",
+      "future:14",
+      "future:5",
+      "future:179",
+      "future:58"
+    ],
+    "zh_content": [
+      "acceptance:0"
+    ],
+    "en_accessories": [
+      "future:103",
+      "future:104",
+      "future:233",
+      "future:204",
+      "future:223",
+      "future:255",
+      "future:105",
+      "future:140",
+      "future:111",
+      "future:107",
+      "future:64",
+      "future:34",
+      "future:33",
+      "future:93",
+      "future:26"
+    ],
+    "en_canvas": [
+      "future:159",
+      "future:204",
+      "future:196",
+      "future:20",
+      "future:126",
+      "future:7",
+      "future:138",
+      "future:34",
+      "future:169",
+      "future:101",
+      "future:88",
+      "future:111",
+      "future:80",
+      "future:30",
+      "future:264"
+    ],
+    "en_story": [
+      "future:216",
+      "future:222",
+      "future:258",
+      "future:217",
+      "future:58",
+      "future:86",
+      "future:208",
+      "future:228",
+      "future:5",
+      "future:39",
+      "future:212",
+      "future:12",
+      "future:193",
+      "future:218",
+      "future:227"
+    ]
+  }
+}

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VibeReader Agent 子系统架构</title>
+<style>
+  :root{
+    --bg:#0a0f1c; --panel:#0e1626; --line:rgba(148,163,184,.16);
+    --ink:#cbd5e1; --muted:#64748b; --amber:#fbbf24; --debt:#f87171; --store:#5eead4;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      linear-gradient(rgba(148,163,184,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,163,184,.045) 1px, transparent 1px),
+      radial-gradient(1200px 700px at 70% -10%, #12203a 0%, var(--bg) 60%);
+    background-size:32px 32px, 32px 32px, cover;
+    color:var(--ink); font:14px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  h1,h2,h3{font-family:"Songti SC","STSong",serif}
+  header{display:flex; align-items:baseline; gap:16px; padding:14px 22px 10px; border-bottom:1px solid var(--line); flex-wrap:wrap}
+  header h1{font-size:20px; color:#e2e8f0} header h1 em{color:var(--amber); font-style:normal}
+  header .meta{color:var(--muted); font-size:12px}
+  .tabs{margin-left:auto; display:flex; gap:6px}
+  .tab{padding:5px 14px; border:1px solid var(--line); border-radius:3px; cursor:pointer; color:var(--muted); font-size:13px; background:transparent}
+  .tab.on{color:#0a0f1c; background:var(--amber); border-color:var(--amber); font-weight:600}
+  main{flex:1; display:flex; min-height:0}
+  #stage{flex:1; position:relative; min-width:0}
+  svg#arch{width:100%; height:100%; display:block; cursor:grab}
+  svg#arch.dragging{cursor:grabbing}
+  .zoombar{position:absolute; top:12px; right:12px; display:flex; gap:6px}
+  .zoombar button{width:32px; height:30px; border:1px solid var(--line); background:rgba(14,22,38,.9); color:var(--ink); border-radius:3px; cursor:pointer; font-size:14px}
+  .zoombar button:hover{border-color:var(--amber); color:var(--amber)}
+  .legend{position:absolute; left:12px; bottom:12px; padding:8px 12px; font-size:11.5px; color:var(--muted); background:rgba(10,15,28,.85); border:1px solid var(--line); border-radius:3px; line-height:2}
+  .bandlabel{fill:#475569; font-size:11px; letter-spacing:.25em; font-family:"SF Mono",Menlo,monospace}
+  .node{cursor:pointer} .node rect.box{fill:rgba(17,28,48,.92); stroke:rgba(148,163,184,.4); stroke-width:1.2}
+  .node:hover rect.box{stroke:var(--amber); stroke-width:1.6}
+  .node.hl rect.box{stroke:var(--amber); stroke-width:2.2; fill:rgba(60,45,10,.5)}
+  .node.dim{opacity:.18}
+  .node .t{fill:#e2e8f0; font-size:14px; font-weight:600}
+  .node .s{fill:#94a3b8; font-size:11px}
+  .node .m{fill:#5eead4; font-size:10.5px; font-family:"SF Mono",Menlo,monospace}
+  .badge{fill:#7f1d1d; stroke:var(--debt)} .badge text{fill:#fecaca; font-size:9px; font-family:"SF Mono",Menlo,monospace}
+  .edge{stroke:rgba(148,163,184,.5); stroke-width:1.4; fill:none}
+  .edge.dashed{stroke-dasharray:5 4} .edge.red{stroke:var(--debt); stroke-dasharray:5 4}
+  .edge.dotted{stroke-dasharray:2 4; stroke:#818cf8}
+  .elabel{fill:#94a3b8; font-size:10.5px; paint-order:stroke; stroke:#0a0f1c; stroke-width:4px}
+  .elabel.red{fill:var(--debt)}
+  aside{width:360px; border-left:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; min-height:0}
+  aside .head{padding:12px 16px 8px; border-bottom:1px solid var(--line); display:flex; gap:8px}
+  .chip{padding:3px 10px; font-size:12px; border:1px solid var(--line); border-radius:2px; cursor:pointer; color:var(--muted)}
+  .chip.on{color:var(--amber); border-color:var(--amber)}
+  #sidebody{flex:1; overflow-y:auto; padding:12px 16px 20px}
+  .flow{border:1px solid var(--line); border-radius:4px; margin-bottom:10px; overflow:hidden}
+  .flow>.t{padding:9px 12px; cursor:pointer; font-weight:600; color:#e2e8f0; display:flex; justify-content:space-between}
+  .flow>.t small{color:var(--muted); font-weight:400}
+  .flow ol{display:none; list-style:none; counter-reset:st}
+  .flow.open ol{display:block}
+  .flow li{counter-increment:st; padding:8px 12px 8px 38px; position:relative; cursor:pointer; border-top:1px solid var(--line); font-size:12.5px}
+  .flow li::before{content:counter(st); position:absolute; left:12px; top:9px; width:17px; height:17px; border:1px solid var(--muted); border-radius:50%; font-size:10px; color:var(--muted); display:flex; align-items:center; justify-content:center; font-family:"SF Mono",Menlo,monospace}
+  .flow li.on{background:rgba(251,191,36,.12); color:#fde68a}
+  .flow li.on::before{border-color:var(--amber); color:var(--amber)}
+  .insp h3{font-size:16px; color:#fde68a; margin-bottom:8px}
+  .insp section{margin-bottom:14px}
+  .insp b{color:#e2e8f0; font-size:12px; display:block; margin-bottom:3px; letter-spacing:.08em}
+  .insp p,.insp li{font-size:12.5px} .insp ul{padding-left:16px}
+  .insp .dt{color:#fca5a5; font-size:12px; cursor:pointer} .insp .dt:hover{text-decoration:underline}
+  .insp code{color:var(--store); font-size:11.5px}
+  .hint{color:var(--muted); font-size:12px; padding:8px 0}
+  #debtview{flex:1; overflow-y:auto; padding:20px 28px 40px; display:none}
+  .debtgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px; margin-top:14px}
+  .dcard{border:1px solid var(--line); border-left:3px solid var(--debt); border-radius:4px; background:var(--panel); padding:13px 15px}
+  .dcard h3{font-size:14px; color:#e2e8f0; margin-bottom:6px}
+  .dcard h3 .did{color:var(--debt); font-family:"SF Mono",Menlo,monospace; font-size:12px; margin-right:6px}
+  .dcard .g{float:right; font-size:10.5px; color:var(--muted); border:1px solid var(--line); padding:1px 7px; border-radius:2px}
+  .dcard p{font-size:12px; margin-bottom:6px} .dcard .ev{font-size:11px; color:var(--muted)} .dcard .ev code{color:var(--store); font-size:10.5px}
+  .dcard .rem{font-size:12px; color:#86efac; margin-top:6px} .dcard .rem::before{content:"建议 "; color:var(--muted); font-size:10.5px}
+  .grouphead{margin:22px 0 2px; color:var(--amber); font-size:13px; letter-spacing:.2em; font-family:"SF Mono",Menlo,monospace}
+</style>
+</head>
+<body>
+<header>
+  <h1>VibeReader Agent 子系统 <em>· Architecture</em></h1>
+  <span class="meta">src/agent/ 26 模块 · 从代码证据重构 · 2026-08-31 · 配套 AGENT_ARCHITECTURE.md</span>
+  <nav class="tabs">
+    <button class="tab on" data-v="arch">架构总览</button>
+    <button class="tab" data-v="debt">压力点 (14)</button>
+  </nav>
+</header>
+<main>
+  <div id="stage">
+    <svg id="arch" viewBox="0 0 1640 1020" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="zoombar"><button id="zout">−</button><button id="zin">+</button><button id="zfit" style="width:40px">Fit</button></div>
+    <div class="legend">点击节点看职责 · 右侧流程逐步追踪 · 拖拽平移 / 滚轮缩放 · 红标 = 压力点编号（对应压力点页 P1-P14）</div>
+  </div>
+  <aside id="archside">
+    <div class="head"><span class="chip on" data-p="flows">关键流程</span><span class="chip" data-p="insp">检查器</span></div>
+    <div id="sidebody"></div>
+  </aside>
+  <div id="debtview"></div>
+</main>
+<script>
+const NODES = {
+  host:{name:"App.jsx 宿主装配层",role:"四个 agent 入口（单技能任务 / 深读流水线 / Chat QA / LensCard）+ retry；为每次运行装配 adapters 六件套（createVibeCard/exportNote/useLlm/modelConfig/uniRagAvailable/experienceStore）；写类技能（card_generation/note_export）先过 Modal.confirm 二次确认。",tech:"React 宿主 · wrapper 为测试可 mock 的 barrel 注入",
+    conn:["→ taskRunner（统一走 runReadingAgentTask）","→ multiAgent（深读）","→ documentQaChat","adapters ← artifactService / persistentStorage / UniRAG health"],debts:["P2","P8","P11"]},
+  evaln:{name:"评测体系（eval/ + scripts）",role:"三模式复用同一 runtime：offline（零网络 CI）、live（Grok@本地代理，Pass@k）、deep-read（流水线+critic 开关）。scoreAgentResult：mustCallTools/minSourceRefs/minCards + 硬否决「claim-heavy 零工具」。",tech:"eval/readingEval.js · agent-eval-{offline,runner,deep-read}.mjs",
+    conn:["→ runtime/tools/permissions/multiAgent（同一套产品代码）","严格度 env AGENT_EVAL_STRICT_GROUNDING"]},
+  tr:{name:"taskRunner 任务运行器",role:"把一次 agent 运行包装成可持久化任务：pending→running→succeeded/failed 写 task_records（进度 10-90%）；聚合结构化 toolOutcome；成功失败都写 experienceStore。",tech:"taskRunner.js · persistentStorage.savePersistentTask",
+    conn:["→ runtime","→ persistentStorage（越层，P1）","→ window 事件 vibereader:task-updated → TaskStatusPanel"],debts:["P1"]},
+  ma:{name:"multiAgent 深读流水线",role:"固定编排 paper_overview → attention → card_generation（+可选 note_export）；步间共享上下文（priorStepSummaries 注入下一技能 goal）；critic sidecar 在 card_generation 成功后只读复核（maxIter 8，异常不炸管线）；聚合 completed/partial/failed。",tech:"multiAgent.js",
+    conn:["→ runtime（每技能一次）","← skills/permissions"]},
+  qa:{name:"Chat QA 门控 + LensCard",role:"documentQaChat：Chat 内 agent QA 的开关门（默认 OFF，localStorage/env 可开），失败落穿 UniRAG/直连模型。lensCard：划词生成 Lens Card 工件（可注入 generateText）。",tech:"documentQaChat.js · documentQa.js · lensCard.js",
+    conn:["→ runtime","artifact 校验 ← artifact.js（claims 必须 sourceSpanIds 或 inference 标记）"]},
+  rt:{name:"runtime agent loop",role:"无状态循环内核：packDocumentContext → for iteration：abort 检查 → model() → trace 冻结+emit 双通道 → final（过 groundingGate）或 tool_call（权限→执行→durationMs）。终止态 7 种；metrics（wallMs/llmCalls/toolDurations）；可选 observability + OTel 风格 span 树。",tech:"runtime.js · groundingGate（off/warn/strict，final 唯一接入点）",
+    conn:["← taskRunner/multiAgent/qa","→ contextPacker/permissions/tools","证据工具白名单校验 final"],debts:["P3","P7","P8"]},
+  ctx:{name:"上下文工程",role:"contextPacker：goal→metadata→selection→outline→annotations→body 优先级打包（1200 tokens 预算）。contextCompression：trace 压缩（保最后 2 model 步）+ packed 按优先级丢块（body 最先丢）。",tech:"contextPacker.js · contextCompression.js",
+    conn:["→ runtime 每轮注入 model(context)","← llmModel 触发压缩（>1500 tokens）"]},
+  obs:{name:"观测三件套",role:"observation：工具结果状态栏（runtime/taskRunner/llmModel 三处消费）。trajectory：内存轨迹环（cap 200）+ 轨迹→prompt 片段。spanExport：OTel 风格 span 树导出（无 SDK）。",tech:"observation.js · trajectory.js · spanExport.js",conn:["→ runtime/taskRunner/llmModel"],debts:["P7"]},
+  perm:{name:"权限与 Schema",role:"permissions：12 只读工具默认放行，4 写工具默认拒绝；isToolAllowed = allowedTools ∩ capability；允许列表按技能展开（buildReadingAgentPermissions）。toolSchemas：16 工具 JSON Schema → OpenAI function-calling。",tech:"permissions.js · toolSchemas.js",conn:["→ runtime 每个工具调用前 assertToolAllowed","← readingAgentOptions 按技能展开"],debts:["P6"]},
+  mfac:{name:"modelFactory 模型解析",role:"preferLlm && baseUrl+apiKey+model 齐全 → LLM 路径（timeout 120s，maxIter 8-10，温度 0.2，system prompt 追加经验 lessons）；否则本地确定性模型（30s，maxIter 按注册表）；LLM 构造异常回落本地。",tech:"modelFactory.js",conn:["→ llmModel / readingTaskModels / skills"],debts:["P10"]},
+  llm:{name:"llmModel OpenAI 兼容适配",role:"chat.completions 适配：tool_calls 双模式（单个→旧形状，多个→数组）；trace→messages 重放；>1500 tokens 压缩；sourceRefs 提取（json fence→裸 JSON→[p.1]，上限 40）；每轮状态栏 trailer；配置四级解析（显式→VIBEREADER_AGENT_*→OPENAI_API_KEY→XAI_API_KEY）。",tech:"llmModel.js",conn:["→ 外部 LLM API（bearer/api-key 双认证）","← toolSchemas/contextCompression/observation"]},
+  local:{name:"本地确定性模型 ×7",role:"7 个按迭代驱动的状态机（读 trace 回放决定下一步），离线全功能：paper_overview/attention/card_generation(<3 chunk 放弃，≥3 建满 3 张 grounded 卡)/knowledge_qa/critic(四档判定)/note_export(canExportNotes 门)/memory_curator(只提案不写)。",tech:"readingTaskModels.js",conn:["← modelFactory","→ trace 协议"]},
+  skills:{name:"skills 技能注册表",role:"7 技能元数据：goal/requiredTools/outputArtifactType/maxIterations（4-8）；system prompt 单一来源 docs/reading-agent-skills/*.md（Vite ?raw）+ 预算四行；buildReadingAgentTask 构造任务 payload。",tech:"skills.js · skillDocuments.js（双通道注入同一批 md）",conn:["→ modelFactory/multiAgent/taskRunner"]},
+  tools:{name:"tools 工具注册表（16）",role:"只读 12（默认放行）+ 写 4（默认拒绝，按技能展开）。knowledge_search 四层降级链（adapter→结构化降级→health 门→buildRetrievalContext→query→本地关键词，AbortError 永不降级）；memory_save 三重门（userConfirmed→类型白名单→契约 v1 写入）；verify_citation 纯 Jaccard≥0.2。",tech:"tools.js",conn:["→ services×4 / UniRAG","← runtime 逐个调用"],debts:["P4","P5","P6","P12"]},
+  svcs:{name:"services 支撑层",role:"ragEngineAdapter（UniRAG HTTP）/ persistentStorage（SQLite 唯一持久化网关）/ artifactService / savedMemoryService + experienceStore（经验：规则式 lessons 拼进 system prompt，人在环提案从不自动改 md）。",tech:"services/* · experienceStore.js",conn:["← tools/taskRunner/host","→ SQLite / UniRAG :8766"],debts:["P1","P13"]},
+  ext:{name:"外部依赖",role:"UniRAG :8766（query/ingest/memory 契约 v1）；LLM API（OpenAI 兼容，本地代理或云）；macOS SQLite（task_records/documents 等）。",tech:"HTTP · SQLite",conn:["← tools/llmModel/services"]},
+};
+const BOX = {
+  'host':{x:40,y:78,w:880,h:86,s:'4 入口：单技能任务 · 深读流水线 · Chat QA · LensCard',m:'adapters 六件套：createVibeCard/exportNote/useLlm/modelConfig/uniRagAvailable/experienceStore',debts:['P2','P8','P11']},
+  'evaln':{x:960,y:78,w:640,h:86,s:'offline（CI 零网络）· live（Grok@本地代理 Pass@k）· deep-read',m:'scoreAgentResult：硬否决「claim-heavy 零工具」'},
+  'tr':{x:40,y:236,w:410,h:110,s:'持久化 pending→running→succeeded/failed',m:'toolOutcome 聚合（vibecardsCreated/noteExported）',debts:['P1']},
+  'ma':{x:490,y:236,w:440,h:110,s:'overview→attention→card_generation（+note_export）',m:'共享上下文 priorStepSummaries · critic sidecar'},
+  'qa':{x:970,y:236,w:400,h:110,s:'documentQaChat 门（默认 OFF）· 失败落穿',m:'lensCard：划词→工件（claims 校验）'},
+  'rt':{x:40,y:426,w:520,h:150,s:'for iter：abort检查→model()→trace冻结+emit→final/tool_call',m:'groundingGate off/warn/strict（final 接入）· 终止态 7 种 · metrics',debts:['P3','P7','P8']},
+  'ctx':{x:600,y:426,w:420,h:150,s:'打包 1200 tokens 预算（body 最先丢）',m:'trace 压缩：保最后 2 model 步，摘要 160 字符'},
+  'obs':{x:1060,y:426,w:250,h:150,s:'状态栏 / 轨迹环 cap200',m:'OTel 风格 span 树',debts:['P7']},
+  'perm':{x:1350,y:426,w:250,h:150,s:'12 读默认放行 · 4 写按技能展开',m:'16 工具 JSON Schema→function-calling',debts:['P6']},
+  'mfac':{x:40,y:656,w:370,h:130,s:'LLM（120s/8-10 iter）→本地（30s/4-6）',m:'system prompt + 经验 lessons',debts:['P10']},
+  'llm':{x:450,y:656,w:370,h:130,s:'tool_calls 双模式 · trace→messages 重放',m:'sourceRefs 提取（fence/JSON/[p.1]）· >1500 tok 压缩'},
+  'local':{x:860,y:656,w:370,h:130,s:'7 个状态机，trace 回读驱动',m:'card_generation：<3 chunk 放弃 / ≥3 建满'},
+  'skills':{x:1270,y:656,w:330,h:130,s:'7 技能 · md 单一来源（Vite ?raw）',m:'goal/tools/artifact/maxIterations'},
+  'tools':{x:40,y:866,w:700,h:110,s:'16 工具：12 读 + 4 写（按技能展开）',m:'knowledge_search 四层降级 · memory_save 三重门',debts:['P4','P5','P6','P12']},
+  'svcs':{x:780,y:866,w:400,h:110,s:'ragEngineAdapter · persistentStorage(SQLite)',m:'artifactService · savedMemoryService · experienceStore',debts:['P1','P13']},
+  'ext':{x:1220,y:866,w:380,h:110,s:'UniRAG :8766（契约 v1）· LLM API · macOS SQLite'},
+};
+const EDGES = [
+  {from:'host',to:'tr',label:''},{from:'host',to:'ma',label:'深读'},{from:'host',to:'qa',label:''},
+  {from:'tr',to:'rt',label:''},{from:'ma',to:'rt',label:''},{from:'qa',to:'rt',label:'documentQa'},
+  {from:'tr',to:'svcs',label:'越层持久化 (P1)',red:true},
+  {from:'rt',to:'ctx',label:''},{from:'rt',to:'perm',label:''},{from:'rt',to:'tools',label:'工具调用'},
+  {from:'mfac',to:'llm',label:''},{from:'mfac',to:'local',label:'回落'},{from:'mfac',to:'skills',label:''},
+  {from:'llm',to:'ext',label:'LLM API',dashed:true},{from:'tools',to:'svcs',label:'adapter'},
+  {from:'svcs',to:'ext',label:'HTTP/SQLite',dashed:true},
+];
+const FLOWS = [
+  {name:'单技能任务（如 paper_overview）',steps:[
+    {t:'App 装配 adapters 六件套；写类技能先 Modal.confirm 二次确认',n:['host']},
+    {t:'buildReadingAgentTask 构造任务 payload（goal/tools/maxIter/systemPrompt）',n:['skills']},
+    {t:'taskRunner：任务持久化 pending→running，进度事件',n:['tr','svcs']},
+    {t:'runtime：packDocumentContext 打包（1200 tok 预算）',n:['rt','ctx']},
+    {t:'model() 调用——LLM 路径或本地状态机',n:['mfac','llm','local']},
+    {t:'每个 tool_call：权限门 → 执行 → trace + durationMs',n:['perm','tools']},
+    {t:'final → groundingGate（LLM 默认 warn：claim-heavy 无 sourceRefs 追加警告）',n:['rt'],fx:true},
+    {t:'toolOutcome 聚合 + 经验记录 + 任务落库 + window 事件',n:['tr','svcs']},
+  ]},
+  {name:'深读流水线（multiAgent）',steps:[
+    {t:'App 为 paper_overview/attention/card_generation/critic 各建 options',n:['host']},
+    {t:'paper_overview_agent 产出阅读笔记',n:['rt']},
+    {t:'priorStepSummaries 注入下一步 goal（共享上下文）',n:['ma']},
+    {t:'attention_agent 产出注意力洞察',n:['rt']},
+    {t:'card_generation_agent：候选 <3 chunk 直接放弃，≥3 建满 3 张 grounded 卡',n:['local','tools']},
+    {t:'critic sidecar：只读复核（maxIter 8），异常不炸管线',n:['rt']},
+    {t:'聚合 pipelineStatus：completed / partial / failed',n:['ma']},
+  ]},
+  {name:'LLM 模型路径',steps:[
+    {t:'modelFactory：preferLlm 且 baseUrl+apiKey+model 齐全',n:['mfac']},
+    {t:'llmModel：OpenAI 兼容 chat.completions，tool_calls 双模式',n:['llm','ext']},
+    {t:'每轮状态栏 trailer；trace >1500 tokens 触发压缩',n:['llm','ctx']},
+    {t:'final 后 sourceRefs 提取：json fence → 裸 JSON → [p.1] 页码引用',n:['llm']},
+    {t:'预算：timeout 120s · maxIter 8-10；构造异常回落本地',n:['mfac','local']},
+  ]},
+  {name:'本地兜底路径（离线全功能）',steps:[
+    {t:'modelFactory 落到 7 个确定性状态机之一',n:['mfac','local']},
+    {t:'按 iteration 驱动：读 trace 回放决定下一个工具调用',n:['local','rt']},
+    {t:'card_generation 硬约束：<3 chunk → final 放弃；≥3 → 建满 3 张',n:['local']},
+    {t:'预算：timeout 30s · maxIter 按技能注册表（4-6）',n:['skills']},
+  ]},
+  {name:'评测三模式',steps:[
+    {t:'offline：零网络，CI 可跑（本地模型 + 7 内置用例）',n:['evaln','local']},
+    {t:'live：Grok@本地代理，Pass@k，proxy 不可用退出码 2',n:['evaln','llm']},
+    {t:'deep-read：multiAgent 流水线 + critic 开关',n:['evaln','ma']},
+    {t:'scoreAgentResult：mustCallTools/minSourceRefs/硬否决 claim-heavy 零工具',n:['evaln']},
+  ]},
+];
+const DEBTS = [
+  {g:'层次与耦合',items:[
+    {id:'P1',t:'taskRunner 反向依赖 services',p:'taskRunner.js:1 直接 import persistentStorage——agent 层失去零依赖可测性，且 no-op 行为分叉藏在 service 内。',ev:'taskRunner.js:1 · persistentStorage.js',r:'持久化改为注入（调用方传 persistTask 适配器）。'},
+    {id:'P2',t:'readingAgentOptions 耦合最重 + 双入口',p:'同文件 import 4 个 services + 5 个 agent 内模块；App 又包一层 wrapper（为 mock barrel），形成 core/wrapper 双入口。',ev:'readingAgentOptions.js:6-13 · App.jsx:98-106',r:'拆「纯权限/装配」与「service 绑定」两层；App 四处装配合一（见 P11）。'},
+    {id:'P3',t:'resolveGroundingMode 同名双实现',p:'groundingGate（off/warn/strict 归一化）vs readingAgentOptions（产品决策，llm 默认 warn）语义不同，barrel 靠别名规避冲突。',ev:'groundingGate.js:18-31 · readingAgentOptions.js:529-547 · index.js:21-22',r:'重命名区分：normalizeGroundingMode / resolveProductGroundingMode。'},
+    {id:'P4',t:'knowledge_search 双重健康门',p:'tools 降级链内已有 healthGate，readingAgentOptions 的 adapter 内又做一次；失败包装也有两套。',ev:'tools.js:529-554 · readingAgentOptions.js:281-300',r:'健康门收敛到 adapter 一处，tools 只认结构化结果。'},
+  ]},
+  {g:'一致性与重复',items:[
+    {id:'P5',t:'工具错误策略不一致',p:'读类本地兜底 / 写类无 adapter 抛错 / memory_search 软 unavailable——三种策略并存。',ev:'tools.js:108-190,334-391,732-734',r:'统一「结构化 unavailable + 可选本地兜底」。'},
+    {id:'P6',t:'工具命名混排',p:'13 个 snake_case + 3 个 camelCase（extractText/navigatePage/listAnnotations）同注册表，模型可见名空间不统一。',ev:'tools.js:1204-1221 · permissions.js:48-50',r:'别名兼容旧名，主名统一 snake_case。'},
+    {id:'P7',t:'trace 摘要三处重复',p:'runtime eventSummary / trajectory summarizeToolStep / spanExport toolStatusFromResult 各自判「结果是否错误」；lastToolFromTrace 两份。',ev:'runtime.js:231-261 · trajectory.js:91-110 · spanExport.js:25-35',r:'收敛到 trajectory 单一实现。'},
+    {id:'P10',t:'hasRunnableLlmConfig 复制粘贴',p:'documentQa.js 与 modelFactory.js 逐字符等价的三段判空。',ev:'documentQa.js:19-25 · modelFactory.js:38-44',r:'modelFactory 导出，documentQa 引用。'},
+    {id:'P14',t:'barrel export * 冲突手工管理',p:'estimateTokens 与 resolveGroundingMode 各有双份，index.js 需手工挑具名 re-export，新增同名导出会静默破坏 barrel。',ev:'index.js:2-3,21-22',r:'随 P3/P7 消除重复源。'},
+  ]},
+  {g:'产品与测试',items:[
+    {id:'P8',t:'产品代码为测试让路',p:'App wrapper 为 mock barrel 而存在；skillDocuments 有测试后门 __setBundledSkillDocumentsForTests；runtime 导出仅测试引用的 LLM_AGENT_DEFAULTS。',ev:'App.jsx:97 · skillDocuments.js:84-90 · runtime.js:15-18',r:'测试改 mock 依赖注入点，删产品侧让路代码。'},
+    {id:'P9',t:'card_generation 关键数字无单一来源',p:'3-chunk 约束 / maxIter 6 / LLM 预算 10 / toast≥3 / eval 4 段文档分散 5 处。',ev:'readingTaskModels.js:190,210 · skills.js:48 · modelFactory.js:46-51 · App.jsx:963',r:'收进 skills 注册表元数据（minSourceChunks 等）。'},
+    {id:'P11',t:'App 四处重复装配 adapters',p:'单任务/深读/retry/chat QA 四条路径各拼一遍六件套，变更需四处同步。',ev:'App.jsx:921-928,1030-1037,1295-1302,1694-1706',r:'抽 createAgentAdapters() 单一装配点。'},
+    {id:'P12',t:'memory_save 三重门分散且默认不可达',p:'权限门+userConfirmed+schema 分散三文件；buildMemoryWritePermissions 无任何默认技能使用。',ev:'permissions.js:42 · tools.js:872-878 · readingAgentOptions.js:166-168',r:'产品若要启用记忆策展技能，一并收敛；否则删除预留。'},
+    {id:'P13',t:'字符串事件协议无类型约束',p:'vibereader:task-updated / navigate-* 等裸字符串契约跨文件靠约定对齐。',ev:'persistentStorage.js:8 · App.jsx:2089-2159',r:'事件名收敛为常量模块（低成本先行）。'},
+  ]},
+];
+/* SVG */
+const svg=document.getElementById('arch'), NS='http://www.w3.org/2000/svg';
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+function txt(x,y,s,c,p){const t=el('text',{x,y,class:c||''},p);t.textContent=s;return t}
+function band(x,y,w,h,label){el('rect',{x,y,width:w,height:h,fill:'none',stroke:'rgba(148,163,184,.10)','stroke-dasharray':'3 5',rx:6});txt(x+12,y-8,label,'bandlabel')}
+band(20,60,1600,120,'HOST · App.jsx');
+band(20,210,1600,160,'ORCHESTRATION');
+band(20,400,1600,200,'AGENT LOOP KERNEL · src/agent/runtime');
+band(20,630,1600,180,'MODEL & SKILLS');
+band(20,840,1600,150,'TOOLS & SUPPORT');
+function anchor(id,s){const b=BOX[id];if(s==='r')return{x:b.x+b.w,y:b.y+b.h/2};if(s==='l')return{x:b.x,y:b.y+b.h/2};if(s==='t')return{x:b.x+b.w/2,y:b.y};return{x:b.x+b.w/2,y:b.y+b.h}}
+EDGES.forEach(e=>{
+  const A=anchor(e.from,'b'),B=anchor(e.to,'t');
+  let a=A,b=B;
+  if(e.from==='host'){a={x:anchor('host','b').x-300,y:anchor('host','b').y}}
+  if(e.to==='rt'){b={x:300,y:BOX.rt.y}}
+  if(e.to==='tools'){b={x:390,y:BOX.tools.y}}
+  const mx=(a.x+b.x)/2;
+  const p=el('path',{class:'edge'+(e.red?' red':'')+(e.dashed?' dashed':''),d:`M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`});
+  if(e.label){const m=p.getPointAtLength(p.getTotalLength()*0.5);const t=txt(m.x,m.y-5,e.label,'elabel'+(e.red?' red':''));t.setAttribute('text-anchor','middle')}
+});
+for(const id in BOX){
+  const b=BOX[id];
+  const g=el('g',{class:'node','data-id':id});
+  el('rect',{class:'box',x:b.x,y:b.y,width:b.w,height:b.h,rx:4},g);
+  txt(b.x+14,b.y+24,NODES[id].name,'t',g);
+  txt(b.x+14,b.y+44,b.s,'s',g);
+  txt(b.x+14,b.y+63,b.m,'m',g);
+  (b.debts||[]).forEach((d,i)=>{const bx=b.x+b.w-34,by=b.y+8+i*15;el('rect',{class:'badge',x:bx,y:by,width:27,height:12,rx:2},g);txt(bx+4,by+9.5,d,'',g)});
+  g.addEventListener('click',ev=>{ev.stopPropagation();inspect(id)});
+}
+/* 缩放平移 */
+let vb={x:0,y:0,w:1640,h:1020};
+function applyVB(){svg.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`)}
+function zoom(f,cx,cy){const nw=Math.min(4000,Math.max(500,vb.w*f));const r=nw/vb.w;cx=cx??vb.x+vb.w/2;cy=cy??vb.y+vb.h/2;vb={x:cx-(cx-vb.x)*r,y:cy-(cy-vb.y)*r,w:nw,h:vb.h*r};applyVB()}
+svg.addEventListener('wheel',e=>{e.preventDefault();zoom(e.deltaY>0?1.12:0.89,vb.x+e.offsetX/vb.clientWidth*vb.w,vb.y+e.offsetY/vb.clientHeight*vb.h)},{passive:false});
+let drag=null;
+svg.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y};svg.classList.add('dragging')});
+window.addEventListener('mousemove',e=>{if(!drag)return;vb.x=drag.vx-(e.clientX-drag.x)*vb.w/svg.clientWidth;vb.y=drag.vy-(e.clientY-drag.y)*vb.h/svg.clientHeight;applyVB()});
+window.addEventListener('mouseup',()=>{drag=null;svg.classList.remove('dragging')});
+document.getElementById('zin').onclick=()=>zoom(0.8);
+document.getElementById('zout').onclick=()=>zoom(1.25);
+document.getElementById('zfit').onclick=()=>{vb={x:0,y:0,w:1640,h:1020};applyVB()};
+/* 侧栏 */
+const sidebody=document.getElementById('sidebody');
+function renderFlows(){
+  sidebody.innerHTML='<div class="hint">点击流程名展开，点击步骤在图上高亮。</div>';
+  FLOWS.forEach(f=>{
+    const d=document.createElement('div');d.className='flow';
+    d.innerHTML=`<div class="t">${f.name}<small>${f.steps.length} 步</small></div><ol>${f.steps.map(s=>`<li>${s.t}</li>`).join('')}</ol>`;
+    d.querySelector('.t').onclick=()=>d.classList.toggle('open');
+    d.querySelectorAll('li').forEach((li,i)=>li.onclick=()=>{
+      d.querySelectorAll('li').forEach(x=>x.classList.remove('on'));li.classList.add('on');
+      const st=f.steps[i];
+      document.querySelectorAll('.node').forEach(n=>{n.classList.toggle('hl',st.n.includes(n.dataset.id));n.classList.toggle('dim',!st.n.includes(n.dataset.id))});
+    });
+    sidebody.appendChild(d);
+  });
+}
+function setPanel(p){document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.p===p));if(p==='flows'){clearHL();renderFlows()}}
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{setPanel(c.dataset.p)});
+function inspect(id){
+  document.querySelectorAll('.node').forEach(n=>n.classList.toggle('hl',n.dataset.id===id));
+  const n=NODES[id];
+  sidebody.innerHTML=`<div class="insp"><h3>${n.name}</h3>
+    <section><b>职责</b><p>${n.role}</p></section>
+    <section><b>技术</b><p>${n.tech}</p></section>
+    ${n.conn?`<section><b>连接</b><ul>${n.conn.map(c=>`<li>${c}</li>`).join('')}</ul></section>`:''}
+    ${n.debts?`<section><b>相关压力点</b>${n.debts.map(d=>`<p class="dt" data-d="${d}">${d} · ${DEBTS.flatMap(g=>g.items).find(x=>x.id===d)?.t||''}</p>`).join('')}</section>`:''}
+    <p class="hint">点击左上「关键流程」返回。</p></div>`;
+  sidebody.querySelectorAll('.dt').forEach(x=>x.onclick=()=>showDebt(x.dataset.d));
+  document.querySelector('.chip[data-p="insp"]').classList.add('on');document.querySelector('.chip[data-p="flows"]').classList.remove('on');
+}
+svg.addEventListener('click',()=>clearHL());
+function clearHL(){document.querySelectorAll('.node').forEach(n=>n.classList.remove('hl','dim'))}
+/* 压力点页 */
+const debtview=document.getElementById('debtview');
+function renderDebts(){
+  debtview.innerHTML=`<h2 style="color:#e2e8f0;font-size:18px">压力点 · 14 项（P1-P14）</h2><p style="color:var(--muted);font-size:12.5px;margin-top:4px">全部来自代码证据（文件:行号）。修复优先级建议见 AGENT_ARCHITECTURE.md §9。</p><div id="dg"></div>`;
+  const dg=debtview.querySelector('#dg');
+  DEBTS.forEach(g=>{
+    const h=document.createElement('div');h.className='grouphead';h.textContent=g.g;dg.appendChild(h);
+    const grid=document.createElement('div');grid.className='debtgrid';dg.appendChild(grid);
+    g.items.forEach(d=>{
+      const c=document.createElement('div');c.className='dcard';
+      c.innerHTML=`<span class="g">${g.g}</span><h3><span class="did">${d.id}</span>${d.t}</h3><p>${d.p}</p><p class="ev">证据 <code>${d.ev}</code></p><p class="rem">${d.r}</p>`;
+      grid.appendChild(c);
+    });
+  });
+}
+function showDebt(id){switchView('debt');debtview.scrollTop=0;const card=[...debtview.querySelectorAll('.dcard')].find(c=>c.textContent.includes(id));if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.style.outline='1px solid var(--amber)';setTimeout(()=>card.style.outline='',1600)}}
+function switchView(v){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.v===v));
+  document.getElementById('stage').style.display=v==='arch'?'':'none';
+  document.getElementById('archside').style.display=v==='arch'?'':'none';
+  debtview.style.display=v==='debt'?'block':'none';
+  if(v==='debt')renderDebts();
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchView(t.dataset.v));
+renderFlows();
+</script>
+</body>
+</html>

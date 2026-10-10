@@ -1,0 +1,8 @@
+# 失败与兼容记录（2026-09-29）
+
+评测主命令见 `../vibereader-model-comparison.md`。本记录仅列影响结论的失败；PDF 文本从未传到模型仓库或远程推理服务。
+
+1. `huggingface_hub.snapshot_download`，Granite 固定 SHA `4439955`，`NO_PROXY=*`、Xet 默认、4 workers：4 分 51 秒进度 4/10，权重 `.incomplete` 文件 0 字节，连接存在但无写入；人工中断（exit 130）。GTE `HF_HUB_DISABLE_XET=1`、`NO_PROXY=*`、2 workers：官方 API `ConnectTimeout [Errno 60]`，未下载。此前 HfApi 经系统代理出现 `httpx.ConnectError [SSL: UNEXPECTED_EOF_WHILE_READING]`。系统代理下用 `curl -fL -C -` 对官方固定 revision 单文件断点续传；GTE 首次传了 83,905,151 字节后 `curl: (18) Transferred a partial file`，续传到 611,934,706 字节；Granite 首次 TLS `SSL_ERROR_SYSCALL`，第二次传到 623,341,952 字节。均在隔离目录；下载不计入推理时间。
+2. 开发 `.venv`：ST 5.6.0、transformers 5.12.1、torch 2.12.0。GTE 官方 `new-impl` 固定 SHA `40ced75` 代码原样本地载入后，非持久 `position_ids` 缓冲异常（一次 CPU 观测为 `42949672970…532575944736`），应为 `0…8191`；CPU 报 `IndexError: index 149 is out of bounds for dimension 0 with size 23`，MPS 报 `torch.AcceleratorError: index ... is out of bounds`。仅重建 `position_ids` 后得到的 Hit@5=4/11 为**无效运行**：之后发现 rotary `inv_freq`、`cos_cached`、`sin_cached` 也被载入成 0。脚本只在该评测实例加载后重建两类非持久缓冲，再跑官方模型 forward。重建后 `position_ids=0…8191`、`rotary.inv_freq[0]=0.93708`、`cos_cached[0,0]=1`。单样本 MPS、CPU 可跑。
+3. 修正后相关/无关分数方向（MPS、同一次模型实例，相关段在前）：官方 Red Planet Mars/Venus `0.8525 > 0.3862`；中文“什么是监督学习”验收段/无关设计书段 `0.6963 > 0.0352`；英文 GSAP 动效题完整证据段/无关设计书段 `0.4817 > 0.0429`。这些只检验方向，不代替 11 题质量评估。
+4. 安装版 `/Applications/VibeReader.app` 打包 runtime：ST 6.1.0、transformers 5.17.0、torch 2.14.0；隔离 `HF_HOME`、离线、本地 GTE 权重、`device='mps'`。原样载入后 `position_ids` 为约 `-8.9e18…9.0e18`，rotary `inv_freq[0]=0`、`cos_cached[0,0]=0`；官方 Red Planet 样例原样推理报 `AttributeError: 'NewModel' object has no attribute 'get_extended_attention_mask'`。这是当前安装版直接替换的实测阻塞；未修改安装版或仓库来绕过它。
